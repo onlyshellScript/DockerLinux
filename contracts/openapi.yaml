@@ -1,0 +1,722 @@
+﻿openapi: 3.0.3
+info:
+  title: SIGOS 2.0 API
+  version: 0.2.0
+  description: Central API for SIGOS 2.0 desktop and mobile clients.
+servers:
+  - url: http://localhost:5000
+paths:
+  /api/v1/health:
+    get:
+      summary: Service health
+      responses:
+        '200':
+          description: Service and critical dependencies are available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReport'
+        '503':
+          description: One or more critical dependencies are unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReport'
+  /api/v1/auth/login:
+    post:
+      summary: Authenticate user and obtain tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Authentication successful.
+        '401':
+          description: Invalid credentials.
+        '429':
+          description: Too many attempts.
+  /api/v1/auth/refresh:
+    post:
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed.
+        '401':
+          description: Invalid refresh token.
+  /api/v1/users:
+    get:
+      summary: List users (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of users.
+        '401':
+          description: Unauthorized.
+        '403':
+          description: Insufficient permissions.
+    post:
+      summary: Create user (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role_names:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: User created.
+        '401':
+          description: Unauthorized.
+        '403':
+          description: Insufficient permissions.
+  /api/v1/users/{user_id}:
+    get:
+      summary: Get user (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User details.
+        '404':
+          description: User not found.
+    put:
+      summary: Update user (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                is_active:
+                  type: boolean
+                role_names:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: User updated.
+        '404':
+          description: User not found.
+  /api/v1/work-orders:
+    get:
+      summary: List work orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, assigned, in_progress, completed, closed, cancelled]
+        - name: assigned_to_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of work orders.
+        '401':
+          description: Unauthorized.
+    post:
+      summary: Create work order (admin or dispatcher)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                priority:
+                  type: string
+                  enum: [low, medium, high]
+                customer_name:
+                  type: string
+                customer_phone:
+                  type: string
+                address:
+                  type: string
+                assigned_to_id:
+                  type: integer
+      responses:
+        '201':
+          description: Work order created.
+        '401':
+          description: Unauthorized.
+        '403':
+          description: Insufficient permissions.
+  /api/v1/work-orders/{wo_id}:
+    get:
+      summary: Get work order
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Work order details.
+        '404':
+          description: Not found.
+    put:
+      summary: Update work order (admin or dispatcher)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                priority:
+                  type: string
+                assigned_to_id:
+                  type: integer
+      responses:
+        '200':
+          description: Work order updated.
+        '404':
+          description: Not found.
+  /api/v1/work-orders/{wo_id}/status:
+    post:
+      summary: Change work order status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to_status]
+              properties:
+                to_status:
+                  type: string
+                  enum: [pending, assigned, in_progress, completed, closed, cancelled]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Status changed.
+        '400':
+          description: Invalid transition.
+        '403':
+          description: Insufficient permissions.
+        '404':
+          description: Not found.
+  /api/v1/work-orders/{wo_id}/history:
+    get:
+      summary: Get status history
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Status history.
+        '404':
+          description: Not found.
+  /api/v1/materials:
+    get:
+      summary: List materials
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of materials.
+    post:
+      summary: Create material (admin or dispatcher)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, unit]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                unit:
+                  type: string
+                current_stock:
+                  type: number
+                min_stock:
+                  type: number
+                unit_price:
+                  type: number
+      responses:
+        '201':
+          description: Material created.
+  /api/v1/materials/{mat_id}:
+    get:
+      summary: Get material
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mat_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Material details.
+        '404':
+          description: Not found.
+    put:
+      summary: Update material (admin or dispatcher)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mat_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Material updated.
+  /api/v1/materials/{mat_id}/movements:
+    get:
+      summary: List stock movements
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mat_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Movement history.
+    post:
+      summary: Register stock movement (admin or dispatcher)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mat_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity, movement_type]
+              properties:
+                quantity:
+                  type: number
+                movement_type:
+                  type: string
+                  enum: [IN, OUT, CONSUMPTION]
+                work_order_id:
+                  type: integer
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Movement registered.
+        '400':
+          description: Insufficient stock.
+  /api/v1/technician-profiles:
+    get:
+      summary: List technician profiles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: is_available
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of profiles.
+    post:
+      summary: Create technician profile (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: integer
+                phone:
+                  type: string
+                specialty:
+                  type: string
+                is_available:
+                  type: boolean
+      responses:
+        '201':
+          description: Profile created.
+  /api/v1/technician-profiles/{profile_id}:
+    get:
+      summary: Get technician profile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Profile details.
+    put:
+      summary: Update technician profile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Profile updated.
+  /api/v1/work-orders/{wo_id}/evidences:
+    get:
+      summary: List evidences for a work order
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of evidences.
+        '404':
+          description: Work order not found.
+    post:
+      summary: Upload evidence (photo, document or observation)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [evidence_type]
+              properties:
+                evidence_type:
+                  type: string
+                  enum: [photo, document, observation]
+                file:
+                  type: string
+                  format: binary
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Evidence uploaded.
+        '400':
+          description: Invalid file type or missing file.
+        '403':
+          description: Insufficient permissions.
+        '404':
+          description: Work order not found.
+  /api/v1/evidences/{ev_id}/download:
+    get:
+      summary: Download evidence file
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ev_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: File content.
+        '404':
+          description: Not found.
+  /api/v1/evidences/{ev_id}:
+    delete:
+      summary: Delete evidence (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ev_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted.
+        '403':
+          description: Insufficient permissions.
+        '404':
+          description: Not found.
+  /api/v1/sync/push:
+    post:
+      summary: Push offline operations (idempotent)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [operations]
+              properties:
+                operations:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [client_operation_id, operation_type, payload]
+                    properties:
+                      client_operation_id:
+                        type: string
+                        format: uuid
+                      operation_type:
+                        type: string
+                        enum: [change_status, add_observation]
+                      payload:
+                        type: object
+      responses:
+        '200':
+          description: Results per operation (synced/failed/duplicate).
+        '400':
+          description: Invalid request.
+  /api/v1/sync/pull:
+    get:
+      summary: Pull changes since timestamp
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Changes since timestamp.
+  /api/v1/notifications:
+    get:
+      summary: List notifications (own for non-admin, all for admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, sent, failed]
+      responses:
+        '200':
+          description: List of notifications.
+    post:
+      summary: Enqueue notification (admin or dispatcher)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, channel, recipient, message]
+              properties:
+                user_id:
+                  type: integer
+                channel:
+                  type: string
+                  enum: [email, whatsapp]
+                recipient:
+                  type: string
+                subject:
+                  type: string
+                message:
+                  type: string
+      responses:
+        '201':
+          description: Notification enqueued.
+        '400':
+          description: Invalid request.
+        '403':
+          description: Insufficient permissions.
+  /api/v1/notifications/process:
+    post:
+      summary: Process pending notifications (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Number processed.
+  /api/v1/dashboard/summary:
+    get:
+      summary: Dashboard gerencial summary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: integer
+            enum: [7, 14, 30]
+        - name: zone
+          in: query
+          schema:
+            type: string
+        - name: technician_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Dashboard summary.
+        '401':
+          description: Missing or invalid token.
+        '403':
+          description: Insufficient permissions.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    HealthReport:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [UP, DOWN]
+
+
+
+
+

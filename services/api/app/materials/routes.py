@@ -1,0 +1,141 @@
+﻿from flask import Blueprint, request, jsonify
+
+from app.extensions import db
+from app.identity.decorators import require_auth, require_role
+from app.identity.models import User
+from app.materials.models import ALL_MOVEMENTS
+from app.materials.service import (
+    create_material,
+    list_materials,
+    get_material,
+    update_material,
+    register_movement,
+    get_movements,
+    create_profile,
+    list_profiles,
+    get_profile,
+    update_profile,
+)
+
+blueprint = Blueprint("materials", __name__)
+
+
+# ---- Materials ----
+
+@blueprint.get("/materials")
+@require_auth
+def materials_list():
+    is_active = request.args.get("is_active")
+    if is_active is not None:
+        is_active = is_active.lower() == "true"
+    materials = list_materials(is_active=is_active)
+    return jsonify([m.to_dict() for m in materials]), 200
+
+
+@blueprint.post("/materials")
+@require_role("admin", "dispatcher")
+def materials_create():
+    data = request.get_json()
+    if not data or not data.get("name") or not data.get("unit"):
+        return jsonify({"error": "name and unit required"}), 400
+    m = create_material(data)
+    return jsonify(m.to_dict()), 201
+
+
+@blueprint.get("/materials/<int:mat_id>")
+@require_auth
+def materials_get(mat_id):
+    m = get_material(mat_id)
+    if not m:
+        return jsonify({"error": "material not found"}), 404
+    return jsonify(m.to_dict()), 200
+
+
+@blueprint.put("/materials/<int:mat_id>")
+@require_role("admin", "dispatcher")
+def materials_update(mat_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "request body required"}), 400
+    m = update_material(mat_id, data)
+    if not m:
+        return jsonify({"error": "material not found"}), 404
+    return jsonify(m.to_dict()), 200
+
+
+# ---- Stock movements ----
+
+@blueprint.post("/materials/<int:mat_id>/movements")
+@require_role("admin", "dispatcher")
+def materials_movement(mat_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "request body required"}), 400
+    quantity = data.get("quantity")
+    movement_type = data.get("movement_type")
+    if quantity is None or quantity <= 0:
+        return jsonify({"error": "positive quantity required"}), 400
+    if movement_type not in ALL_MOVEMENTS:
+        return jsonify({"error": "invalid movement_type"}), 400
+    mv, error = register_movement(
+        mat_id, quantity, movement_type, request.user_id,
+        work_order_id=data.get("work_order_id"), notes=data.get("notes"),
+    )
+    if error == "not_found":
+        return jsonify({"error": "material not found"}), 404
+    if error == "insufficient_stock":
+        return jsonify({"error": "insufficient stock"}), 400
+    return jsonify(mv.to_dict()), 201
+
+
+@blueprint.get("/materials/<int:mat_id>/movements")
+@require_auth
+def materials_movements_list(mat_id):
+    movements = get_movements(mat_id=mat_id)
+    return jsonify([m.to_dict() for m in movements]), 200
+
+
+# ---- Technician profiles ----
+
+@blueprint.get("/technician-profiles")
+@require_auth
+def profiles_list():
+    is_available = request.args.get("is_available")
+    if is_available is not None:
+        is_available = is_available.lower() == "true"
+    profiles = list_profiles(is_available=is_available)
+    return jsonify([p.to_dict() for p in profiles]), 200
+
+
+@blueprint.post("/technician-profiles")
+@require_role("admin")
+def profiles_create():
+    data = request.get_json()
+    if not data or not data.get("user_id"):
+        return jsonify({"error": "user_id required"}), 400
+    user = db.session.get(User, data["user_id"])
+    if not user:
+        return jsonify({"error": "user not found"}), 400
+    p = create_profile(data)
+    return jsonify(p.to_dict()), 201
+
+
+@blueprint.get("/technician-profiles/<int:profile_id>")
+@require_auth
+def profiles_get(profile_id):
+    p = get_profile(profile_id)
+    if not p:
+        return jsonify({"error": "profile not found"}), 404
+    return jsonify(p.to_dict()), 200
+
+
+@blueprint.put("/technician-profiles/<int:profile_id>")
+@require_role("admin", "dispatcher")
+def profiles_update(profile_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "request body required"}), 400
+    p = update_profile(profile_id, data)
+    if not p:
+        return jsonify({"error": "profile not found"}), 404
+    return jsonify(p.to_dict()), 200

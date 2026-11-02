@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page fade-in">
+  <div class="sigos-card"><div class="empty-state">
+    <div class="empty-state__icon"><span class="material-symbols-outlined">construction</span></div>
+    <div class="empty-state__title">{{ page_title }}</div>
+    {% if detail %}<div class="empty-state__text">{{ detail.client }} · {{ detail.address }}<br>{{ detail.installationType }} · {{ detail.status }}</div>{% endif %}
+    <div class="empty-state__text">Vista pendiente de migrar desde React.</div>
+  </div></div>
+</div>
+{% endblock %}

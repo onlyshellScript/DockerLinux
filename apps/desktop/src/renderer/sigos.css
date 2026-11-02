@@ -1,0 +1,861 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+@theme {
+  --color-petroleum: #163028;
+  --color-petroleum-mid: #1E4535;
+  --color-petroleum-light: #2A5A47;
+  --color-action: #2E7A50;
+  --color-action-dark: #245E3E;
+  --color-positive: #4AAF72;
+  --color-warning: #E8A520;
+  --color-danger: #D63B3B;
+  --color-cream: #F5F2EB;
+  --color-cream-dark: #EAE6DE;
+  --color-sigos-border: #DDD9D3;
+  --font-display: 'Outfit', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  color: #1A1F27;
+  background: #F5F2EB;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', sans-serif;
+  margin: 0;
+}
+
+p { margin: 0; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #C8C3BB; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #A8A29A; }
+
+.sigos-card {
+  background: #fff;
+  border: 1px solid #DDD9D3;
+  border-radius: 6px;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.sigos-card--interactive { cursor: pointer; }
+.sigos-card--interactive:hover {
+  box-shadow: 0 8px 22px rgba(22, 48, 40, 0.09);
+  border-color: #CFC9C1;
+  transform: translateY(-1px);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid #2E7A50;
+  outline-offset: 2px;
+}
+
+.sigos-btn-primary:disabled,
+.sigos-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sigos-btn-primary:disabled:hover { background: #2E7A50; }
+.sigos-btn-secondary:disabled:hover { background: transparent; border-color: #DDD9D3; }
+
+.sigos-btn-primary {
+  background: #2E7A50;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s;
+}
+.sigos-btn-primary:hover { background: #245E3E; }
+
+.sigos-btn-secondary {
+  background: transparent;
+  color: #3A4552;
+  border: 1px solid #DDD9D3;
+  border-radius: 4px;
+  padding: 7px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.sigos-btn-secondary:hover { background: #F5F2EB; border-color: #AEA9A2; }
+
+.sigos-input {
+  border: 1px solid #DDD9D3;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: #1A1F27;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.sigos-input:focus { border-color: #2E7A50; box-shadow: 0 0 0 2px rgba(46,122,80,0.12); }
+.sigos-input::placeholder { color: #96908A; }
+
+.sigos-select {
+  border: 1px solid #DDD9D3;
+  border-radius: 4px;
+  padding: 7px 30px 7px 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: #3A4552;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748B' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+}
+.sigos-select:focus { border-color: #2E7A50; }
+
+.badge-pending { background: #FEF3C7; color: #92400E; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; font-family: 'DM Sans'; letter-spacing: 0.02em; }
+.badge-scheduled { background: #DBEAFE; color: #1E40AF; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; font-family: 'DM Sans'; letter-spacing: 0.02em; }
+.badge-inprogress { background: #E0F2FE; color: #0369A1; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; font-family: 'DM Sans'; letter-spacing: 0.02em; }
+.badge-completed { background: #DCFCE7; color: #166534; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; font-family: 'DM Sans'; letter-spacing: 0.02em; }
+.badge-cancelled { background: #FEE2E2; color: #991B1B; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; font-family: 'DM Sans'; letter-spacing: 0.02em; }
+
+.badge-high { background: #FEE2E2; color: #991B1B; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+.badge-medium { background: #FEF3C7; color: #92400E; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+.badge-low { background: #F1F5F9; color: #475569; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+
+.stock-badge-icon { display: inline-flex; }
+.stock-badge-icon svg { width: 12px; height: 12px; display: block; }
+
+.badge-available { background: #DCFCE7; color: #166534; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+.badge-busy { background: #DBEAFE; color: #1E40AF; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+.badge-offduty { background: #F1F5F9; color: #475569; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+
+.badge-admin { background: #EDE9FE; color: #5B21B6; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+.badge-coordinator { background: #DBEAFE; color: #1E40AF; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+.badge-technician { background: #DCFCE7; color: #166534; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+
+.tbl-row:hover { background: #FAFAF8; }
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.72);
+  transition: all 0.15s;
+  margin: 1px 8px;
+  white-space: nowrap;
+}
+.sidebar-nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.sidebar-nav-item.active { background: rgba(255,255,255,0.14); color: #fff; }
+.sidebar-nav-item.active svg { opacity: 1; }
+.sidebar-nav-item svg { opacity: 0.7; }
+
+.kpi-card {
+  background: #fff;
+  border: 1px solid #DDD9D3;
+  border-radius: 6px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #96908A;
+  font-family: 'DM Sans';
+}
+
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* ---------- Empty states ---------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+}
+.empty-state__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #F5F2EB;
+  border: 1px solid #EAE6DE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-bottom: 14px;
+  color: #A8A29A;
+}
+.empty-state__icon svg {
+  width: 24px;
+  height: 24px;
+}
+.empty-state__title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #3A4552;
+  margin-bottom: 4px;
+}
+.empty-state__text {
+  font-size: 13px;
+  color: #96908A;
+  max-width: 340px;
+  line-height: 1.5;
+}
+.empty-state__action { margin-top: 16px; }
+
+/* ---------- Motion ---------- */
+@keyframes sigos-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sigos-pop-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes sigos-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.fade-in { animation: sigos-fade-in 0.2s ease-out; }
+
+@keyframes sigos-chart-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+/* Entrada de gráficos del Dashboard; se anula con prefers-reduced-motion (regla *). */
+.sigos-chart-in {
+  animation: sigos-chart-in var(--sigos-dur-chart) var(--sigos-ease-out) both;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(22, 48, 40, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: sigos-fade-in 0.15s ease-out;
+}
+.modal-card { animation: sigos-pop-in 0.18s ease-out; }
+
+/* ---------- Misc ---------- */
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2E7A50;
+  cursor: pointer;
+}
+.link-btn:hover { text-decoration: underline; }
+
+.sigos-role-option {
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.sigos-role-option:hover {
+  border-color: #2E7A50 !important;
+  box-shadow: 0 6px 16px rgba(22, 48, 40, 0.1);
+  transform: translateY(-1px);
+}
+
+/* ---------- Scroll containers ---------- */
+.sigos-scroll { scrollbar-gutter: stable; }
+
+/* Table header sticky within card */
+.sigos-table-head th {
+  position: sticky;
+  top: 0;
+  background: #FAFAF8;
+  z-index: 1;
+}
+
+/* Native date/time pickers inherit input font */
+input[type='date'],
+input[type='time'] {
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* ---------- Sitio público (landing + legales) ---------- */
+/* Altura del header: fuente de verdad para los anclajes de seccion y para el
+   pin del ScrollStory. shortcut: valores fijos declarados, nunca medidos con
+   JS; actualizar aqui si la tipografia cambia la metrica de la fila. */
+:root {
+  --sigos-header-h: 61px;
+  --sigos-header-h-compact: 48px;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(245, 242, 235, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #E7E2D8;
+  /* env() es 0 hoy (el viewport no define viewport-fit=cover); se declara
+     igual para que un cambio de meta viewport no rompa la compensacion. */
+  height: calc(var(--sigos-header-h) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  transition: height var(--sigos-dur-fast) var(--sigos-ease-out);
+}
+
+.site-header.is-compact {
+  height: calc(var(--sigos-header-h-compact) + env(safe-area-inset-top, 0px));
+}
+
+.site-header__inner {
+  height: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.site-header__logo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.site-header__logo span {
+  transition:
+    width var(--sigos-dur-fast) var(--sigos-ease-out),
+    height var(--sigos-dur-fast) var(--sigos-ease-out),
+    font-size var(--sigos-dur-fast) var(--sigos-ease-out);
+}
+
+/* Anclajes (#funcionalidades, #faq, ...) en landing y paginas legales:
+   la seccion destino queda por debajo del header sticky, nunca tapada. */
+#contenido section[id] {
+  scroll-margin-top: calc(
+    var(--sigos-header-h) + env(safe-area-inset-top, 0px) + 12px
+  );
+}
+
+.public-mobile-toggle { display: none !important; }
+.public-mobile-menu { display: none !important; }
+
+@media (min-width: 900px) {
+  .hero-grid { grid-template-columns: minmax(0, 1fr) auto; }
+  .legal-grid { grid-template-columns: 230px minmax(0, 1fr); }
+}
+
+@media (max-width: 899px) {
+  .public-desktop-nav { display: none !important; }
+  .public-mobile-toggle { display: inline-flex !important; }
+  .public-mobile-menu { display: grid !important; }
+  /* Clearance inferior en móvil: el banner de cookies es fixed y no debe
+     tapar las flechas/puntos del carrusel. */
+  .sigos-showcase { padding-bottom: 150px !important; }
+}
+
+/* ---------- Landing: tokens de movimiento ---------- */
+:root {
+  --sigos-dur-fast: 160ms;
+  --sigos-dur-base: 320ms;
+  --sigos-dur-slow: 620ms;
+  --sigos-dur-chart: 500ms;
+  --sigos-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --sigos-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Tamaño del teléfono (hero + carrusel) */
+  --sigos-slide-w: 250px;
+  --sigos-slide-h: 512px;
+  /* Ritmo vertical entre secciones de contenido (landing). 7vw a 1280 deja
+     ~180 px entre secciones consecutivas; el mínimo cubre pantallas de 390. */
+  --sigos-section-py: clamp(48px, 7vw, 96px);
+}
+
+@media (max-width: 640px) {
+  :root {
+    --sigos-slide-w: 214px;
+    --sigos-slide-h: 440px;
+  }
+}
+
+/* Accesibilidad: texto solo para lectores de pantalla */
+.sigos-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Entrada al hacer scroll (IntersectionObserver) */
+.sigos-reveal {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0);
+  transition:
+    opacity var(--sigos-dur-slow) var(--sigos-ease-out),
+    transform var(--sigos-dur-slow) var(--sigos-ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.sigos-reveal.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Elevación al pasar el cursor en tarjetas */
+.sigos-landing-card {
+  transition:
+    transform var(--sigos-dur-base) var(--sigos-ease-out),
+    box-shadow var(--sigos-dur-base) var(--sigos-ease-out),
+    border-color var(--sigos-dur-base) var(--sigos-ease-standard);
+}
+.sigos-landing-card:hover {
+  transform: translate3d(0, -4px, 0);
+  box-shadow: 0 16px 34px rgba(22, 48, 40, 0.12);
+  border-color: #cfc9c1;
+}
+
+/* Inclinación del teléfono del hero al pasar el cursor */
+.sigos-hero-phone {
+  transition: transform var(--sigos-dur-slow) var(--sigos-ease-out);
+  will-change: transform;
+}
+.sigos-hero-phone:hover {
+  transform: perspective(900px) rotateX(4deg) rotateY(-7deg) translate3d(0, -6px, 0);
+}
+
+/* Transición de color e icono en botones/enlaces de la landing */
+.sigos-landing-btn,
+.sigos-landing-link {
+  transition:
+    color var(--sigos-dur-base) var(--sigos-ease-standard),
+    background-color var(--sigos-dur-base) var(--sigos-ease-standard),
+    border-color var(--sigos-dur-base) var(--sigos-ease-standard),
+    box-shadow var(--sigos-dur-base) var(--sigos-ease-out);
+}
+.sigos-landing-btn svg,
+.sigos-landing-link svg {
+  transition: transform var(--sigos-dur-base) var(--sigos-ease-out);
+}
+.sigos-landing-btn:hover svg,
+.sigos-landing-link:hover svg {
+  transform: translateX(2px);
+}
+.sigos-landing-link:hover {
+  color: #245e3e;
+  text-decoration: underline;
+}
+
+/* ---------- Carrusel de pantallas ---------- */
+.sigos-carousel {
+  outline: none;
+}
+.sigos-carousel:focus-visible {
+  outline: 2px solid #2e7a50;
+  outline-offset: 6px;
+  border-radius: 16px;
+}
+
+.sigos-carousel-viewport {
+  position: relative;
+}
+
+.sigos-carousel-track {
+  --sigos-carousel-gap: 22px;
+  display: flex;
+  gap: var(--sigos-carousel-gap);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scroll-padding-inline: calc(50% - (var(--sigos-slide-w) / 2));
+  padding-inline: calc(50% - (var(--sigos-slide-w) / 2));
+  padding-block: 12px 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.sigos-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.sigos-carousel-slide {
+  flex: 0 0 auto;
+  width: var(--sigos-slide-w);
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: scale(0.86);
+  opacity: 0.5;
+  filter: saturate(0.85);
+  transition:
+    transform var(--sigos-dur-slow) var(--sigos-ease-out),
+    opacity var(--sigos-dur-slow) var(--sigos-ease-out),
+    filter var(--sigos-dur-slow) var(--sigos-ease-out);
+}
+.sigos-carousel-slide.is-active {
+  transform: scale(1);
+  opacity: 1;
+  filter: none;
+}
+
+.sigos-carousel-caption {
+  margin-top: 16px;
+  text-align: center;
+  max-width: 260px;
+  display: grid;
+  gap: 3px;
+}
+.sigos-carousel-caption__title {
+  font-family: "Outfit", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #163028;
+}
+.sigos-carousel-caption__desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #55606e;
+}
+
+/* Flechas */
+.sigos-carousel-arrow {
+  position: absolute;
+  top: calc(var(--sigos-slide-h) / 2);
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid #ddd9d3;
+  background: rgba(255, 255, 255, 0.92);
+  color: #163028;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(22, 48, 40, 0.14);
+  transition:
+    background var(--sigos-dur-fast) var(--sigos-ease-standard),
+    color var(--sigos-dur-fast) var(--sigos-ease-standard),
+    transform var(--sigos-dur-fast) var(--sigos-ease-out);
+}
+.sigos-carousel-arrow:hover {
+  background: #2e7a50;
+  color: #fff;
+}
+.sigos-carousel-arrow:active {
+  transform: translateY(-50%) scale(0.94);
+}
+.sigos-carousel-arrow--prev {
+  left: 4px;
+}
+.sigos-carousel-arrow--next {
+  right: 4px;
+}
+
+@media (max-width: 520px) {
+  .sigos-carousel-arrow {
+    width: 36px;
+    height: 36px;
+  }
+  .sigos-carousel-arrow--prev {
+    left: 0;
+  }
+  .sigos-carousel-arrow--next {
+    right: 0;
+  }
+}
+
+/* Puntos indicadores */
+.sigos-carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.sigos-carousel-dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background: #cfc9be;
+  cursor: pointer;
+  transition:
+    background var(--sigos-dur-fast) var(--sigos-ease-standard),
+    transform var(--sigos-dur-fast) var(--sigos-ease-out);
+}
+.sigos-carousel-dot:hover {
+  background: #9aa5b1;
+}
+.sigos-carousel-dot.is-active {
+  background: #2e7a50;
+  transform: scale(1.3);
+}
+
+/* ---------- Skeleton de carga (shimmer) ---------- */
+.sigos-skeleton {
+  --sigos-sk-base: #e9e4db;
+  --sigos-sk-hl: #f5f2eb;
+  background-color: var(--sigos-sk-base);
+  background-image: linear-gradient(
+    90deg,
+    var(--sigos-sk-base) 0%,
+    var(--sigos-sk-hl) 40%,
+    var(--sigos-sk-base) 80%
+  );
+  background-size: 220% 100%;
+  animation: sigos-shimmer 1.3s ease-in-out infinite;
+  border-radius: 10px;
+}
+@keyframes sigos-shimmer {
+  0% {
+    background-position: 140% 0;
+  }
+  100% {
+    background-position: -40% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Entradas instantáneas y sin parallax/inclinación */
+  .sigos-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .sigos-hero-phone:hover {
+    transform: none;
+  }
+  .sigos-carousel-track {
+    scroll-behavior: auto;
+  }
+}
+
+/* ---------- App shell: sidebar colapsable (Cambio 2) ---------- */
+/* shortcut: 232/72 px fijos según el padding actual de .sidebar-nav-item;
+   revisar si cambia el padding/márgenes de los items. */
+:root {
+  --sidebar-w: 232px;
+  --sidebar-w-collapsed: 72px;
+}
+
+/* La contención (contain:layout) va en el sidebar —el elemento que anima— y
+   NO en el main: contain:layout convierte al ancestro en containing block de
+   los hijos position:fixed y atraparía .modal-overlay (sonda CDP: el fijo
+   queda en la caja del host, no en el viewport). */
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  z-index: 45;
+  contain: layout;
+  transition:
+    width var(--sigos-dur-fast) var(--sigos-ease-out),
+    min-width var(--sigos-dur-fast) var(--sigos-ease-out);
+}
+.app-sidebar:focus {
+  outline: none;
+}
+.app-sidebar.is-collapsed {
+  width: var(--sidebar-w-collapsed);
+  min-width: var(--sidebar-w-collapsed);
+}
+
+.app-sidebar__head {
+  padding: 20px 20px 16px;
+}
+.app-sidebar.is-collapsed .app-sidebar__head {
+  padding: 20px 10px 16px;
+}
+.app-sidebar.is-collapsed .app-sidebar__head > div {
+  justify-content: center;
+  gap: 0;
+}
+
+.app-sidebar__toggle {
+  position: absolute;
+  top: 18px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: #2e7a50;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+}
+.app-sidebar__toggle:hover {
+  background: #256b45;
+}
+.app-sidebar__toggle:focus-visible {
+  outline: 2px solid #a3d4b5;
+  outline-offset: 2px;
+}
+
+/* Colapsado: solo iconos + punto de badge */
+.app-sidebar.is-collapsed .app-sidebar__brand-text,
+.app-sidebar.is-collapsed .app-sidebar__label,
+.app-sidebar.is-collapsed .app-sidebar__section-label,
+.app-sidebar.is-collapsed .app-sidebar__divider,
+.app-sidebar.is-collapsed .app-sidebar__user-text {
+  display: none;
+}
+.app-sidebar.is-collapsed .sidebar-nav-item {
+  justify-content: center;
+  margin: 1px 6px;
+  padding: 9px 8px;
+}
+.app-sidebar.is-collapsed .app-sidebar__user {
+  padding: 12px 8px;
+  gap: 4px;
+  justify-content: space-between;
+}
+
+.app-sidebar__user {
+  padding: 12px 16px;
+  gap: 10px;
+}
+
+.sidebar-nav-item {
+  position: relative;
+}
+.sidebar-nav-item__dot {
+  position: absolute;
+  top: 7px;
+  left: calc(50% + 6px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Scrollbar del nav sobre fondo oscuro: el thumb global #C8C3BB deja una
+   barra clara justo encima del bloque de perfil. */
+.app-sidebar__nav {
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  scrollbar-width: thin;
+}
+.app-sidebar__nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ---------- Móvil (<768px): drawer superpuesto + TopBar compacto (Cambio 2b) ---------- */
+.topbar-menu-btn {
+  display: none;
+}
+/* El display vive en CSS (no inline) para que el media query lo pueda ocultar. */
+.topbar-search {
+  display: flex;
+}
+
+@media (max-width: 767px) {
+  /* El sidebar sale del flujo y se superpone: el main gana el ancho completo.
+     is-collapsed nunca llega aquí (AppLayout fuerza collapsed=false en móvil). */
+  .app-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: min(280px, 85vw);
+    min-width: 0;
+    transform: translateX(-100%);
+    visibility: hidden;
+    z-index: 60;
+    transition:
+      transform var(--sigos-dur-fast) var(--sigos-ease-out),
+      visibility 0s linear var(--sigos-dur-fast);
+  }
+  .app-sidebar.is-drawer-open {
+    transform: translateX(0);
+    visibility: visible;
+    transition:
+      transform var(--sigos-dur-fast) var(--sigos-ease-out),
+      visibility 0s;
+  }
+  .app-sidebar__toggle {
+    display: none;
+  }
+
+  .topbar-menu-btn {
+    display: flex;
+  }
+  .sigos-topbar {
+    padding: 0 12px;
+    gap: 10px;
+  }
+  .sigos-topbar .topbar-search,
+  .sigos-topbar .topbar-help,
+  .sigos-topbar .topbar-profile-text {
+    display: none;
+  }
+  .topbar-title {
+    min-width: 0;
+  }
+  .topbar-title > div:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.app-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 17, 0.5);
+  z-index: 55;
+}

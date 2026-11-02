@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Órdenes · SIGOS{% endblock %}
+{% block topbar_actions %}<button class="sigos-btn-primary" type="button" onclick="document.getElementById('modal').hidden=false">{{ icon('plus') }} Nueva orden</button>{% endblock %}
+{% block content %}
+<div class="page fade-in">
+  {% for m in get_flashed_messages() %}<div class="flash">{{ m }}</div>{% endfor %}
+  <div class="tabs">
+    {% for label, st, n in tabs %}
+    <a class="tab{{ ' on' if f.status == st }}" href="{{ url_for('orders', status=st or None, q=f.q or None, tech=f.tech or None, zone=f.zone or None) }}">{{ label }} <i>{{ n }}</i></a>
+    {% endfor %}
+  </div>
+
+  <form class="sigos-card filters" method="get" id="filters">
+    <input type="hidden" name="status" value="{{ f.status }}">
+    <div class="f-search"><span class="ico">{{ icon('search') }}</span>
+      <input type="text" name="q" class="sigos-input" placeholder="Buscar por cliente, ID, dirección..." value="{{ f.q }}"></div>
+    <select name="tech" class="sigos-select" onchange="this.form.submit()">
+      <option value="">Todos los técnicos</option>
+      {% for n in tech_names %}<option {{ 'selected' if f.tech == n }}>{{ n }}</option>{% endfor %}
+    </select>
+    <select name="zone" class="sigos-select" onchange="this.form.submit()">
+      <option value="">Todas las zonas</option>
+      {% for z in zones %}<option {{ 'selected' if f.zone == z }}>{{ z }}</option>{% endfor %}
+    </select>
+    <button class="sigos-btn-secondary" style="height:34px;padding:0 14px" type="submit">{{ icon('filter') }} Filtros</button>
+    {% if f.q or f.status or f.tech or f.zone %}<a href="{{ url_for('orders') }}" style="font-size:12px;color:#D63B3B;text-decoration:none">Limpiar</a>{% endif %}
+    <div style="margin-left:auto;font-size:12px;color:#96908A">{{ orders|length }} resultados</div>
+  </form>
+
+  <div class="sigos-card" style="overflow:hidden">
+    <table class="tbl">
+      <thead><tr>{% for h in ["ID Orden","Cliente","Dirección","Tipo","Técnico","Fecha visita","Estado","Prioridad","Acciones"] %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for o in orders %}
+      <tr class="tbl-row" onclick="location.href='{{ url_for('order_detail', order_id=o.id) }}'">
+        <td><span class="mono" style="font-size:12px;font-weight:600;color:#163028">{{ o.id }}</span></td>
+        <td><div style="font-size:13px;font-weight:500;color:#1A1F27">{{ o.client }}</div></td>
+        <td><div style="font-size:12px;color:#64748B;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ o.address }}</div></td>
+        <td><div style="font-size:12px;color:#3A4552">{{ o.installationType }}</div></td>
+        <td><div class="tech-chip"><b>{{ o.technician.split()[:2]|map('first')|join if o.technician else '—' }}</b><span style="font-size:12px;color:#3A4552">{{ o.technician or 'Sin asignar' }}</span></div></td>
+        <td><div style="font-size:12px;color:#3A4552">{{ o.visitDate or '—' }}</div><div style="font-size:11px;color:#96908A">{{ o.visitTime }}</div></td>
+        <td><span class="badge-{{ STATUS_CLASS[o.status] }}">{{ o.status }}</span></td>
+        <td><span class="badge-{{ PRIORITY_CLASS[o.priority] }}">{{ o.priority }}</span></td>
+        <td><div class="act"><a class="ver" href="{{ url_for('order_detail', order_id=o.id) }}">{{ icon('eye', 16) }} Ver</a><a href="#" onclick="event.stopPropagation()">{{ icon('edit', 16) }}</a></div></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if not orders %}
+    <div class="empty-state fade-in">    <div class="empty-state__icon"><span class="material-symbols-outlined">list_alt</span></div><div class="empty-state__title">Sin resultados</div>
+      <div class="empty-state__text">No encontramos órdenes con esos criterios. Ajusta la búsqueda o los filtros.</div>
+      <div class="empty-state__action"><a class="sigos-btn-secondary" href="{{ url_for('orders') }}" style="text-decoration:none">Limpiar filtros</a></div></div>
+    {% endif %}
+  </div>
+
+  <div class="pager">
+    <div style="font-size:12px;color:#96908A">Mostrando {{ orders|length }} de {{ base_count }} órdenes</div>
+    <div>{% for p in [1,2,3,'...',18] %}<button type="button" class="{{ 'on' if p == 1 }}">{{ p }}</button>{% endfor %}</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal" hidden onclick="if(event.target===this)this.hidden=true">
+  <form class="sigos-card modal-card" method="post" action="{{ url_for('create_order') }}">
+    <div class="modal-head"><h3>Nueva orden de servicio</h3>
+      <button type="button" onclick="document.getElementById('modal').hidden=true" style="background:none;border:none;cursor:pointer;color:#96908A;font-size:20px">×</button></div>
+    <div class="modal-body">
+      <div class="fld"><label>Cliente</label><input class="sigos-input" name="client" required placeholder="Nombre completo o razón social"></div>
+      <div class="grid2">
+        <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Dirección</label><input class="sigos-input" name="address" placeholder="Dirección de instalación"></div>
+        <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Teléfono</label><input class="sigos-input" name="phone"></div>
+      </div>
+      <div class="grid2">
+        <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Tipo de instalación</label>
+          <select class="sigos-select" name="installationType" style="width:100%">{% for t in install_types %}<option>{{ t }}</option>{% endfor %}</select></div>
+        <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Prioridad</label>
+          <select class="sigos-select" name="priority" style="width:100%"><option>Alta</option><option selected>Media</option><option>Baja</option></select></div>
+      </div>
+      <div class="grid2">
+        <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Técnico</label>
+          <select class="sigos-select" name="technician" style="width:100%"><option value="">Sin asignar</option>{% for n in tech_names %}<option>{{ n }}</option>{% endfor %}</select></div>
+        <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Zona</label>
+          <select class="sigos-select" name="zone" style="width:100%">{% for z in zones %}<option>{{ z }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="grid2">
+        <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Fecha de visita</label><input class="sigos-input" type="date" name="visitDate"></div>
+        <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Hora</label><input class="sigos-input" type="time" name="visitTime" value="09:00"></div>
+      </div>
+      <div class="fld"><label>Notas</label><textarea class="sigos-input" name="notes" rows="3"></textarea></div>
+    </div>
+    <div class="modal-foot"><button type="button" class="sigos-btn-secondary" onclick="document.getElementById('modal').hidden=true">Cancelar</button><button class="sigos-btn-primary">Crear orden</button></div>
+  </form>
+</div>
+{% endblock %}

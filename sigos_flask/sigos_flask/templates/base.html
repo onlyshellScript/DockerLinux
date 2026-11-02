@@ -1,0 +1,64 @@
+{% from "_icons.html" import icon %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}SIGOS{% endblock %}</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/sigos.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+{% block body %}
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 12h8M12 8v8"/><circle cx="12" cy="12" r="3" fill="white" stroke="none"/></svg></div>
+      <div><div class="sb-name">SIGOS</div><div class="sb-ver">v2.4.1 — Gas Natural</div></div>
+    </div>
+    <div class="sb-label">Principal</div>
+    <nav class="sb-nav">
+      {% for ep, label, ico, roles in nav %}
+      <a href="{{ url_for(ep) }}" class="sidebar-nav-item{{ ' active' if active == ep }}">
+        <span style="flex-shrink:0">{{ icon(ico) }}</span><span style="flex:1">{{ label }}</span>
+        {% if badges.get(ep) %}<span class="nav-badge" style="background:{{ '#E8A520' if ep == 'materials' else '#2E7A50' }}">{{ badges[ep] }}</span>{% endif %}
+      </a>
+      {% endfor %}
+      <div class="sb-sep"></div>
+      <div class="sb-label" style="padding:0 24px 6px">Sistema</div>
+      {% for ep, label, ico, roles in nav_bottom %}
+      <a href="{{ url_for(ep) }}" class="sidebar-nav-item{{ ' active' if active == ep }}">
+        <span style="flex-shrink:0">{{ icon(ico) }}</span><span style="flex:1">{{ label }}</span>
+        {% if badges.get(ep) %}<span class="nav-badge" style="background:#D63B3B">{{ badges[ep] }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </nav>
+    <div class="sb-user">
+      <div class="avatar-lg">{{ current_user.initials }}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ current_user.name }}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:1px">{{ current_user.role }}</div>
+      </div>
+      <a href="{{ url_for('logout') }}" title="Cerrar sesión" style="color:rgba(255,255,255,.4);padding:4px;display:flex">{{ icon('logout') }}</a>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div style="flex:1"><div class="tb-title">{{ page_title }}</div>{% if page_subtitle %}<div class="tb-sub">{{ page_subtitle }}</div>{% endif %}</div>
+      <div class="tb-search"><span class="ico">{{ icon('search') }}</span>
+        <form action="{{ url_for('orders') }}" style="width:100%"><input type="text" name="q" class="sigos-input" placeholder="Buscar órdenes, técnicos, clientes..."></form></div>
+      {% block topbar_actions %}{% endblock %}
+      <button class="tb-btn">Ayuda</button>
+      <a class="bell" href="{{ url_for('notifications') }}">{{ icon('bell') }}{% if unread %}<span>{{ unread }}</span>{% endif %}</a>
+      <a class="tb-btn" href="{{ url_for('mobile') }}" title="Vista de técnico en campo">{{ icon('mobile') }}<span>Campo</span></a>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="avatar-sm">{{ current_user.initials }}</div>
+        <div><div style="font-size:12px;font-weight:600;color:#1A1F27;line-height:1.2">{{ current_user.name }}</div><div style="font-size:10px;color:#96908A">{{ current_user.role }}</div></div>
+      </div>
+    </header>
+    {% block content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}{% endblock %}
+</body></html>
