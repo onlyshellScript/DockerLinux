@@ -1,4 +1,3 @@
-
 const state = {
   session: null,
   view: 'dashboard',
@@ -360,9 +359,12 @@ async function renderCalendar(content) {
    if (!state.calendarState) {
      let restored = null;
      try { restored = JSON.parse(localStorage.getItem('sigos.calendar') || 'null'); } catch (e) {}
+     const validDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+     if (restored && !validDate(restored.anchor)) restored = null;
      state.calendarState = restored || { view: 'week', anchor: calTodayStr(), selectedDay: calTodayStr(), filters: { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false } };
      if (!state.calendarState.filters) state.calendarState.filters = { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false };
-     if (!state.calendarState.selectedDay) state.calendarState.selectedDay = state.calendarState.anchor || calTodayStr();
+     if (!validDate(state.calendarState.selectedDay)) state.calendarState.selectedDay = state.calendarState.anchor || calTodayStr();
+     if (!validDate(state.calendarState.anchor)) state.calendarState.anchor = calTodayStr();
    }
   const cs = state.calendarState;
   // load tz from settings public
@@ -398,8 +400,9 @@ async function renderCalendar(content) {
   params.set('to', toIso);
   Object.entries(cs.filters).forEach(([k,v]) => { if (v) params.set(k, v); });
   if (cs.filters.include_cancelled) params.set('include_cancelled', 'true');
-  let items = [], unassigned = [], error = null, offline = false, eventsErrorDetail = null, unassignedError = null;
-  try {
+   let items = [], unassigned = [], error = null, offline = false, eventsErrorDetail = null, unassignedError = null;
+   let techOpts = [], cityOpts = [], zoneOpts = [], typeOpts = [];
+   try {
     const res = await api('GET', '/api/v1/calendar/events?' + params.toString());
     if (res.ok) items = (res.body && res.body.items) || [];
     else { error = (res.body && (res.body.message || res.body.error)) || 'Error del servidor'; eventsErrorDetail = { status: res.status, code: (res.body && res.body.code) || null, url: '/api/v1/calendar/events', body: res.body, transportError: res.error || null }; console.error('calendar events error', eventsErrorDetail); }
@@ -409,7 +412,7 @@ async function renderCalendar(content) {
     state._calItems = items;
     state._calUnassigned = unassigned;
     if (!error) cs.lastUpdated = Date.now();
-    let techOpts = [], cityOpts = [], zoneOpts = [], typeOpts = [];
+    techOpts = []; cityOpts = []; zoneOpts = []; typeOpts = [];
     if (hasRole('admin') || hasRole('dispatcher')) {
       try { const tr = await api('GET', '/api/v1/technicians?page_size=200&active=true'); if (tr.ok) techOpts = (tr.body && tr.body.items) || []; } catch(e) {}
     }
@@ -667,7 +670,7 @@ async function renderCalendar(content) {
    html += '</div>';
   html += '</div>';
   html += '</div>';
-  content.innerHTML = html;
+   content.innerHTML = html;
   // bind events
   const prev = document.getElementById('calPrev');
   const next = document.getElementById('calNext');
@@ -2480,3 +2483,15 @@ function openCalendarAt(date, techId) {
   state.view = 'calendar';
   render();
 }
+
+window.addEventListener('error', (e) => {
+  console.error('Runtime error:', e.error || e.message);
+  const c = document.getElementById('content');
+  if (c) c.innerHTML = '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">Error en la vista</div><div class="empty-state__text">' + escapeHtml(e.message || 'Error desconocido') + '</div></div></div>';
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('Unhandled rejection:', e.reason);
+  const c = document.getElementById('content');
+  if (c) c.innerHTML = '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">Error en la vista</div><div class="empty-state__text">' + escapeHtml(String(e.reason && (e.reason.message || e.reason) || 'Error desconocido')) + '</div></div></div>';
+});
