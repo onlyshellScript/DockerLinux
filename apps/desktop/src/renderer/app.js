@@ -382,6 +382,7 @@ async function renderCalendar(content) {
     const ures = await api('GET', '/api/v1/calendar/unassigned?page_size=50');
     if (ures.ok) unassigned = (ures.body && ures.body.items) || [];
     else { unassignedError = (ures.body && (ures.body.message || ures.body.error)) || 'Error del servidor'; console.error('calendar unassigned error', ures); }
+    state._calItems = items;
     let techOpts = [], cityOpts = [], zoneOpts = [], typeOpts = [];
     if (hasRole('admin') || hasRole('dispatcher')) {
       try { const tr = await api('GET', '/api/v1/technicians?page_size=200&active=true'); if (tr.ok) techOpts = (tr.body && tr.body.items) || []; } catch(e) {}
@@ -514,9 +515,11 @@ async function renderCalendar(content) {
           const height = (durMin/60)*48;
           const width = (100/cols.length) + '%';
           const left = (col.index/cols.length*100) + '%';
-          const color = e.status==='in_progress'?'#C9892A':e.status==='completed'?'#2A5C45':'#8A847C';
-          const dash = e.schedule_status === 'unassigned' ? 'border-style:dashed' : '';
-          html += '<div title="' + escapeHtml(orderCode(e) + ' ' + e.title) + '" style="position:absolute;top:' + top + 'px;left:' + left + ';width:' + width + ';height:' + height + 'px;background:#F3F8F5;border:1px solid ' + color + ';' + dash + ';border-radius:4px;padding:2px 4px;font-size:11px;overflow:hidden;pointer-events:auto">';
+           const color = e.status==='in_progress'?'#C9892A':e.status==='completed'?'#2A5C45':'#8A847C';
+           const dash = e.schedule_status === 'unassigned' ? 'border-style:dashed' : '';
+           const selected = cs.selectedEventId === e.order_id;
+           const selStyle = selected ? 'border:2px solid #2E7A50;box-shadow:0 4px 12px rgba(46,122,80,.25);' : ('border:1px solid ' + color + ';');
+           html += '<div class="cal-event" data-event-id="' + e.order_id + '" tabindex="0" title="' + escapeHtml(orderCode(e) + ' ' + e.title) + '" style="position:absolute;top:' + top + 'px;left:' + left + ';width:' + width + ';height:' + height + 'px;background:#F3F8F5;' + selStyle + dash + ';border-radius:4px;padding:2px 4px;font-size:11px;overflow:hidden;pointer-events:auto;cursor:pointer">';
           html += '<div style="font-family:JetBrains Mono,monospace;font-size:10px">' + escapeHtml(orderCode(e)) + '</div>';
           html += '<div style="font-weight:600">' + escapeHtml(e.title) + '</div>';
           html += '<div style="color:#64748B">' + escapeHtml((e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar') + '</div>';
@@ -550,6 +553,57 @@ async function renderCalendar(content) {
   if (!porAsignar.length) html += '<div style="font-size:11px;color:#96908A">Sin pendientes</div>';
    porAsignar.slice(0,8).forEach(o => { html += '<div style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4">' + pendingLine(o) + '</div>'; });
   html += '</div>';
+   const selectedEvent = (items || []).find(e => e.order_id === cs.selectedEventId) || null;
+   if (cs.selectedEventId && !selectedEvent) cs.selectedEventId = null;
+   // selected event detail
+   html += '<div class="sigos-card" style="padding:10px"><div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028;margin-bottom:6px">Detalle de la visita</div>';
+   if (selectedEvent) {
+     const e = selectedEvent;
+     const techs = (e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar';
+     html += '<div style="font-family:JetBrains Mono,monospace;font-size:11px;margin-bottom:2px">' + escapeHtml(orderCode(e)) + '</div>';
+     html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px">' + escapeHtml(e.title) + '</div>';
+     const fields = [
+       ['Cliente', e.customer_name || '—'],
+       ['Dirección', e.address || e.city || '—'],
+       ['Tipo', e.installation_type || e.type || '—'],
+       ['Estado', (typeof statusOf === 'function' ? statusOf(e.status).label : e.status)],
+       ['Prioridad', (typeof priorityOf === 'function' ? priorityOf(e.priority).label : e.priority)],
+       ['Horario', e.start.slice(11,16) + '–' + e.end.slice(11,16)],
+       ['Técnico', techs],
+       ['Observaciones', e.schedule_notes || e.notes || '—'],
+     ];
+     fields.forEach(([k,v]) => { html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> ' + escapeHtml(v) + '</div>'; });
+     // actions
+     const canSchedule = hasRole('admin') || hasRole('dispatcher');
+     const st = e.status;
+     const canProgram = canSchedule && ['pending','assigned'].includes(st);
+     const canReprogram = canSchedule && ['pending','assigned','in_progress'].includes(st);
+     const canAssign = canSchedule && ['pending','assigned'].includes(st);
+     const canCancel = canSchedule && ['pending','assigned','in_progress'].includes(st);
+     const transitions = {
+       pending: ['assigned','cancelled'],
+       assigned: ['in_progress','cancelled'],
+       in_progress: ['completed'],
+       completed: ['closed'],
+       closed: [],
+       cancelled: [],
+     };
+     const validNext = (transitions[st] || []).filter(s => !(s==='cancelled' && !canCancel));
+     html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">';
+     html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="open">Abrir orden</button>';
+     if (canProgram || canReprogram) html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="schedule">' + (e.scheduled_at?'Reprogramar':'Programar') + '</button>';
+     else html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" disabled title="No permitido en este estado">Programar</button>';
+     if (canAssign) html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="assign">Asignar/Reasignar</button>';
+     validNext.forEach(ns => {
+       const label = ns === 'cancelled' ? 'Cancelar' : ('Cambiar a ' + ns);
+       html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="transition" data-next="' + ns + '">' + escapeHtml(label) + '</button>';
+     });
+     html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="history">Ver historial</button>';
+     html += '</div>';
+   } else {
+     html += '<div style="font-size:12px;color:#96908A">Selecciona una visita para ver su detalle y acciones.</div>';
+   }
+   html += '</div>';
    if (!cs.selectedDay) cs.selectedDay = todayStr;
    const selDay = cs.selectedDay;
    html += '<div class="sigos-card" style="padding:10px;flex:1;overflow:auto"><div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028;margin-bottom:6px">Órdenes del día seleccionado</div>';
@@ -577,6 +631,42 @@ async function renderCalendar(content) {
   if (next) next.addEventListener('click', () => { cs.anchor = calAddDays(anchor, cs.view==='month'?30:cs.view==='day'?1:7).toISOString().slice(0,10); render(); });
   if (todayBtn) todayBtn.addEventListener('click', () => { cs.anchor = calTodayStr(); render(); });
   document.querySelectorAll('[data-calview]').forEach(b => b.addEventListener('click', () => { cs.view = b.dataset.calview; render(); }));
+   // event selection
+   content.querySelectorAll('.cal-event').forEach(el => {
+     const eid = Number(el.dataset.eventId);
+     el.addEventListener('click', (ev) => { ev.stopPropagation(); cs.selectedEventId = eid; render(); });
+     el.addEventListener('dblclick', (ev) => { ev.stopPropagation(); cs.selectedEventId = eid; state.selectedOrderId = eid; state.view = 'order-detail'; render(); });
+     el.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); cs.selectedEventId = eid; showContextMenu(ev.clientX, ev.clientY, eid); });
+     el.addEventListener('keydown', (ev) => {
+       if (ev.key === 'Enter') { ev.preventDefault(); state.selectedOrderId = eid; state.view = 'order-detail'; render(); }
+     });
+   });
+   // day header selection already via data-day
+   // actions
+   content.querySelectorAll('[data-cal-action]').forEach(btn => {
+     btn.addEventListener('click', async (ev) => {
+       ev.stopPropagation();
+       const action = btn.dataset.calAction;
+       const next = btn.dataset.next;
+       const eid = cs.selectedEventId;
+       if (!eid) return;
+       if (action === 'open') { state.selectedOrderId = eid; state.view = 'order-detail'; render(); return; }
+       if (action === 'schedule') { notify('Programación disponible en la Fase 2.', 'info'); return; }
+       if (action === 'assign') { notify('Asignación disponible en la Fase 2.', 'info'); return; }
+       if (action === 'history') { openHistoryDrawer(eid); return; }
+       if (action === 'transition') {
+         let reason = null;
+         if (next === 'cancelled') {
+           reason = window.prompt('Motivo de cancelación (obligatorio):');
+           if (!reason) { notify('Motivo obligatorio.', 'error'); return; }
+         }
+         const actionName = next === 'assigned' ? 'assign' : next === 'in_progress' ? 'start' : next === 'completed' ? 'complete' : next === 'closed' ? 'close' : next === 'cancelled' ? 'cancel' : next;
+         const res = await api('POST', '/api/v1/work-orders/' + eid + '/transitions', { action: actionName, reason });
+         if (res.ok) { notify('Estado actualizado.', 'success'); cs.selectedEventId = eid; render(); }
+         else { notify((res.body && (res.body.message || res.body.error)) || 'Error', 'error'); }
+       }
+     });
+   });
    const bindFilter = (id, key) => {
      const el = document.getElementById(id);
      if (el) el.addEventListener('change', () => { cs.filters[key] = el.value; render(); });
@@ -1464,3 +1554,112 @@ async function renderNotifications(content) {
   const ok = await loadSession();
   render();
 })();
+
+function closeContextMenu() {
+  const m = document.getElementById('calContextMenu');
+  if (m) m.remove();
+}
+
+function showContextMenu(x, y, eventId) {
+  closeContextMenu();
+  const menu = document.createElement('div');
+  menu.id = 'calContextMenu';
+  menu.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;background:#fff;border:1px solid #DDD9D3;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);padding:4px;z-index:9999;min-width:160px;';
+  const items = [
+    { label: 'Abrir orden', action: 'open' },
+    { label: 'Programar/Reprogramar', action: 'schedule' },
+    { label: 'Asignar/Reasignar', action: 'assign' },
+    { label: 'Cambiar estado', action: 'transition-next' },
+    { label: 'Cancelar', action: 'cancel' },
+    { label: 'Ver historial', action: 'history' },
+  ];
+  items.forEach(it => {
+    const b = document.createElement('button');
+    b.textContent = it.label;
+    b.style.cssText = 'display:block;width:100%;text-align:left;border:none;background:none;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:4px;';
+    b.addEventListener('mouseenter', () => b.style.background = '#F3F8F5');
+    b.addEventListener('mouseleave', () => b.style.background = 'none');
+    b.addEventListener('click', async () => {
+      closeContextMenu();
+      if (it.action === 'open') { state.selectedOrderId = eventId; state.view = 'order-detail'; render(); return; }
+      if (it.action === 'schedule' || it.action === 'assign') { notify('Disponible en Fase 2.', 'info'); return; }
+      if (it.action === 'history') { openHistoryDrawer(eventId); return; }
+      if (it.action === 'cancel') {
+        const reason = window.prompt('Motivo de cancelaci�n (obligatorio):');
+        if (!reason) { notify('Motivo obligatorio.', 'error'); return; }
+        const res = await api('POST', '/api/v1/work-orders/' + eventId + '/transitions', { action: 'cancel', reason });
+        if (res.ok) { notify('Cancelado.', 'success'); render(); } else notify((res.body && (res.body.message || res.body.error)) || 'Error', 'error');
+        return;
+      }
+      if (it.action === 'transition-next') {
+        // advance one step based on current event status if possible
+        notify('Usa los botones del panel para transiciones espec�ficas.', 'info');
+      }
+    });
+    menu.appendChild(b);
+  });
+  document.body.appendChild(menu);
+  const close = (ev) => { if (!menu.contains(ev.target)) { closeContextMenu(); document.removeEventListener('click', close); } };
+  setTimeout(() => document.addEventListener('click', close), 0);
+}
+
+async function openHistoryDrawer(orderId) {
+  const existing = document.getElementById('calHistoryDrawer');
+  if (existing) existing.remove();
+  const drawer = document.createElement('div');
+  drawer.id = 'calHistoryDrawer';
+  drawer.style.cssText = 'position:fixed;right:0;top:0;height:100%;width:360px;background:#fff;border-left:1px solid #DDD9D3;box-shadow:-4px 0 12px rgba(0,0,0,.1);z-index:9998;padding:16px;overflow:auto;';
+  drawer.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Historial</div><button id="calHistoryClose" class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div><div id="calHistoryBody">Cargando...</div>';
+  document.body.appendChild(drawer);
+  document.getElementById('calHistoryClose').addEventListener('click', () => drawer.remove());
+  try {
+    const res = await api('GET', '/api/v1/work-orders/' + orderId + '/history');
+    const body = document.getElementById('calHistoryBody');
+    if (!res.ok) { body.innerHTML = '<div style="color:#991B1B">No se pudo cargar el historial.</div>'; return; }
+    const items = res.body || [];
+    if (!items.length) { body.innerHTML = '<div style="color:#96908A;font-size:12px">Sin historial.</div>'; return; }
+    body.innerHTML = items.map(h => {
+      const who = (h.changed_by && (h.changed_by.username || h.changed_by.name)) || 'Sistema';
+      const when = h.created_at ? new Date(h.created_at).toLocaleString('es-CO') : '';
+      const what = (h.from_status || '') + ' ? ' + (h.to_status || '');
+      const reason = h.notes ? '<div style="font-size:11px;color:#64748B;margin-top:2px">' + escapeHtml(h.notes) + '</div>' : '';
+      return '<div style="padding:8px;border-bottom:1px solid #F0ECE4"><div style="font-size:12px;font-weight:600">' + escapeHtml(what) + '</div><div style="font-size:11px;color:#96908A">' + escapeHtml(who) + ' � ' + escapeHtml(when) + '</div>' + reason + '</div>';
+    }).join('');
+  } catch (e) {
+    const body = document.getElementById('calHistoryBody');
+    if (body) body.innerHTML = '<div style="color:#991B1B">Error de conexi�n.</div>';
+  }
+}
+
+document.addEventListener('keydown', (ev) => {
+  if (state.view !== 'calendar') return;
+  const cs = state.calendarState;
+  if (!cs) return;
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (ev.key === 'Escape') { closeContextMenu(); const d = document.getElementById('calHistoryDrawer'); if (d) d.remove(); return; }
+  if (ev.key === 't' || ev.key === 'T') { cs.anchor = calTodayStr(); cs.selectedDay = calTodayStr(); render(); return; }
+  if (ev.key === 'd' || ev.key === 'D') { cs.view = 'day'; render(); return; }
+  if (ev.key === 'w' || ev.key === 'W') { cs.view = 'week'; render(); return; }
+  if (ev.key === 'm' || ev.key === 'M') { cs.view = 'month'; render(); return; }
+  if (ev.key === 'n' || ev.key === 'N') { notify('Programaci�n disponible en Fase 2.', 'info'); return; }
+  if (ev.key === 'ArrowLeft') { cs.anchor = calAddDays(new Date(cs.anchor + 'T00:00:00'), cs.view === 'month' ? -30 : cs.view === 'day' ? -1 : -7).toISOString().slice(0,10); render(); return; }
+  if (ev.key === 'ArrowRight') { cs.anchor = calAddDays(new Date(cs.anchor + 'T00:00:00'), cs.view === 'month' ? 30 : cs.view === 'day' ? 1 : 7).toISOString().slice(0,10); render(); return; }
+  if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
+    // move selection among events of selected day
+    const items = (state._calItems || []);
+    const dayEvents = items.filter(e => e.start.slice(0,10) === cs.selectedDay);
+    if (!dayEvents.length) return;
+    const idx = dayEvents.findIndex(e => e.order_id === cs.selectedEventId);
+    let next = idx;
+    if (ev.key === 'ArrowDown') next = Math.min(dayEvents.length - 1, (idx < 0 ? 0 : idx + 1));
+    else next = Math.max(0, (idx < 0 ? 0 : idx - 1));
+    cs.selectedEventId = dayEvents[next].order_id;
+    render();
+    return;
+  }
+  if (ev.key === 'Enter') {
+    if (cs.selectedEventId) { state.selectedOrderId = cs.selectedEventId; state.view = 'order-detail'; render(); }
+    return;
+  }
+});
