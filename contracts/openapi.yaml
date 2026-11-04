@@ -697,6 +697,37 @@ paths:
           description: Missing or invalid token.
         '403':
           description: Insufficient permissions.
+  /api/v1/calendar/validate:
+    post:
+      summary: Validate a proposed schedule without applying it
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                order_id:
+                  type: integer
+                start:
+                  type: string
+                end:
+                  type: string
+                technician_ids:
+                  type: array
+                  items:
+                    type: integer
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Validation result.
+        '403':
+          description: Insufficient permissions.
+        '404':
+          description: Order not found.
 components:
   securitySchemes:
     bearerAuth:

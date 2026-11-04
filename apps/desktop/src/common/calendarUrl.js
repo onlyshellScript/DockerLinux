@@ -11,4 +11,15 @@ function buildCalendarEventsUrl(from, to, filters) {
   if (f.include_cancelled) params.set('include_cancelled', 'true');
   return '/api/v1/calendar/events?' + params.toString();
 }
-module.exports = { buildCalendarEventsUrl };
+function buildDayRange(isoDate) {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const next = new Date(y, m - 1, d + 1);
+  const pad = (n) => String(n).padStart(2, '0');
+  const nextStr = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+  return { from: `${isoDate}T00:00:00`, to: `${nextStr}T00:00:00` };
+}
+
+function toBogotaDay(isoUtc) {
+  return new Date(isoUtc).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+}
+module.exports = { buildCalendarEventsUrl, buildDayRange, toBogotaDay };

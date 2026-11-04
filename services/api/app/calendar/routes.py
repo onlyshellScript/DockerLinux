@@ -47,6 +47,26 @@ def unassigned():
     return jsonify(data), 200
 
 
+@blueprint.post("/calendar/validate")
+@require_auth
+def validate():
+    roles = request.user_roles
+    data = request.get_json() or {}
+    order_id = data.get("order_id")
+    if order_id is None:
+        return jsonify({"error": "order_id required"}), 422
+    try:
+        order_id = int(order_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid order_id"}), 422
+    result, err = service.validate_schedule(order_id, data, roles)
+    if err == "forbidden":
+        return jsonify({"error": "forbidden"}), 403
+    if err == "not_found":
+        return jsonify({"error": "not found"}), 404
+    return jsonify(result), 200
+
+
 @blueprint.get("/technicians/<int:tid>/availability")
 @require_auth
 def availability(tid):

@@ -173,95 +173,41 @@ def schedule_order(order_id, data, user, roles):
         if int(data["version"]) != int(wo.version or 0):
             return None, "stale_version"
     is_reprogram = wo.scheduled_at is not None
-    if not _state_allows_schedule(wo, is_reprogram, roles):
-        return None, "invalid_transition"
-    if is_reprogram and wo.status == "in_progress":
-        if not data.get("reason"):
-            return None, "reason_required"
+    # validate first
+    vresult, verr = validate_schedule(order_id, data, roles)
+    if verr:
+        return None, verr
+    if not vresult["ok"]:
+        return None, _conflict_to_error(vresult["conflicts"][0]["code"])
     start = _parse_dt(data.get("start") or data.get("scheduled_at"))
     end = _parse_dt(data.get("end") or data.get("scheduled_end"))
-    if not start or not end:
-        return None, "invalid_time"
-    if end <= start:
-        return None, "invalid_time"
-    max_hours = int(data.get("max_hours", 8))
-    if (end - start).total_seconds() > max_hours * 3600:
-        return None, "duration_too_long"
-    # operational validations from settings
-    org = settings_service.get_organization()
-    opset = settings_service.get_operations()
-    try:
-        from zoneinfo import ZoneInfo
-        tz = ZoneInfo(org.timezone or "America/Bogota")
-    except Exception:
-        tz = ZoneInfo("America/Bogota")
-    local_start = start.astimezone(tz)
-    local_end = end.astimezone(tz)
-    work_days = [int(x) for x in str(opset.work_days).split(",") if x.strip()]
-    if local_start.isoweekday() not in work_days:
-        return None, "invalid_time"
-    if local_start.strftime("%H:%M") < opset.work_start or local_end.strftime("%H:%M") > opset.work_end:
-        return None, "invalid_time"
-    # min advance
-    if opset.min_advance_hours:
-        if start < (datetime.now(timezone.utc) + timedelta(hours=opset.min_advance_hours)):
-            # allow if reprogram? keep strict
-            pass
-    margin = timedelta(minutes=opset.travel_margin_minutes or 0)
-    # technicians
     tech_ids = data.get("technician_ids")
     if tech_ids is None and data.get("technician_id") is not None:
         tech_ids = [data.get("technician_id")]
     if tech_ids is None and data.get("assigned_to_id") is not None:
         tech_ids = [data.get("assigned_to_id")]
-    # normalize
     if tech_ids:
         tech_ids = [int(x) for x in tech_ids]
-    # validate techs
     techs = []
     for tid in (tech_ids or []):
-        t = db.session.get(TechnicianProfile, tid) if False else None
-        # technician profile lookup by user? TechnicianProfile.id vs user id. WorkOrder.assigned_to_id stores user_id.
-        # We'll treat tech_ids as user ids for assignment (consistent with assigned_to_id).
         u = db.session.get(User, tid)
-        if not u:
-            return None, "invalid_technician"
-        # active?
-        if not u.is_active:
-            return None, "invalid_technician"
-        techs.append(u)
-    # determine primary assigned user id (first)
+        if u:
+            techs.append(u)
     primary_id = techs[0].id if techs else None
-    # if no tech allowed? business allows scheduled without tech
-    if primary_id is None and not data.get("allow_unassigned", True):
-        return None, "technician_required"
-    # conflict check per technician
-    # lock per technician
     locks = [_lock_for(tid) for tid in (tech_ids or [])]
-    # acquire all
     for lk in locks:
         lk.acquire()
     try:
-        # re-check version inside lock
         db.session.refresh(wo)
         if "version" in data and data.get("version") is not None:
             if int(data["version"]) != int(wo.version or 0):
                 return None, "stale_version"
-        for tid in (tech_ids or []):
-            # find overlapping assignments
-            others = WorkOrder.query.filter(
-                WorkOrder.assigned_to_id == tid,
-                WorkOrder.id != wo.id,
-                WorkOrder.scheduled_at.isnot(None),
-                WorkOrder.status.notin_(["cancelled"]),
-            ).all()
-            for o in others:
-                o_start = _ensure_aware(o.scheduled_at)
-                o_end = _ensure_aware(o.scheduled_end) or (o_start + timedelta(hours=1))
-                # semi-open overlap with travel margin
-                if (o_start - margin) < end and start < (o_end + margin):
-                    return None, "schedule_conflict"
-        # apply
+        # re-validate inside lock
+        vresult2, verr2 = validate_schedule(order_id, data, roles)
+        if verr2:
+            return None, verr2
+        if not vresult2["ok"]:
+            return None, _conflict_to_error(vresult2["conflicts"][0]["code"])
         wo.scheduled_at = start
         wo.scheduled_end = end
         if "notes" in data or "schedule_notes" in data:
@@ -270,9 +216,7 @@ def schedule_order(order_id, data, user, roles):
             wo.assigned_to_id = primary_id
             if wo.status == "pending":
                 wo.status = "assigned"
-        # if no tech, keep status pending? scheduled but unassigned
         wo.version = (wo.version or 0) + 1
-        # history
         from app.workorders.models import WorkOrderStatusHistory
         db.session.add(WorkOrderStatusHistory(
             work_order_id=wo.id,
@@ -286,6 +230,106 @@ def schedule_order(order_id, data, user, roles):
     finally:
         for lk in locks:
             lk.release()
+
+
+def _conflict_to_error(code):
+    return {
+        "invalid_transition": "invalid_transition",
+        "invalid_time": "invalid_time",
+        "out_of_hours": "invalid_time",
+        "duration_too_long": "duration_too_long",
+        "invalid_technician": "invalid_technician",
+        "technician_unavailable": "invalid_technician",
+        "schedule_conflict": "schedule_conflict",
+        "reason_required": "reason_required",
+    }.get(code, "invalid_time")
+
+
+def validate_schedule(order_id, data, roles):
+    roles = roles or []
+    if "admin" not in roles and "dispatcher" not in roles:
+        return None, "forbidden"
+    wo = db.session.get(WorkOrder, order_id)
+    if not wo:
+        return None, "not_found"
+    conflicts = []
+    warnings = []
+    is_reprogram = wo.scheduled_at is not None
+    if not _state_allows_schedule(wo, is_reprogram, roles):
+        conflicts.append({"code": "invalid_transition", "message": "la orden no admite programación en su estado actual"})
+    start = _parse_dt(data.get("start") or data.get("scheduled_at"))
+    end = _parse_dt(data.get("end") or data.get("scheduled_end"))
+    if not start or not end:
+        conflicts.append({"code": "invalid_time", "message": "fecha/hora inválida"})
+    elif end <= start:
+        conflicts.append({"code": "invalid_time", "message": "el fin debe ser posterior al inicio"})
+    else:
+        org = settings_service.get_organization()
+        opset = settings_service.get_operations()
+        try:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(org.timezone or "America/Bogota")
+        except Exception:
+            tz = ZoneInfo("America/Bogota")
+        local_start = start.astimezone(tz)
+        local_end = end.astimezone(tz)
+        work_days = [int(x) for x in str(opset.work_days).split(",") if x.strip()]
+        if local_start.isoweekday() not in work_days:
+            conflicts.append({"code": "invalid_time", "message": "día no laboral"})
+        if local_start.strftime("%H:%M") < opset.work_start or local_end.strftime("%H:%M") > opset.work_end:
+            conflicts.append({"code": "out_of_hours", "message": "fuera del horario operativo"})
+        max_hours = int(data.get("max_hours", 8))
+        if (end - start).total_seconds() > max_hours * 3600:
+            conflicts.append({"code": "duration_too_long", "message": "duración demasiado larga"})
+        # reason required when reprogramming
+        if is_reprogram and not data.get("reason"):
+            conflicts.append({"code": "reason_required", "message": "motivo del cambio obligatorio"})
+        tech_ids = data.get("technician_ids")
+        if tech_ids is None and data.get("technician_id") is not None:
+            tech_ids = [data.get("technician_id")]
+        if tech_ids is None and data.get("assigned_to_id") is not None:
+            tech_ids = [data.get("assigned_to_id")]
+        if tech_ids:
+            tech_ids = [int(x) for x in tech_ids]
+        margin = timedelta(minutes=opset.travel_margin_minutes or 0)
+        for tid in (tech_ids or []):
+            u = db.session.get(User, tid)
+            if not u or not u.is_active:
+                conflicts.append({"code": "invalid_technician", "message": "técnico inválido", "technician_id": tid})
+                continue
+            prof = TechnicianProfile.query.filter_by(user_id=tid).first()
+            if prof and not prof.is_available:
+                conflicts.append({"code": "technician_unavailable", "message": "técnico fuera de servicio", "technician_id": tid})
+            # coverage check (warning if not covered)
+            if prof and (wo.city_id or wo.zone_id):
+                covered = False
+                for c in (prof.coverages or []):
+                    if c.city_id == wo.city_id and (wo.zone_id is None or c.zone_id == wo.zone_id or c.zone_id is None):
+                        covered = True
+                        break
+                if not covered:
+                    warnings.append({"code": "zone_not_covered", "message": "no cubre la zona", "technician_id": tid})
+            # overlap check
+            others = WorkOrder.query.filter(
+                WorkOrder.assigned_to_id == tid,
+                WorkOrder.id != wo.id,
+                WorkOrder.scheduled_at.isnot(None),
+                WorkOrder.status.notin_(["cancelled"]),
+            ).all()
+            for o in others:
+                o_start = _ensure_aware(o.scheduled_at)
+                o_end = _ensure_aware(o.scheduled_end) or (o_start + timedelta(hours=1))
+                if (o_start - margin) < end and start < (o_end + margin):
+                    conflicts.append({
+                        "code": "schedule_conflict",
+                        "message": "solape con otra visita",
+                        "technician_id": tid,
+                        "conflicting_order_id": o.id,
+                        "conflicting_order_code": f"OS-{o.id:04d}",
+                        "interval": [o_start.isoformat(), o_end.isoformat()],
+                    })
+    result = {"ok": len(conflicts) == 0, "conflicts": conflicts, "warnings": warnings}
+    return result, None
 
 
 def assign_order(order_id, data, user, roles):
