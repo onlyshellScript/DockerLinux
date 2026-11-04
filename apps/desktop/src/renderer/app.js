@@ -27,6 +27,16 @@ function normalizeText(value) {
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+function needsReview(e, pub) {
+  if (!e) return false;
+  const ws = (pub && pub.work_start) || '07:00';
+  const we = (pub && pub.work_end) || '18:00';
+  const s = String(e.start || '').slice(11,16);
+  const en = String(e.end || '').slice(11,16);
+  if (s && s < ws) return true;
+  if (en && en > we) return true;
+  return false;
+}
 function orderCode(o) {
   if (!o) return '';
   if (o.order_code) return o.order_code;
@@ -347,14 +357,21 @@ function calFmtDate(d, opts) { return d.toLocaleDateString('es-CO', opts); }
 function calShortDay(d) { return d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.',''); }
 
 async function renderCalendar(content) {
-   if (!state.calendarState) state.calendarState = { view: 'week', anchor: calTodayStr(), selectedDay: calTodayStr(), filters: { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false } };
+   if (!state.calendarState) {
+     let restored = null;
+     try { restored = JSON.parse(localStorage.getItem('sigos.calendar') || 'null'); } catch (e) {}
+     state.calendarState = restored || { view: 'week', anchor: calTodayStr(), selectedDay: calTodayStr(), filters: { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false } };
+     if (!state.calendarState.filters) state.calendarState.filters = { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false };
+     if (!state.calendarState.selectedDay) state.calendarState.selectedDay = state.calendarState.anchor || calTodayStr();
+   }
   const cs = state.calendarState;
   // load tz from settings public
-  try {
-    const s = await api('GET', '/api/v1/settings/public');
-    if (s.body && s.body.timezone) { state.calendarTz = s.body.timezone; }
-  } catch (e) {}
-  const tz = state.calendarTz || CAL_TZ;
+   try {
+     const s = await api('GET', '/api/v1/settings/public');
+     if (s.body) { state.calendarTz = s.body.timezone || state.calendarTz; state._calPublic = s.body; }
+   } catch (e) {}
+   const tz = state.calendarTz || CAL_TZ;
+   const pub = state._calPublic || {};
   const anchor = new Date(cs.anchor + 'T00:00:00');
   let from, to, days = [];
   if (cs.view === 'day') {
@@ -391,6 +408,7 @@ async function renderCalendar(content) {
     else { unassignedError = (ures.body && (ures.body.message || ures.body.error)) || 'Error del servidor'; console.error('calendar unassigned error', ures); }
     state._calItems = items;
     state._calUnassigned = unassigned;
+    if (!error) cs.lastUpdated = Date.now();
     let techOpts = [], cityOpts = [], zoneOpts = [], typeOpts = [];
     if (hasRole('admin') || hasRole('dispatcher')) {
       try { const tr = await api('GET', '/api/v1/technicians?page_size=200&active=true'); if (tr.ok) techOpts = (tr.body && tr.body.items) || []; } catch(e) {}
@@ -453,6 +471,9 @@ async function renderCalendar(content) {
    html += '<label style="font-size:12px;display:inline-flex;align-items:center;gap:4px"><input type="checkbox" id="calFiltCancel"> Incluir canceladas</label>';
    if (hasActiveFilters) html += '<button class="sigos-btn-secondary" style="height:36px" id="calClear">Limpiar</button>';
    if (!error) html += '<span style="font-size:12px;color:#96908A">' + items.length + ' resultado' + (items.length===1?'':'s') + '</span>';
+   const lu = cs.lastUpdated ? new Date(cs.lastUpdated).toLocaleTimeString('es-CO') : '';
+   html += '<span style="font-size:11px;color:#96908A;margin-left:auto">Actualizado ' + escapeHtml(lu) + '</span>';
+   html += '<button class="sigos-btn-secondary" style="height:32px" id="calRefresh">Refrescar</button>';
    html += '</div>';
   if (offline) {
     html += '<div style="background:#FDECEA;color:#D63B3B;padding:8px;border-radius:6px;font-size:12px">Sin conexión · datos de las ' + new Date().toLocaleTimeString('es-CO') + '</div>';
@@ -498,11 +519,17 @@ async function renderCalendar(content) {
       html += '<div data-day="' + key + '" style="position:sticky;top:0;background:' + bg + ';z-index:2;border-bottom:1px solid #DDD9D3;padding:6px;text-align:center;font-size:12px;font-weight:600;color:' + (isToday?'#2A5C45':'#3A4552') + ';cursor:pointer">' + calShortDay(d) + ' ' + d.getDate() + (isToday?' <span style="background:#2A5C45;color:#fff;border-radius:50%;padding:1px 5px;font-size:10px">HOY</span>':'') + '</div>';
     });
     // hour rows
+     const startHour = parseInt((pub.work_start || '07:00').split(':')[0], 10);
+     const endHour = parseInt((pub.work_end || '18:00').split(':')[0], 10);
      for (let h=7; h<=17; h++) {
-       html += '<div style="border-top:1px solid #F0ECE4;padding:2px 4px;font-size:10px;color:#96908A;font-family:JetBrains Mono,monospace">' + String(h).padStart(2,'0') + ':00</div>';
+       const out = (h < startHour || h >= endHour);
+       const rowBg = out ? 'background:#F7F4EE;' : '';
+       html += '<div style="border-top:1px solid #F0ECE4;padding:2px 4px;font-size:10px;color:#96908A;font-family:JetBrains Mono,monospace;' + rowBg + '">' + String(h).padStart(2,'0') + ':00</div>';
        for (let di=0; di<viewDays; di++) {
          const dkey = gDays[di].toISOString().slice(0,10);
-         html += '<div data-slot-date="' + dkey + '" data-slot-hour="' + h + '" style="border-left:1px solid #F0ECE4;border-top:1px solid #F0ECE4;position:relative;min-height:48px;cursor:pointer"></div>';
+         const weekend = gDays[di].getDay() === 0 || gDays[di].getDay() === 6;
+         const dayBg = weekend ? 'background:#F3F0EA;' : (out ? 'background:#F7F4EE;' : '');
+         html += '<div data-slot-date="' + dkey + '" data-slot-hour="' + h + '" style="border-left:1px solid #F0ECE4;border-top:1px solid #F0ECE4;position:relative;min-height:48px;cursor:pointer;' + dayBg + '"></div>';
        }
      }
     html += '</div>';
@@ -530,17 +557,24 @@ async function renderCalendar(content) {
            const highlighted = cs.highlightId === e.order_id;
            const selStyle = highlighted ? 'border:2px solid #2E7A50;box-shadow:0 0 0 4px rgba(46,122,80,.25);background:#EAF4EE;' : selected ? 'border:2px solid #2E7A50;box-shadow:0 4px 12px rgba(46,122,80,.25);' : ('border:1px solid ' + color + ';');
            html += '<div class="cal-event" data-event-id="' + e.order_id + '" tabindex="0" title="' + escapeHtml(orderCode(e) + ' ' + e.title) + '" style="position:absolute;top:' + top + 'px;left:' + left + ';width:' + width + ';height:' + height + 'px;background:#F3F8F5;' + selStyle + dash + ';border-radius:4px;padding:2px 4px;font-size:11px;overflow:hidden;pointer-events:auto;cursor:pointer">';
-          html += '<div style="font-family:JetBrains Mono,monospace;font-size:10px">' + escapeHtml(orderCode(e)) + '</div>';
+           const review = needsReview(e, pub);
+           html += '<div style="font-family:JetBrains Mono,monospace;font-size:10px">' + escapeHtml(orderCode(e)) + (review ? ' ⚠' : '') + '</div>';
           html += '<div style="font-weight:600">' + escapeHtml(e.title) + '</div>';
            html += '<div style="color:#64748B">' + escapeHtml((e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar') + '</div>';
            html += '<div class="cal-resize-handle" data-event-id="' + e.order_id + '" style="position:absolute;bottom:0;left:0;right:0;height:6px;cursor:ns-resize"></div>';
            html += '</div>';
         });
-      });
-      html += '</div>';
-    });
-    html += '</div>';
-  }
+       });
+       if (key === todayStr) {
+         const now = new Date();
+         const mins = (now.getHours()-7)*60 + now.getMinutes();
+         const top = (mins/60)*48;
+         html += '<div style="position:absolute;left:0;right:0;top:' + top + 'px;height:2px;background:#D63B3B;z-index:5;pointer-events:none"></div>';
+       }
+       html += '</div>';
+     });
+     html += '</div>';
+   }
   html += '</div>';
   // right panel
   html += '<div style="width:340px;flex-shrink:0;display:flex;flex-direction:column;gap:8px">';
@@ -703,6 +737,8 @@ async function renderCalendar(content) {
    if (cancelCb) cancelCb.addEventListener('change', () => { cs.filters.include_cancelled = cancelCb.checked; render(); });
    const clear = document.getElementById('calClear');
    if (clear) clear.addEventListener('click', () => { cs.filters = { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false }; render(); });
+   const refreshBtn = document.getElementById('calRefresh');
+   if (refreshBtn) refreshBtn.addEventListener('click', () => render());
   const retry = document.getElementById('calRetry');
   if (retry) retry.addEventListener('click', () => render());
    document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => { cs.selectedDay = el.dataset.day; render(); }));
@@ -714,8 +750,22 @@ async function renderCalendar(content) {
        openScheduleModal({ date: el.dataset.slotDate, hour: Number(el.dataset.slotHour), minute: 0 });
      });
    });
-   const goOrders = document.getElementById('calGoOrders');
-   if (goOrders) goOrders.addEventListener('click', () => { state.view='orders'; render(); });
+    const goOrders = document.getElementById('calGoOrders');
+    if (goOrders) goOrders.addEventListener('click', () => { state.view='orders'; render(); });
+    try { localStorage.setItem('sigos.calendar', JSON.stringify({ view: cs.view, anchor: cs.anchor, selectedDay: cs.selectedDay, filters: cs.filters })); } catch (e) {}
+    if (state.calendarRefreshTimer) clearTimeout(state.calendarRefreshTimer);
+    state.calendarRefreshTimer = setTimeout(() => { if (state.view === 'calendar') render(); }, 45000);
+    state._calPublic = pub;
+    setTimeout(() => {
+      const scroller = document.querySelector('.cal-grid-scroll');
+      if (scroller) {
+        const ws = (pub.work_start || '07:00').split(':')[0];
+        const now = new Date();
+        let targetHour = parseInt(ws, 10) || 7;
+        if (cs.anchor === calTodayStr()) targetHour = Math.max(targetHour, now.getHours() - 1);
+        scroller.scrollTop = Math.max(0, (targetHour - 7) * 48);
+      }
+    }, 50);
 }
 
 function layoutOverlaps(evs) {
@@ -1972,7 +2022,15 @@ async function openScheduleModal(opts) {
       setTimeout(() => { if (cs.highlightId === Number(oid)) { cs.highlightId = null; render(); } }, 1500);
     } else {
       const code = res.body && res.body.code;
-      if (res.status === 409) {
+      if (res.status === 409 && res.body && res.body.code === 'STALE_VERSION') {
+        notify('Otro usuario modificó esta orden.', 'error');
+        const reloadBtn = document.createElement('button');
+        reloadBtn.className = 'sigos-btn-secondary'; reloadBtn.style.height = '28px'; reloadBtn.textContent = 'Recargar';
+        reloadBtn.addEventListener('click', () => { closeScheduleModal(); render(); });
+        conflictActions.style.display = 'flex';
+        conflictActions.innerHTML = '';
+        conflictActions.appendChild(reloadBtn);
+      } else if (res.status === 409) {
         const msg = (res.body && (res.body.message || res.body.error)) || 'Conflicto de horario.';
         valDiv.innerHTML = '<span style="color:#991B1B">' + escapeHtml(msg) + '</span>';
         conflictActions.style.display = 'flex';
@@ -2409,3 +2467,16 @@ function cancelDrag() {
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') cancelDrag();
 });
+
+window.addEventListener('focus', () => {
+  if (state.view === 'calendar') render();
+});
+
+function openCalendarAt(date, techId) {
+  if (!state.calendarState) state.calendarState = { view: 'week', anchor: calTodayStr(), selectedDay: calTodayStr(), filters: { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false } };
+  const cs = state.calendarState;
+  if (date) { cs.anchor = String(date).slice(0,10); cs.selectedDay = String(date).slice(0,10); }
+  if (techId) cs.filters.technician_id = String(techId);
+  state.view = 'calendar';
+  render();
+}
