@@ -17,6 +17,13 @@ function searchField({ placeholder = '', id = '', value = '' } = {}) {
   return `<label class="search-field"><svg class="search-field__icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/><path d="M21 21l-4.35-4.35"/></svg><input type="search" class="search-field__input" id="${escapeHtml(id)}" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" aria-label="Buscar"></label>`;
 }
 
+function normalizeText(value) {
+  if (value === null || value === undefined) return '';
+  let text = String(value).trim().toLowerCase();
+  text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
+}
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -490,12 +497,13 @@ async function renderCalendar(content) {
       html += '<div data-day="' + key + '" style="position:sticky;top:0;background:' + bg + ';z-index:2;border-bottom:1px solid #DDD9D3;padding:6px;text-align:center;font-size:12px;font-weight:600;color:' + (isToday?'#2A5C45':'#3A4552') + ';cursor:pointer">' + calShortDay(d) + ' ' + d.getDate() + (isToday?' <span style="background:#2A5C45;color:#fff;border-radius:50%;padding:1px 5px;font-size:10px">HOY</span>':'') + '</div>';
     });
     // hour rows
-    for (let h=7; h<=17; h++) {
-      html += '<div style="border-top:1px solid #F0ECE4;padding:2px 4px;font-size:10px;color:#96908A;font-family:JetBrains Mono,monospace">' + String(h).padStart(2,'0') + ':00</div>';
-      for (let di=0; di<viewDays; di++) {
-        html += '<div style="border-left:1px solid #F0ECE4;border-top:1px solid #F0ECE4;position:relative;min-height:48px"></div>';
-      }
-    }
+     for (let h=7; h<=17; h++) {
+       html += '<div style="border-top:1px solid #F0ECE4;padding:2px 4px;font-size:10px;color:#96908A;font-family:JetBrains Mono,monospace">' + String(h).padStart(2,'0') + ':00</div>';
+       for (let di=0; di<viewDays; di++) {
+         const dkey = gDays[di].toISOString().slice(0,10);
+         html += '<div data-slot-date="' + dkey + '" data-slot-hour="' + h + '" style="border-left:1px solid #F0ECE4;border-top:1px solid #F0ECE4;position:relative;min-height:48px;cursor:pointer"></div>';
+       }
+     }
     html += '</div>';
     // overlay events positioned absolutely
     // We'll render events in a separate layer per day using top offsets
@@ -518,7 +526,8 @@ async function renderCalendar(content) {
            const color = e.status==='in_progress'?'#C9892A':e.status==='completed'?'#2A5C45':'#8A847C';
            const dash = e.schedule_status === 'unassigned' ? 'border-style:dashed' : '';
            const selected = cs.selectedEventId === e.order_id;
-           const selStyle = selected ? 'border:2px solid #2E7A50;box-shadow:0 4px 12px rgba(46,122,80,.25);' : ('border:1px solid ' + color + ';');
+           const highlighted = cs.highlightId === e.order_id;
+           const selStyle = highlighted ? 'border:2px solid #2E7A50;box-shadow:0 0 0 4px rgba(46,122,80,.25);background:#EAF4EE;' : selected ? 'border:2px solid #2E7A50;box-shadow:0 4px 12px rgba(46,122,80,.25);' : ('border:1px solid ' + color + ';');
            html += '<div class="cal-event" data-event-id="' + e.order_id + '" tabindex="0" title="' + escapeHtml(orderCode(e) + ' ' + e.title) + '" style="position:absolute;top:' + top + 'px;left:' + left + ';width:' + width + ';height:' + height + 'px;background:#F3F8F5;' + selStyle + dash + ';border-radius:4px;padding:2px 4px;font-size:11px;overflow:hidden;pointer-events:auto;cursor:pointer">';
           html += '<div style="font-family:JetBrains Mono,monospace;font-size:10px">' + escapeHtml(orderCode(e)) + '</div>';
           html += '<div style="font-weight:600">' + escapeHtml(e.title) + '</div>';
@@ -684,6 +693,14 @@ async function renderCalendar(content) {
   const retry = document.getElementById('calRetry');
   if (retry) retry.addEventListener('click', () => render());
    document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => { cs.selectedDay = el.dataset.day; render(); }));
+   const schBtn = document.getElementById('calSchedule');
+   if (schBtn) schBtn.addEventListener('click', () => openScheduleModal({}));
+   document.querySelectorAll('[data-slot-date]').forEach(el => {
+     el.addEventListener('click', () => {
+       if (!hasRole('admin') && !hasRole('dispatcher')) return;
+       openScheduleModal({ date: el.dataset.slotDate, hour: Number(el.dataset.slotHour), minute: 0 });
+     });
+   });
    const goOrders = document.getElementById('calGoOrders');
    if (goOrders) goOrders.addEventListener('click', () => { state.view='orders'; render(); });
 }
@@ -1663,3 +1680,326 @@ document.addEventListener('keydown', (ev) => {
     return;
   }
 });
+
+async function openScheduleModal(opts) {
+  opts = opts || {};
+  const canSchedule = hasRole('admin') || hasRole('dispatcher');
+  if (!canSchedule) { notify('Sin permisos para programar.', 'error'); return; }
+  // fetch data
+  const unRes = await api('GET', '/api/v1/calendar/unassigned?page_size=100');
+  const unassigned = (unRes.ok && unRes.body && unRes.body.items) || [];
+  const techRes = await api('GET', '/api/v1/technicians?page_size=200&active=true');
+  const techs = (techRes.ok && techRes.body && techRes.body.items) || [];
+  const pubRes = await api('GET', '/api/v1/settings/public');
+  const pub = (pubRes.ok && pubRes.body) || {};
+  const defaultDur = pub.default_visit_duration || 60;
+  const workStart = pub.work_start || '07:00';
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'width:560px;max-width:95vw;max-height:90vh;overflow:auto;background:#fff;border-radius:8px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.2);';
+  modal.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-family:Outfit;font-weight:600;font-size:15px;color:#163028">Programar visita</div>
+      <button id="schClose" class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="grid-column:1/-1">
+        <label style="font-size:12px;color:#96908A">Orden *</label>
+        <input type="search" id="schOrderSearch" class="sigos-input" style="height:32px;width:100%;margin-bottom:4px" placeholder="Buscar orden...">
+        <select id="schOrder" class="sigos-input" style="height:36px;width:100%"></select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:#96908A">Fecha *</label>
+        <input type="date" id="schDate" class="sigos-input" style="height:36px;width:100%">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#96908A">Inicio *</label>
+        <input type="time" id="schStart" class="sigos-input" style="height:36px;width:100%" step="900">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#96908A">Fin *</label>
+        <input type="time" id="schEnd" class="sigos-input" style="height:36px;width:100%" step="900">
+      </div>
+      <div style="grid-column:1/-1">
+        <label style="font-size:12px;color:#96908A">T�cnico</label>
+        <select id="schTech" class="sigos-input" style="height:36px;width:100%"></select>
+        <div id="schTechWarn" style="font-size:11px;color:#C9892A;margin-top:2px"></div>
+      </div>
+      <div style="grid-column:1/-1">
+        <label style="font-size:12px;color:#96908A">Observaciones</label>
+        <textarea id="schNotes" class="sigos-input" style="width:100%;min-height:60px"></textarea>
+      </div>
+      <div id="schReasonWrap" style="grid-column:1/-1;display:none">
+        <label style="font-size:12px;color:#96908A">Motivo del cambio *</label>
+        <select id="schReason" class="sigos-input" style="height:36px;width:100%;margin-bottom:4px">
+          <option value="">Selecciona motivo</option>
+          <option value="Cliente reprogram�">Cliente reprogram�</option>
+          <option value="T�cnico no disponible">T�cnico no disponible</option>
+          <option value="Clima">Clima</option>
+          <option value="Falta de material">Falta de material</option>
+          <option value="Otro">Otro</option>
+        </select>
+        <input type="text" id="schReasonComment" class="sigos-input" style="height:32px;width:100%" placeholder="Comentario adicional">
+      </div>
+    </div>
+    <div id="schSummary" style="margin-top:8px;font-size:12px;color:#3A4552;font-weight:600"></div>
+    <div id="schValidation" style="margin-top:8px;font-size:12px"></div>
+    <div id="schConflictActions" style="margin-top:8px;display:none;gap:6px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button id="schCancel" class="sigos-btn-secondary" style="height:36px">Cancelar</button>
+      <button id="schSave" class="sigos-btn-primary" style="height:36px">Guardar</button>
+    </div>
+  `;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  let dirty = false;
+  const markDirty = () => { dirty = true; };
+
+  // populate order select
+  const orderSel = modal.querySelector('#schOrder');
+  const porProgramar = unassigned.filter(o => !o.scheduled_at);
+  const porAsignar = unassigned.filter(o => o.scheduled_at && !o.assigned_to_id);
+  const makeOpt = (o) => {
+    const code = orderCode(o);
+    const label = code + ' � ' + (o.customer_name || '�') + ' � ' + (o.installation_type_code || o.installation_type || '�');
+    return '<option value="' + o.id + '" data-version="' + (o.version || 0) + '" data-scheduled="' + (o.scheduled_at || '') + '">' + escapeHtml(label) + '</option>';
+  };
+  orderSel.innerHTML = '<optgroup label="Por programar">' + porProgramar.map(makeOpt).join('') + '</optgroup>' +
+    '<optgroup label="Por asignar">' + porAsignar.map(makeOpt).join('') + '</optgroup>';
+  if (opts.orderId) orderSel.value = String(opts.orderId);
+
+  // date/time defaults
+  const dateInput = modal.querySelector('#schDate');
+  const startInput = modal.querySelector('#schStart');
+  const endInput = modal.querySelector('#schEnd');
+  const today = opts.date || calTodayStr();
+  dateInput.value = today;
+  const sh = (opts.hour != null) ? String(opts.hour).padStart(2,'0') : (workStart.split(':')[0] || '08');
+  const sm = (opts.minute != null) ? String(opts.minute).padStart(2,'0') : '00';
+  startInput.value = sh + ':' + sm;
+  // end default
+  function setEndDefault() {
+    const [h, m] = startInput.value.split(':').map(Number);
+    const total = h * 60 + m + defaultDur;
+    const eh = String(Math.floor(total / 60)).padStart(2,'0');
+    const em = String(total % 60).padStart(2,'0');
+    endInput.value = eh + ':' + em;
+  }
+  if (!opts.end) setEndDefault();
+
+  // technician select
+  const techSel = modal.querySelector('#schTech');
+  function refreshTechOptions() {
+    const date = dateInput.value;
+    const st = startInput.value;
+    const en = endInput.value;
+    let html = '<option value="">Dejar pendiente de asignaci�n</option>';
+    techs.forEach(t => {
+      const prof = t; // t is profile
+      const uid = t.user_id || t.id;
+      // availability
+      let status = (t.is_available === false) ? 'offduty' : 'available';
+      // check overlap from state items
+      if (status === 'available' && date && st && en) {
+        const selStart = new Date(date + 'T' + st + ':00');
+        const selEnd = new Date(date + 'T' + en + ':00');
+        const occ = (state._calItems || []).filter(e => (e.technicians||[]).some(tt => tt.id === uid) && e.start.slice(0,10) === date);
+        for (const e of occ) {
+          const es = new Date(e.start); const ee = new Date(e.end);
+          if (es < selEnd && selStart < ee) { status = 'busy'; break; }
+        }
+      }
+      const label = (t.full_name || t.name || t.username || ('T�cnico ' + uid)) + ' � ' + (status === 'offduty' ? 'Fuera de servicio' : status === 'busy' ? 'Ocupado en ese horario' : 'Disponible');
+      html += '<option value="' + uid + '" data-available="' + (t.is_available !== false) + '">' + escapeHtml(label) + '</option>';
+    });
+    techSel.innerHTML = html;
+  }
+  refreshTechOptions();
+
+  // reason wrap visibility based on selected order scheduled
+  const reasonWrap = modal.querySelector('#schReasonWrap');
+  function updateReasonVisibility() {
+    const opt = orderSel.selectedOptions[0];
+    const scheduled = opt && opt.dataset.scheduled;
+    reasonWrap.style.display = scheduled ? 'block' : 'none';
+  }
+  updateReasonVisibility();
+
+  // tech warning on change
+  const techWarn = modal.querySelector('#schTechWarn');
+  function updateTechWarning() {
+    const uid = techSel.value;
+    if (!uid) { techWarn.textContent = ''; return; }
+    const t = techs.find(x => String(x.user_id || x.id) === String(uid));
+    const o = unassigned.find(x => String(x.id) === String(orderSel.value));
+    if (!t || !o) { techWarn.textContent = ''; return; }
+    const covs = t.coverage || t.coverages || [];
+    // coverage array from profile.to_dict is 'coverage'
+    const coverages = t.coverage || t.coverages || [];
+    let covered = !o.city_id && !o.zone_id;
+    if (o.city_id || o.zone_id) {
+      covered = (coverages || []).some(c => c.city_id === o.city_id && (o.zone_id == null || c.zone_id === o.zone_id || c.zone_id == null));
+    }
+    if (!covered) techWarn.textContent = 'Advertencia: el t�cnico no cubre la zona/ciudad de la orden.';
+    else techWarn.textContent = '';
+  }
+
+  // summary
+  const summary = modal.querySelector('#schSummary');
+  function updateSummary() {
+    const o = unassigned.find(x => String(x.id) === String(orderSel.value));
+    const techOpt = techSel.selectedOptions[0];
+    const techLabel = techSel.value ? (techOpt ? techOpt.textContent.split(' � ')[0] : 'T�cnico') : 'Sin asignar';
+    summary.textContent = (dateInput.value || '') + ' � ' + (startInput.value || '') + '�' + (endInput.value || '') + ' � T�cnico: ' + techLabel + (o ? ' � ' + orderCode(o) : '');
+  }
+
+  // validation
+  const valDiv = modal.querySelector('#schValidation');
+  const conflictActions = modal.querySelector('#schConflictActions');
+  let validateTimer = null;
+  async function runValidation() {
+    const oid = orderSel.value;
+    if (!oid || !dateInput.value || !startInput.value || !endInput.value) { valDiv.innerHTML = ''; return; }
+    const payload = {
+      order_id: Number(oid),
+      start: dateInput.value + 'T' + startInput.value + ':00',
+      end: dateInput.value + 'T' + endInput.value + ':00',
+      technician_ids: techSel.value ? [Number(techSel.value)] : [],
+      reason: modal.querySelector('#schReason').value || undefined,
+    };
+    const res = await api('POST', '/api/v1/calendar/validate', payload);
+    if (!res.ok) { valDiv.innerHTML = '<span style="color:#991B1B">Error de validaci�n.</span>'; return; }
+    const r = res.body || {};
+    if (r.ok) {
+      valDiv.innerHTML = '<span style="color:#166534">Sin conflictos.</span>';
+      conflictActions.style.display = 'none';
+    } else {
+      const msgs = (r.conflicts || []).map(c => escapeHtml(c.message || c.code) + (c.conflicting_order_code ? ' (' + escapeHtml(c.conflicting_order_code) + ')' : '')).join('<br>');
+      const warns = (r.warnings || []).map(w => escapeHtml(w.message || w.code)).join('<br>');
+      valDiv.innerHTML = '<span style="color:#991B1B">' + (msgs || 'Conflicto') + '</span>' + (warns ? '<br><span style="color:#C9892A">' + warns + '</span>' : '');
+      // conflict actions
+      conflictActions.style.display = 'flex';
+      conflictActions.innerHTML = '';
+      const b1 = document.createElement('button');
+      b1.className = 'sigos-btn-secondary'; b1.style.height = '28px'; b1.textContent = 'Elegir otro horario';
+      b1.addEventListener('click', () => startInput.focus());
+      conflictActions.appendChild(b1);
+      const uid = techSel.value;
+      if (uid) {
+        const b2 = document.createElement('button');
+        b2.className = 'sigos-btn-secondary'; b2.style.height = '28px'; b2.textContent = 'Ver agenda de ' + (techSel.selectedOptions[0] ? techSel.selectedOptions[0].textContent.split(' � ')[0] : 't�cnico');
+        b2.addEventListener('click', () => { closeScheduleModal(); csFilterByTech(uid); });
+        conflictActions.appendChild(b2);
+      }
+    }
+  }
+  function scheduleValidate() {
+    clearTimeout(validateTimer);
+    validateTimer = setTimeout(runValidation, 350);
+  }
+
+  function closeScheduleModal() {
+    overlay.remove();
+  }
+
+  // events
+  [orderSel, dateInput, startInput, endInput, techSel, modal.querySelector('#schReason')].forEach(el => {
+    el.addEventListener('change', () => { markDirty(); updateReasonVisibility(); refreshTechOptions(); updateTechWarning(); updateSummary(); scheduleValidate(); });
+    el.addEventListener('input', () => { markDirty(); updateSummary(); scheduleValidate(); });
+  });
+  modal.querySelector('#schOrderSearch').addEventListener('input', (e) => {
+    const q = normalizeText(e.target.value);
+    Array.from(orderSel.options).forEach(opt => {
+      const txt = normalizeText(opt.textContent);
+      opt.style.display = txt.includes(q) ? '' : 'none';
+    });
+  });
+  modal.querySelector('#schClose').addEventListener('click', () => {
+    if (dirty && !window.confirm('�Descartar cambios?')) return;
+    closeScheduleModal();
+  });
+  modal.querySelector('#schCancel').addEventListener('click', () => {
+    if (dirty && !window.confirm('�Descartar cambios?')) return;
+    closeScheduleModal();
+  });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { if (dirty && !window.confirm('�Descartar cambios?')) return; closeScheduleModal(); } });
+
+  modal.querySelector('#schSave').addEventListener('click', async () => {
+    const oid = orderSel.value;
+    if (!oid) { notify('Selecciona una orden.', 'error'); return; }
+    if (!dateInput.value || !startInput.value || !endInput.value) { notify('Completa fecha y hora.', 'error'); return; }
+    const isReprogram = !!(orderSel.selectedOptions[0] && orderSel.selectedOptions[0].dataset.scheduled);
+    if (isReprogram) {
+      const reason = modal.querySelector('#schReason').value;
+      if (!reason) { notify('Motivo del cambio obligatorio.', 'error'); return; }
+    }
+    const payload = {
+      start: dateInput.value + 'T' + startInput.value + ':00',
+      end: dateInput.value + 'T' + endInput.value + ':00',
+      notes: modal.querySelector('#schNotes').value || undefined,
+      version: Number(orderSel.selectedOptions[0].dataset.version || 0),
+    };
+    if (techSel.value) payload.technician_ids = [Number(techSel.value)];
+    else payload.technician_ids = [];
+    if (isReprogram) payload.reason = modal.querySelector('#schReason').value + (modal.querySelector('#schReasonComment').value ? ' � ' + modal.querySelector('#schReasonComment').value : '');
+
+    const path = isReprogram ? ('/api/v1/work-orders/' + oid + '/schedule') : ('/api/v1/work-orders/' + oid + '/schedule');
+    const method = isReprogram ? 'PATCH' : 'POST';
+    const res = await api(method, path, payload);
+    if (res.ok) {
+      closeScheduleModal();
+      notify('Visita programada.', 'success');
+      const cs = state.calendarState;
+      cs.selectedEventId = Number(oid);
+      cs.highlightId = Number(oid);
+      render();
+      setTimeout(() => { if (cs.highlightId === Number(oid)) { cs.highlightId = null; render(); } }, 1500);
+    } else {
+      const code = res.body && res.body.code;
+      if (res.status === 409) {
+        const msg = (res.body && (res.body.message || res.body.error)) || 'Conflicto de horario.';
+        valDiv.innerHTML = '<span style="color:#991B1B">' + escapeHtml(msg) + '</span>';
+        conflictActions.style.display = 'flex';
+        conflictActions.innerHTML = '';
+        const b1 = document.createElement('button'); b1.className='sigos-btn-secondary'; b1.style.height='28px'; b1.textContent='Elegir otro horario';
+        b1.addEventListener('click', () => startInput.focus()); conflictActions.appendChild(b1);
+        if (techSel.value) {
+          const b2 = document.createElement('button'); b2.className='sigos-btn-secondary'; b2.style.height='28px'; b2.textContent='Ver agenda de ' + (techSel.selectedOptions[0].textContent.split(' � ')[0]);
+          b2.addEventListener('click', () => { closeScheduleModal(); csFilterByTech(techSel.value); });
+          conflictActions.appendChild(b2);
+        }
+        notify(msg, 'error');
+      } else if (res.status === 422) {
+        notify((res.body && (res.body.message || res.body.error)) || 'Datos inv�lidos.', 'error');
+      } else if (res.status === 403) {
+        notify('Sin permisos.', 'error');
+      } else {
+        notify((res.body && (res.body.message || res.body.error)) || 'Error del servidor.', 'error');
+      }
+    }
+  });
+
+  // reason wrap initial
+  updateReasonVisibility();
+  updateSummary();
+  runValidation();
+
+  // highlight saved event in grid after render? handled by cs.highlightId
+}
+
+function csFilterByTech(uid) {
+  const cs = state.calendarState;
+  if (!cs) return;
+  cs.filters.technician_id = String(uid);
+  cs.selectedDay = cs.selectedDay || calTodayStr();
+  render();
+}
+
+// close modal helper available globally
+function closeScheduleModal() {
+  const overlay = document.querySelector('div[style*="z-index:10000"]');
+  if (overlay) overlay.remove();
+}
