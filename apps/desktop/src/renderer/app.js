@@ -390,6 +390,7 @@ async function renderCalendar(content) {
     if (ures.ok) unassigned = (ures.body && ures.body.items) || [];
     else { unassignedError = (ures.body && (ures.body.message || ures.body.error)) || 'Error del servidor'; console.error('calendar unassigned error', ures); }
     state._calItems = items;
+    state._calUnassigned = unassigned;
     let techOpts = [], cityOpts = [], zoneOpts = [], typeOpts = [];
     if (hasRole('admin') || hasRole('dispatcher')) {
       try { const tr = await api('GET', '/api/v1/technicians?page_size=200&active=true'); if (tr.ok) techOpts = (tr.body && tr.body.items) || []; } catch(e) {}
@@ -464,7 +465,7 @@ async function renderCalendar(content) {
   // main layout: grid + panel
   html += '<div style="display:flex;gap:8px;flex:1;min-height:0">';
   // calendar grid
-  html += '<div style="flex:1;min-width:0;overflow:auto;border:1px solid #DDD9D3;border-radius:8px;background:#fff">';
+   html += '<div class="cal-grid-scroll" style="flex:1;min-width:0;overflow:auto;border:1px solid #DDD9D3;border-radius:8px;background:#fff">';
   if (cs.view === 'month') {
     html += '<div style="display:grid;grid-template-columns:repeat(7,1fr)">';
     ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(d => { html += '<div style="padding:6px;font-size:11px;font-weight:600;color:#96908A;border-bottom:1px solid #DDD9D3;text-align:center">' + d + '</div>'; });
@@ -531,8 +532,9 @@ async function renderCalendar(content) {
            html += '<div class="cal-event" data-event-id="' + e.order_id + '" tabindex="0" title="' + escapeHtml(orderCode(e) + ' ' + e.title) + '" style="position:absolute;top:' + top + 'px;left:' + left + ';width:' + width + ';height:' + height + 'px;background:#F3F8F5;' + selStyle + dash + ';border-radius:4px;padding:2px 4px;font-size:11px;overflow:hidden;pointer-events:auto;cursor:pointer">';
           html += '<div style="font-family:JetBrains Mono,monospace;font-size:10px">' + escapeHtml(orderCode(e)) + '</div>';
           html += '<div style="font-weight:600">' + escapeHtml(e.title) + '</div>';
-          html += '<div style="color:#64748B">' + escapeHtml((e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar') + '</div>';
-          html += '</div>';
+           html += '<div style="color:#64748B">' + escapeHtml((e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar') + '</div>';
+           html += '<div class="cal-resize-handle" data-event-id="' + e.order_id + '" style="position:absolute;bottom:0;left:0;right:0;height:6px;cursor:ns-resize"></div>';
+           html += '</div>';
         });
       });
       html += '</div>';
@@ -557,10 +559,10 @@ async function renderCalendar(content) {
      const parts = [o.customer_name || '—', o.installation_type_code || o.installation_type || '—', o.priority || '—'].filter(Boolean);
      return escapeHtml(code) + (parts.length ? ' · ' + parts.map(escapeHtml).join(' · ') : '');
    };
-   porProgramar.slice(0,8).forEach(o => { html += '<div style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4">' + pendingLine(o) + '</div>'; });
+   porProgramar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
   html += '<div style="font-size:12px;font-weight:600;color:#96908A;margin-top:6px">Por asignar (' + porAsignar.length + ')</div>';
   if (!porAsignar.length) html += '<div style="font-size:11px;color:#96908A">Sin pendientes</div>';
-   porAsignar.slice(0,8).forEach(o => { html += '<div style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4">' + pendingLine(o) + '</div>'; });
+   porAsignar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
   html += '</div>';
    const selectedEvent = (items || []).find(e => e.order_id === cs.selectedEventId) || null;
    if (cs.selectedEventId && !selectedEvent) cs.selectedEventId = null;
@@ -648,7 +650,18 @@ async function renderCalendar(content) {
      el.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); cs.selectedEventId = eid; showContextMenu(ev.clientX, ev.clientY, eid); });
      el.addEventListener('keydown', (ev) => {
        if (ev.key === 'Enter') { ev.preventDefault(); state.selectedOrderId = eid; state.view = 'order-detail'; render(); }
+       if (ev.key === 'm' || ev.key === 'M') { ev.preventDefault(); openScheduleModal({ orderId: eid }); }
      });
+   });
+   // drag
+   content.querySelectorAll('.cal-event').forEach(el => {
+     el.addEventListener('pointerdown', (ev) => { if (ev.button !== 0) return; beginDragEvent(ev, Number(el.dataset.eventId)); });
+   });
+   content.querySelectorAll('.cal-resize-handle').forEach(el => {
+     el.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); if (ev.button !== 0) return; beginResize(ev, Number(el.dataset.eventId)); });
+   });
+   content.querySelectorAll('.cal-tray-item').forEach(el => {
+     el.addEventListener('pointerdown', (ev) => { if (ev.button !== 0) return; beginDragTray(ev, Number(el.dataset.orderId)); });
    });
    // day header selection already via data-day
    // actions
@@ -2003,3 +2016,396 @@ function closeScheduleModal() {
   const overlay = document.querySelector('div[style*="z-index:10000"]');
   if (overlay) overlay.remove();
 }
+
+function askReason() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10001;display:flex;align-items:center;justify-content:center;';
+    const modal = document.createElement('div');
+    modal.style.cssText = 'width:320px;background:#fff;border-radius:8px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.2);';
+    modal.innerHTML = `
+      <div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:8px">Motivo del cambio</div>
+      <select id="reasonSel" class="sigos-input" style="height:36px;width:100%;margin-bottom:6px">
+        <option value="">Selecciona motivo</option>
+        <option value="Cliente reprogram�">Cliente reprogram�</option>
+        <option value="T�cnico no disponible">T�cnico no disponible</option>
+        <option value="Clima">Clima</option>
+        <option value="Falta de material">Falta de material</option>
+        <option value="Otro">Otro</option>
+      </select>
+      <input id="reasonComment" class="sigos-input" style="height:32px;width:100%" placeholder="Comentario">
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+        <button id="reasonCancel" class="sigos-btn-secondary" style="height:32px">Cancelar</button>
+        <button id="reasonOk" class="sigos-btn-primary" style="height:32px">Aceptar</button>
+      </div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    modal.querySelector('#reasonCancel').addEventListener('click', () => { overlay.remove(); resolve(null); });
+    modal.querySelector('#reasonOk').addEventListener('click', () => {
+      const v = modal.querySelector('#reasonSel').value;
+      if (!v) { notify('Motivo obligatorio.', 'error'); return; }
+      const c = modal.querySelector('#reasonComment').value;
+      overlay.remove();
+      resolve(v + (c ? ' � ' + c : ''));
+    });
+  });
+}
+
+let _dragState = null;
+let _ghost = null;
+let _validateTimer = null;
+let _lastValidateKey = '';
+
+function removeGhost() {
+  if (_ghost) { _ghost.remove(); _ghost = null; }
+}
+
+function beginDragEvent(ev, eventId) {
+  const cs = state.calendarState;
+  if (!cs) return;
+  if (!hasRole('admin') && !hasRole('dispatcher')) return;
+  const evObj = (state._calItems || []).find(e => e.order_id === eventId);
+  if (!evObj) return;
+  if (!['pending','assigned','in_progress'].includes(evObj.status)) return;
+  _dragState = {
+    type: 'event',
+    eventId,
+    evObj: JSON.parse(JSON.stringify(evObj)),
+    pointerId: ev.pointerId,
+    startX: ev.clientX,
+    startY: ev.clientY,
+    currentX: ev.clientX,
+    currentY: ev.clientY,
+    started: false,
+    target: null,
+    lastValidation: null,
+  };
+  const el = ev.currentTarget;
+  try { el.setPointerCapture(ev.pointerId); } catch(e) {}
+  const onMove = (e) => onDragMove(e);
+  const onUp = (e) => onDragEnd(e);
+  const onCancel = () => cancelDrag();
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onCancel);
+  _dragState._cleanup = () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onCancel);
+  };
+  // threshold check via move
+}
+
+function beginDragTray(ev, orderId) {
+  if (!hasRole('admin') && !hasRole('dispatcher')) return;
+  const order = (state._calUnassigned || []).find(o => o.id === orderId) || (state._calItems || []).find(o => o.order_id === orderId);
+  _dragState = {
+    type: 'tray',
+    orderId,
+    pointerId: ev.pointerId,
+    startX: ev.clientX,
+    startY: ev.clientY,
+    currentX: ev.clientX,
+    currentY: ev.clientY,
+    started: false,
+  };
+  try { ev.currentTarget.setPointerCapture(ev.pointerId); } catch(e) {}
+  const onMove = (e) => onDragMove(e);
+  const onUp = (e) => onDragEnd(e);
+  const onCancel = () => cancelDrag();
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onCancel);
+  _dragState._cleanup = () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onCancel);
+  };
+}
+
+function beginResize(ev, eventId) {
+  const evObj = (state._calItems || []).find(e => e.order_id === eventId);
+  if (!evObj) return;
+  if (!['pending','assigned','in_progress'].includes(evObj.status)) return;
+  _dragState = {
+    type: 'resize',
+    eventId,
+    evObj: JSON.parse(JSON.stringify(evObj)),
+    pointerId: ev.pointerId,
+    startY: ev.clientY,
+    started: true,
+  };
+  try { ev.currentTarget.setPointerCapture(ev.pointerId); } catch(e) {}
+  const onMove = (e) => onResizeMove(e);
+  const onUp = (e) => onResizeEnd(e);
+  const onCancel = () => cancelDrag();
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onCancel);
+  _dragState._cleanup = () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onCancel);
+  };
+}
+
+function onDragMove(e) {
+  if (!_dragState) return;
+  _dragState.currentX = e.clientX;
+  _dragState.currentY = e.clientY;
+  const dx = e.clientX - _dragState.startX;
+  const dy = e.clientY - _dragState.startY;
+  if (!_dragState.started) {
+    if (Math.hypot(dx, dy) < 4) return;
+    _dragState.started = true;
+    if (_dragState.type !== 'resize') {
+      _ghost = document.createElement('div');
+      _ghost.style.cssText = 'position:fixed;pointer-events:none;z-index:10002;opacity:.7;background:#F3F8F5;border:2px dashed #2E7A50;border-radius:4px;padding:2px 4px;font-size:11px;white-space:nowrap;';
+      _ghost.textContent = _dragState.type === 'tray' ? 'Programar' : (orderCode(_dragState.evObj) || 'Visita');
+      document.body.appendChild(_ghost);
+    }
+  }
+  if (_dragState.started && _ghost) {
+    _ghost.style.left = (e.clientX + 12) + 'px';
+    _ghost.style.top = (e.clientY + 12) + 'px';
+  }
+  // autoscroll
+  const scroller = document.querySelector('.cal-grid-scroll');
+  if (scroller) {
+    const rect = scroller.getBoundingClientRect();
+    if (e.clientY < rect.top + 40) scroller.scrollTop -= 8;
+    if (e.clientY > rect.bottom - 40) scroller.scrollTop += 8;
+  }
+  // determine target
+  const target = (e.target && e.target.closest) ? e.target.closest('[data-slot-date],[data-day]') : null;
+  // fallback elementFromPoint
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const slot = el ? el.closest('[data-slot-date]') : null;
+  const dayCell = el ? el.closest('[data-day]') : null;
+  if (slot) {
+    const date = slot.dataset.slotDate;
+    const hour = Number(slot.dataset.slotHour);
+    const rect = slot.getBoundingClientRect();
+    const snap = (state.calendarState && state.calendarState.view) ? 30 : 30;
+    // use settings interval if available? default 30
+    const interval = 30;
+    const y = e.clientY - rect.top;
+    const rawMin = (y / rect.height) * 60;
+    const minute = Math.max(0, Math.min(59, Math.round(rawMin / interval) * interval));
+    if (minute === 60) { /* carry */ }
+    const startStr = String(hour).padStart(2,'0') + ':' + String(minute).padStart(2,'0');
+    _dragState.target = { date, time: startStr, slot };
+    // debounced validate
+    if (_dragState.type === 'event') {
+      validateDragTarget(_dragState, date, startStr);
+    } else if (_dragState.type === 'tray') {
+      if (_ghost) _ghost.style.background = '#F3F8F5';
+    }
+  } else if (dayCell) {
+    const date = dayCell.dataset.day;
+    _dragState.target = { date, time: (_dragState.evObj ? _dragState.evObj.start.slice(11,16) : '08:00') };
+    if (_ghost) _ghost.style.background = '#F3F8F5';
+  } else {
+    _dragState.target = null;
+    if (_ghost) _ghost.style.background = '#FEE2E2';
+  }
+}
+
+function validateDragTarget(ds, date, time) {
+  const key = date + 'T' + time;
+  if (key === _lastValidateKey) return;
+  _lastValidateKey = key;
+  clearTimeout(_validateTimer);
+  _validateTimer = setTimeout(async () => {
+    const evObj = ds.evObj;
+    const dur = new Date(evObj.end) - new Date(evObj.start);
+    const endMin = (parseInt(time.split(':')[0],10)*60 + parseInt(time.split(':')[1],10)) + dur/60000;
+    const endH = String(Math.floor(endMin/60)).padStart(2,'0');
+    const endM = String(Math.round(endMin%60)).padStart(2,'0');
+    const payload = {
+      order_id: ds.eventId,
+      start: date + 'T' + time + ':00',
+      end: date + 'T' + endH + ':' + endM + ':00',
+      technician_ids: (evObj.technicians||[]).map(t=>t.id),
+      reason: 'drag',
+    };
+    const res = await api('POST', '/api/v1/calendar/validate', payload);
+    if (!_dragState || _dragState !== ds) return;
+    if (res.ok && res.body && res.body.ok) {
+      ds.lastValidation = { ok: true };
+      if (_ghost) { _ghost.style.background = '#DCFCE7'; _ghost.style.borderColor = '#22C55E'; }
+    } else {
+      const msg = (res.body && res.body.conflicts && res.body.conflicts[0] && (res.body.conflicts[0].message || res.body.conflicts[0].code)) || 'Conflicto';
+      ds.lastValidation = { ok: false, message: msg };
+      if (_ghost) { _ghost.style.background = '#FEE2E2'; _ghost.style.borderColor = '#D63B3B'; _ghost.title = msg; }
+    }
+  }, 250);
+}
+
+async function onDragEnd(e) {
+  if (!_dragState) return;
+  const ds = _dragState;
+  const cleanup = ds._cleanup;
+  if (cleanup) cleanup();
+  const started = ds.started;
+  const target = ds.target;
+  removeGhost();
+  if (!started) { _dragState = null; _lastValidateKey = ''; return; } // simple click
+
+  // tray drag -> open modal preloaded
+  if (ds.type === 'tray') {
+    if (target && target.date) {
+      openScheduleModal({ orderId: ds.orderId, date: target.date, hour: (target.time||'08:00').split(':')[0], minute: (target.time||'08:00').split(':')[1] });
+    }
+    _dragState = null; _lastValidateKey = ''; return;
+  }
+
+  // resize handled separately
+  if (ds.type === 'resize') { _dragState = null; return; }
+
+  // event drag
+  if (!target) { _dragState = null; _lastValidateKey = ''; notify('Soltar en una celda v�lida.', 'error'); return; }
+  const evObj = ds.evObj;
+  const origStart = new Date(evObj.start);
+  const origEnd = new Date(evObj.end);
+  const dur = origEnd - origStart;
+  const newStartStr = target.date + 'T' + target.time + ':00';
+  const newStart = new Date(newStartStr);
+  const newEnd = new Date(newStart.getTime() + dur);
+  // if no change, do nothing
+  if (newStart.getTime() === origStart.getTime() && target.date === evObj.start.slice(0,10)) {
+    _dragState = null; _lastValidateKey = ''; return;
+  }
+  // validate one last time
+  if (ds.lastValidation && ds.lastValidation.ok === false) {
+    notify(ds.lastValidation.message || 'Conflicto', 'error');
+    _dragState = null; _lastValidateKey = ''; return;
+  }
+  const reason = await askReason();
+  if (!reason) { _dragState = null; _lastValidateKey = ''; return; }
+
+  // optimistic update
+  const items = state._calItems || [];
+  const idx = items.findIndex(x => x.order_id === ds.eventId);
+  const backup = idx >= 0 ? JSON.parse(JSON.stringify(items[idx])) : null;
+  if (idx >= 0) {
+    items[idx].start = newStart.toISOString();
+    items[idx].end = newEnd.toISOString();
+  }
+  state._calItems = items;
+  render();
+
+  const payload = {
+    start: newStartStr,
+    end: newStart.toISOString().slice(0,10) + 'T' + String(newEnd.getHours()).padStart(2,'0') + ':' + String(newEnd.getMinutes()).padStart(2,'0') + ':00',
+    technician_ids: (evObj.technicians||[]).map(t=>t.id),
+    reason,
+    version: evObj.version,
+  };
+  const method = evObj.start ? 'PATCH' : 'POST';
+  const res = await api('PATCH', '/api/v1/work-orders/' + ds.eventId + '/schedule', payload);
+  if (res.ok) {
+    notify('Movido. Deshacer disponible 8 s.', 'success');
+    // undo toast
+    const undoBtn = document.createElement('button');
+    // simple notify with undo
+    const el = document.createElement('div');
+    el.style.cssText = 'background:#DCFCE7;color:#166534;border-radius:4px;padding:8px 12px;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:8px;';
+    el.innerHTML = '<span>Movido correctamente.</span>';
+    const ub = document.createElement('button');
+    ub.textContent = 'Deshacer';
+    ub.className = 'sigos-btn-secondary';
+    ub.style.height = '24px';
+    ub.addEventListener('click', async () => {
+      const revPayload = {
+        start: evObj.start.slice(0,19),
+        end: evObj.end.slice(0,19),
+        technician_ids: (evObj.technicians||[]).map(t=>t.id),
+        reason: 'Deshacer',
+        version: (res.body && res.body.version) ? res.body.version : evObj.version,
+      };
+      const r2 = await api('PATCH', '/api/v1/work-orders/' + ds.eventId + '/schedule', revPayload);
+      if (r2.ok) { notify('Deshacer aplicado.', 'success'); render(); }
+      else notify('No se pudo deshacer.', 'error');
+      el.remove();
+    });
+    el.appendChild(ub);
+    const container = document.getElementById('alerts') || document.getElementById('content');
+    if (container) container.prepend(el);
+    setTimeout(() => el.remove(), 8000);
+    // highlight
+    const cs2 = state.calendarState;
+    cs2.highlightId = ds.eventId;
+    render();
+    setTimeout(() => { if (cs2.highlightId === ds.eventId) { cs2.highlightId = null; render(); } }, 1500);
+  } else {
+    // revert
+    if (backup && idx >= 0) { items[idx] = backup; state._calItems = items; render(); }
+    const msg = (res.body && (res.body.message || res.body.error || res.body.code)) || 'Error al mover.';
+    notify(msg, 'error');
+  }
+  _dragState = null;
+  _lastValidateKey = '';
+}
+
+function onResizeMove(e) {
+  if (!_dragState || _dragState.type !== 'resize') return;
+  // visual feedback not implemented; store new end on up
+  _dragState.currentY = e.clientY;
+}
+
+async function onResizeEnd(e) {
+  if (!_dragState || _dragState.type !== 'resize') return;
+  const ds = _dragState;
+  const cleanup = ds._cleanup;
+  if (cleanup) cleanup();
+  const evObj = ds.evObj;
+  const origStart = new Date(evObj.start);
+  const origEnd = new Date(evObj.end);
+  const slotHeight = 48; // px per hour? approximate
+  const dy = e.clientY - ds.startY;
+  const minutesDelta = Math.round((dy / slotHeight) * 60);
+  const interval = 30;
+  const snapped = Math.round(minutesDelta / interval) * interval;
+  let newDur = (origEnd - origStart)/60000 + snapped;
+  const minDur = 15;
+  const maxDur = 480;
+  if (newDur < minDur) newDur = minDur;
+  if (newDur > maxDur) newDur = maxDur;
+  const newEnd = new Date(origStart.getTime() + newDur*60000);
+  if (newEnd.getTime() === origEnd.getTime()) { _dragState = null; return; }
+  const reason = await askReason();
+  if (!reason) { _dragState = null; return; }
+  const payload = {
+    start: evObj.start.slice(0,19),
+    end: newEnd.toISOString().slice(0,19),
+    technician_ids: (evObj.technicians||[]).map(t=>t.id),
+    reason,
+    version: evObj.version,
+  };
+  const res = await api('PATCH', '/api/v1/work-orders/' + ds.eventId + '/schedule', payload);
+  if (res.ok) {
+    notify('Duraci�n actualizada.', 'success');
+    const cs = state.calendarState;
+    cs.highlightId = ds.eventId;
+    render();
+    setTimeout(() => { if (cs.highlightId === ds.eventId) { cs.highlightId = null; render(); } }, 1500);
+  } else {
+    notify((res.body && (res.body.message || res.body.error)) || 'Error', 'error');
+  }
+  _dragState = null;
+}
+
+function cancelDrag() {
+  if (!_dragState) return;
+  const cleanup = _dragState._cleanup;
+  if (cleanup) cleanup();
+  removeGhost();
+  _dragState = null;
+  _lastValidateKey = '';
+}
+
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') cancelDrag();
+});
