@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify
 
 from app.extensions import db
+from app.settings import service as settings_service
 from app.common.normalize import normalize_text
 from app.identity.decorators import require_auth, require_role
 from app.identity.models import User
@@ -197,6 +198,103 @@ def materials_export():
     return Response(buf.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=materiales.csv"})
 
+
+
+
+# ---- Export (Fase 3) ----
+import base64
+
+def _export_params():
+    is_active = request.args.get("is_active")
+    if is_active is not None:
+        is_active = is_active.lower() == "true"
+    filters = {
+        "q": request.args.get("q"),
+        "status": request.args.get("status"),
+        "unit": request.args.get("unit"),
+        "is_active": is_active,
+        "category": request.args.get("category"),
+        "sort": request.args.get("sort", "name"),
+        "order": request.args.get("order", "asc"),
+    }
+    cols_raw = request.args.get("columns")
+    if cols_raw:
+        columns = [c.strip() for c in cols_raw.split(",") if c.strip()]
+    else:
+        columns = None
+    fmt = (request.args.get("format") or "csv").lower()
+    separator = request.args.get("separator", ";")
+    orientation = request.args.get("orientation", "landscape")
+    return filters, columns, fmt, separator, orientation
+
+
+@blueprint.get("/materials/export/preview")
+@require_role("admin", "dispatcher")
+def materials_export_preview():
+    from app.materials.export import ExportDataset, render_csv, render_excel, render_pdf
+    filters, columns, fmt, separator, orientation = _export_params()
+    user = db.session.get(User, request.user_id)
+    ds = ExportDataset(filters=filters, columns=columns, user=user, limit=20)
+    if fmt == "csv":
+        content = render_csv(ds, separator=separator).decode("utf-8")
+        return jsonify({"format": "csv", "content": content, "rows": ds.total_rows, "truncated": ds.truncated}), 200
+    if fmt == "excel":
+        # return first rows as grid for preview
+        return jsonify({
+            "format": "excel",
+            "headers": ds.column_headers(),
+            "rows": [ds.row_values(r) for r in ds.rows],
+            "total_rows": ds.total_rows,
+            "truncated": ds.truncated,
+        }), 200
+    if fmt == "pdf":
+        pdf_bytes = render_pdf(ds, orientation=orientation)
+        b64 = base64.b64encode(pdf_bytes).decode("ascii")
+        return jsonify({"format": "pdf", "content_base64": b64, "rows": ds.total_rows, "truncated": ds.truncated}), 200
+    return jsonify({"error": "invalid format", "message": "invalid format"}), 422
+
+
+@blueprint.get("/materials/export/download")
+@require_role("admin", "dispatcher")
+def materials_export_download():
+    from app.materials.export import ExportDataset, render_csv, render_excel, render_pdf
+    filters, columns, fmt, separator, orientation = _export_params()
+    user = db.session.get(User, request.user_id)
+    ds = ExportDataset(filters=filters, columns=columns, user=user, limit=None)
+    # row cap
+    cap = 5000
+    if ds.total_rows > cap:
+        ds = ExportDataset(filters=filters, columns=columns, user=user, limit=cap)
+        truncated = True
+    else:
+        truncated = ds.truncated
+    if fmt == "csv":
+        data = render_csv(ds, separator=separator)
+        mimetype = "text/csv"
+        ext = "csv"
+    elif fmt == "excel":
+        data = render_excel(ds)
+        mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ext = "xlsx"
+    elif fmt == "pdf":
+        data = render_pdf(ds, orientation=orientation)
+        mimetype = "application/pdf"
+        ext = "pdf"
+    else:
+        return jsonify({"error": "invalid format", "message": "invalid format"}), 422
+    # audit
+    try:
+        settings_service.audit(request.user_id, user.username if user else None, "materials_export", fmt, None,
+                              f"rows={ds.total_rows};cols={','.join(ds.columns)};truncated={truncated}", "applied",
+                              request.headers.get("X-Request-Id"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    from flask import Response
+    return Response(data, mimetype=mimetype,
+                    headers={"Content-Disposition": f"attachment; filename=inventario.{ext}",
+                             "X-Export-Rows": str(ds.total_rows),
+                             "X-Export-Truncated": "1" if truncated else "0"})
 
 @blueprint.get("/materials/<int:mat_id>")
 @require_auth
