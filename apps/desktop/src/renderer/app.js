@@ -169,6 +169,7 @@ const NAV = [
   { key: 'technicians', label: 'Técnicos', icon: 'tech', roles: ['admin', 'dispatcher'] },
   { key: 'calendar', label: 'Calendario', icon: 'calendar', roles: null },
   { key: 'materials', label: 'Materiales', icon: 'materials', roles: ['admin', 'dispatcher'] },
+  { key: 'requests', label: 'Solicitudes', icon: 'orders', roles: null },
   { key: 'evidence', label: 'Evidencias', icon: 'evidence', roles: null },
   { key: 'reports', label: 'Reportes', icon: 'reports', roles: ['admin', 'dispatcher'] },
   { key: 'users', label: 'Usuarios', icon: 'users', roles: ['admin'] },
@@ -297,6 +298,7 @@ const VIEW_META = {
   technicians: ['Técnicos', 'Perfiles y disponibilidad'],
   calendar: ['Calendario', 'Visitas programadas'],
   materials: ['Materiales', 'Inventario y stock'],
+  requests: ['Solicitudes de materiales', 'Gestion de solicitudes'],
   evidence: ['Evidencias', 'Archivos y observaciones'],
   reports: ['Reportes', 'Indicadores y exportación'],
   users: ['Usuarios', 'Gestión de accesos'],
@@ -321,6 +323,7 @@ function renderView() {
   else if (state.view === 'calendar') renderCalendar(content);
   else if (state.view === 'settings') renderSettings(content);
   else if (state.view === 'materials') renderMaterials(content);
+  else if (state.view === 'requests') renderRequests(content);
   else if (state.view === 'users') renderUsers(content);
   else if (state.view === 'notifications') renderNotifications(content);
   else pendingView(content, meta[0]);
@@ -2276,6 +2279,261 @@ async function openAdjustModal(content, matId) {
     ofBtn.addEventListener('click', async () => { await window.sigos.openFolder(r.path); });
     const alerts = $('#alerts') || $('#content');
     if (alerts) alerts.prepend(ofBtn);
+  });
+}
+
+
+﻿async function renderRequests(content) {
+  if (!state.requestsFilters) state.requestsFilters = { status: '', work_order_id: '', mine: false };
+  if (!state.requestsPage) state.requestsPage = 1;
+  const filters = state.requestsFilters;
+  content.innerHTML = `<div class="skeleton" style="height:240px"></div>`;
+  const roles = (state.session?.user?.roles || []);
+  const isAdmin = roles.includes('admin');
+  const isDispatcher = roles.includes('dispatcher');
+  const canManage = isAdmin || isDispatcher;
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.work_order_id) params.set('work_order_id', filters.work_order_id);
+  if (filters.mine && !canManage) params.set('mine', 'true');
+  params.set('page', state.requestsPage);
+  params.set('page_size', 20);
+  const res = await api('GET', '/api/v1/material-requests?' + params.toString());
+  if (!res.ok) {
+    const msg = (res.body && (res.body.message || res.body.error)) || 'Error al cargar solicitudes.';
+    content.innerHTML = `<div style="color:#991B1B;margin-bottom:8px">${escapeHtml(msg)}</div><button class="sigos-btn-secondary" id="retryReq">Reintentar</button>`;
+    const rb = $('#retryReq'); if (rb) rb.addEventListener('click', () => renderRequests(content));
+    return;
+  }
+  const data = res.body || {};
+  const items = data.items || [];
+  const total = data.total || 0;
+  const pageSize = data.page_size || 20;
+  const currentPage = data.page || 1;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const statusBadge = (st) => {
+    const map = { DRAFT:'badge-medium', SUBMITTED:'badge-pending', APPROVED:'badge-completed', PARTIALLY_APPROVED:'badge-pending', REJECTED:'badge-cancelled', PARTIALLY_DELIVERED:'badge-pending', DELIVERED:'badge-completed', CANCELLED:'badge-cancelled' };
+    return `<span class="${map[st] || ''}">${escapeHtml(st)}</span>`;
+  };
+
+  content.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="font-family:Outfit;font-weight:700;font-size:20px;color:#163028;margin:0">Solicitudes de materiales</h2>
+        <div style="font-size:13px;color:#96908A">${total} solicitudes</div>
+      </div>
+      <button class="sigos-btn-primary" id="newReqBtn" style="height:36px">${icon('plus',16)} Nueva solicitud</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <select id="reqStatus" class="sigos-select" style="height:36px">
+        <option value="">Todos los estados</option>
+        ${['DRAFT','SUBMITTED','APPROVED','PARTIALLY_APPROVED','REJECTED','PARTIALLY_DELIVERED','DELIVERED','CANCELLED'].map((s) => `<option value="${s}" ${filters.status===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <input class="sigos-input" id="reqWo" placeholder="Orden de trabajo ID" value="${escapeHtml(filters.work_order_id)}" style="height:36px;width:180px">
+      ${!canManage ? `<label style="font-size:12px;align-self:center"><input type="checkbox" id="reqMine" ${filters.mine?'checked':''}> Solo mías</label>` : ''}
+    </div>
+    <div class="sigos-card" style="overflow:hidden">
+      <table class="tbl">
+        <thead><tr><th>Código</th><th>Orden</th><th>Solicitante</th><th>Fecha</th><th>Materiales</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody>
+          ${items.map((r) => `<tr class="tbl-row">
+            <td style="font-family:JetBrains Mono,monospace;font-size:12px">${r.id}</td>
+            <td>${r.work_order_id || '-'}</td>
+            <td>${escapeHtml(r.requester?.username || '')}</td>
+            <td style="font-size:12px;color:#96908A">${escapeHtml((r.created_at || '').slice(0,10))}</td>
+            <td>${(r.items || []).length}</td>
+            <td>${statusBadge(r.status)}</td>
+            <td><button class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-viewreq="${r.id}">Ver</button></td>
+          </tr>`).join('') || `<tr><td colspan="7" class="empty-state__text">Sin solicitudes</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="sigos-btn-secondary" id="prevReq" ${currentPage<=1?'disabled':''} style="height:32px">‹</button>
+        <span style="font-size:12px;color:#96908A">Página ${currentPage} de ${totalPages}</span>
+        <button class="sigos-btn-secondary" id="nextReq" ${currentPage>=totalPages?'disabled':''} style="height:32px">›</button>
+      </div>
+    </div>
+  `;
+
+  const rs = $('#reqStatus'); if (rs) rs.addEventListener('change', () => { filters.status = rs.value; state.requestsPage = 1; renderRequests(content); });
+  const rwo = $('#reqWo'); if (rwo) rwo.addEventListener('change', () => { filters.work_order_id = rwo.value.trim(); state.requestsPage = 1; renderRequests(content); });
+  const rm = $('#reqMine'); if (rm) rm.addEventListener('change', () => { filters.mine = rm.checked; state.requestsPage = 1; renderRequests(content); });
+  const prev = $('#prevReq'); if (prev) prev.addEventListener('click', () => { if (state.requestsPage > 1) { state.requestsPage--; renderRequests(content); } });
+  const next = $('#nextReq'); if (next) next.addEventListener('click', () => { if (state.requestsPage < totalPages) { state.requestsPage++; renderRequests(content); } });
+
+  $('#newReqBtn').addEventListener('click', () => openRequestModal(content));
+  $$('[data-viewreq]').forEach((b) => b.addEventListener('click', () => openRequestDetail(content, Number(b.getAttribute('data-viewreq')))));
+}
+
+async function openRequestModal(content, reqId) {
+  const isEdit = !!reqId;
+  let req = null;
+  if (isEdit) {
+    const r = await api('GET', '/api/v1/material-requests/' + reqId);
+    if (r.ok) req = r.body;
+  }
+  const catRes = await api('GET', '/api/v1/material-categories');
+  const categories = catRes.ok ? (catRes.body || []) : [];
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+  overlay.innerHTML = `
+    <div class="sigos-card" style="width:640px;max-width:95vw;padding:20px;max-height:90vh;overflow:auto">
+      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">${isEdit ? 'Editar borrador' : 'Nueva solicitud'}</h3>
+      <div class="fld"><label>Orden de trabajo (opcional)</label><input type="number" class="sigos-input" id="rWo" value="${req?.work_order_id || ''}"></div>
+      <div class="fld"><label>Motivo</label><input class="sigos-input" id="rReason" value="${escapeHtml(req?.reason || '')}"></div>
+      <div class="fld"><label>Técnico destinatario (id)</label><input type="number" class="sigos-input" id="rTech" value="${req?.technician_id || ''}"></div>
+      <div style="font-size:13px;font-weight:600;margin:8px 0">Materiales</div>
+      <div id="rItems"></div>
+      <button class="sigos-btn-secondary" id="rAddItem" style="height:28px;margin:8px 0">+ Agregar material</button>
+      <div id="rWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="sigos-btn-secondary" id="rCancel">Cancelar</button>
+        <button class="sigos-btn-secondary" id="rSaveDraft">Guardar borrador</button>
+        <button class="sigos-btn-primary" id="rSubmit">Enviar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  $('#rCancel').addEventListener('click', close);
+
+  const items = req ? (req.items || []).map((it) => ({ material_id: it.material_id, quantity: it.quantity_requested || it.quantity })) : [];
+  const renderItems = () => {
+    const c = $('#rItems');
+    if (!c) return;
+    c.innerHTML = items.map((it, idx) => `
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <input type="number" class="sigos-input" placeholder="Material ID" value="${it.material_id}" data-idx="${idx}" data-field="material_id" style="width:120px;height:32px">
+        <input type="number" class="sigos-input" placeholder="Cantidad" value="${it.quantity}" data-idx="${idx}" data-field="quantity" style="width:120px;height:32px">
+        <button class="sigos-btn-secondary" data-remove="${idx}" style="height:32px">✕</button>
+      </div>`).join('');
+    $$('input[data-field]').forEach((inp) => inp.addEventListener('change', () => {
+      const idx = Number(inp.getAttribute('data-idx'));
+      const field = inp.getAttribute('data-field');
+      items[idx][field] = field === 'quantity' ? Number(inp.value) : Number(inp.value);
+    }));
+    $$('button[data-remove]').forEach((b) => b.addEventListener('click', () => { items.splice(Number(b.getAttribute('data-remove')), 1); renderItems(); }));
+  };
+  renderItems();
+  $('#rAddItem').addEventListener('click', () => { items.push({ material_id: '', quantity: 1 }); renderItems(); });
+
+  const gather = () => ({
+    work_order_id: $('#rWo').value ? Number($('#rWo').value) : null,
+    reason: $('#rReason').value.trim() || null,
+    technician_id: $('#rTech').value ? Number($('#rTech').value) : null,
+    items: items.map((it) => ({ material_id: Number(it.material_id), quantity: Number(it.quantity) })),
+  });
+
+  const save = async (draft) => {
+    const payload = gather();
+    payload.draft = draft;
+    if (!payload.items.length) { $('#rWarn').textContent = 'Agrega al menos un material.'; return; }
+    const url = isEdit ? ('/api/v1/material-requests/' + reqId) : '/api/v1/material-requests';
+    const method = isEdit ? 'PATCH' : 'POST';
+    const r = await api(method, url, payload);
+    if (!r.ok) { $('#rWarn').textContent = (r.body && (r.body.message || r.body.error)) || 'Error'; return; }
+    close();
+    notify(draft ? 'Borrador guardado.' : 'Solicitud creada.', 'success');
+    renderRequests(content);
+  };
+  $('#rSaveDraft').addEventListener('click', () => save(true));
+  $('#rSubmit').addEventListener('click', async () => {
+    const payload = gather();
+    payload.draft = true;
+    // create as draft then submit
+    const url = isEdit ? ('/api/v1/material-requests/' + reqId) : '/api/v1/material-requests';
+    const method = isEdit ? 'PATCH' : 'POST';
+    const r = await api(method, url, payload);
+    if (!r.ok) { $('#rWarn').textContent = (r.body && (r.body.message || r.body.error)) || 'Error'; return; }
+    const rid = r.body.id;
+    const rs = await api('POST', '/api/v1/material-requests/' + rid + '/submit', {});
+    if (!rs.ok) { $('#rWarn').textContent = (rs.body && (rs.body.message || rs.body.error)) || 'Error'; return; }
+    close();
+    notify('Solicitud enviada.', 'success');
+    renderRequests(content);
+  });
+}
+
+async function openRequestDetail(content, reqId) {
+  const r = await api('GET', '/api/v1/material-requests/' + reqId);
+  if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+  const req = r.body;
+  const roles = (state.session?.user?.roles || []);
+  const canManage = roles.includes('admin') || roles.includes('dispatcher');
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+  overlay.innerHTML = `
+    <div class="sigos-card" style="width:720px;max-width:95vw;padding:20px;max-height:90vh;overflow:auto">
+      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">Solicitud #${req.id}</h3>
+      <div style="font-size:13px;color:#96908A;margin-bottom:8px">Estado: <strong>${escapeHtml(req.status)}</strong> · Solicitante: ${escapeHtml(req.requester?.username || '')} · Orden: ${req.work_order_id || '-'}</div>
+      <table class="tbl" style="font-size:12px;margin-bottom:12px">
+        <thead><tr><th>Material</th><th>Solicitado</th><th>Aprobado</th><th>Entregado</th><th>Pendiente</th></tr></thead>
+        <tbody>${(req.items || []).map((it) => `<tr>
+          <td>${escapeHtml(it.material?.name || it.material_id)}</td>
+          <td>${it.quantity_requested}</td>
+          <td>${it.quantity_approved}</td>
+          <td>${it.quantity_delivered}</td>
+          <td>${(it.quantity_approved || 0) - (it.quantity_delivered || 0)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">Historial de eventos</div>
+      <div style="font-size:12px;color:#3A4552;margin-bottom:12px">
+        ${(req.events || []).map((e) => `<div style="padding:4px 0;border-bottom:1px solid #F0ECE4">${escapeHtml(e.created_at || '')} — ${escapeHtml(e.action)} ${escapeHtml(e.from_status || '')} → ${escapeHtml(e.to_status || '')} (actor ${e.actor_id})</div>`).join('') || 'Sin eventos'}
+      </div>
+      ${canManage ? `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          ${req.status === 'SUBMITTED' ? `<button class="sigos-btn-primary" id="approveBtn" style="height:32px">Aprobar</button>
+          <button class="sigos-btn-secondary" id="rejectBtn" style="height:32px">Rechazar</button>` : ''}
+          ${['APPROVED','PARTIALLY_APPROVED','PARTIALLY_DELIVERED'].includes(req.status) ? `<button class="sigos-btn-primary" id="deliverBtn" style="height:32px">Entregar</button>` : ''}
+          ${!['DELIVERED','CANCELLED','REJECTED'].includes(req.status) ? `<button class="sigos-btn-secondary" id="cancelBtn" style="height:32px">Cancelar</button>` : ''}
+        </div>
+      ` : ''}
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <button class="sigos-btn-secondary" id="closeDetail">Cerrar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  $('#closeDetail').addEventListener('click', close);
+
+  const approveBtn = $('#approveBtn');
+  if (approveBtn) approveBtn.addEventListener('click', async () => {
+    const items = (req.items || []).map((it) => ({ item_id: it.id, quantity_approved: it.quantity_requested }));
+    if (!window.confirm('¿Aprobar la solicitud completa?')) return;
+    const r = await api('POST', '/api/v1/material-requests/' + reqId + '/approve', { items });
+    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+    close(); notify('Solicitud aprobada.', 'success'); renderRequests(content);
+  });
+  const rejectBtn = $('#rejectBtn');
+  if (rejectBtn) rejectBtn.addEventListener('click', async () => {
+    const reason = window.prompt('Motivo de rechazo:');
+    if (reason === null) return;
+    const r = await api('POST', '/api/v1/material-requests/' + reqId + '/reject', { reason });
+    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+    close(); notify('Solicitud rechazada.', 'success'); renderRequests(content);
+  });
+  const deliverBtn = $('#deliverBtn');
+  if (deliverBtn) deliverBtn.addEventListener('click', async () => {
+    const items = (req.items || []).filter((it) => (it.quantity_approved || 0) - (it.quantity_delivered || 0) > 0)
+      .map((it) => ({ item_id: it.id, quantity_delivered: (it.quantity_approved || 0) - (it.quantity_delivered || 0) }));
+    if (!items.length) { notify('No hay saldo pendiente.', 'info'); return; }
+    if (!window.confirm('¿Registrar entrega completa del saldo pendiente?')) return;
+    const opId = 'del-' + reqId + '-' + Date.now();
+    const r = await api('POST', '/api/v1/material-requests/' + reqId + '/deliver', { items, operation_id: opId });
+    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+    close(); notify('Entrega registrada.', 'success'); renderRequests(content);
+  });
+  const cancelBtn = $('#cancelBtn');
+  if (cancelBtn) cancelBtn.addEventListener('click', async () => {
+    if (!window.confirm('¿Cancelar la solicitud?')) return;
+    const r = await api('POST', '/api/v1/material-requests/' + reqId + '/cancel', { reason: 'Cancelada por usuario' });
+    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+    close(); notify('Solicitud cancelada.', 'success'); renderRequests(content);
   });
 }
 
