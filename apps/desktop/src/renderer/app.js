@@ -1,17 +1,8 @@
 const state = {
-  session: null,
-  view: 'dashboard',
-  selectedOrderId: null,
-  orders: [],
-  materials: [],
-  profiles: [],
-  notifications: [],
-  filters: { status: '', assigned_to_id: '', q: '' },
-};
 
+}
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
 function searchField({ placeholder = '', id = '', value = '' } = {}) {
   return `<label class="search-field"><svg class="search-field__icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/><path d="M21 21l-4.35-4.35"/></svg><input type="search" class="search-field__input" id="${escapeHtml(id)}" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" aria-label="Buscar"></label>`;
 }
@@ -2545,7 +2536,7 @@ function openDayModal(dayKey) {
   const byDay = {};
   (state._calItems || []).forEach(e => { const d = e.start.slice(0,10); (byDay[d]=byDay[d]||[]).push(e); });
   const pub = state._calPublic || {};
-  const html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Agenda del día</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>' + dayAgendaHtml(dayKey, byDay, pub, state.calendarState, calTodayStr());
+  const html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Agenda del dï¿½a</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>' + dayAgendaHtml(dayKey, byDay, pub, state.calendarState, calTodayStr());
   openModal(html);
 }
 
@@ -2558,7 +2549,7 @@ function openPendingModal() {
     const main = o.title || o.customer_name || '';
     const pr = (typeof priorityOf === 'function' && o.priority) ? priorityOf(o.priority).label : (o.priority || '');
     const parts = [main, pr].filter(Boolean);
-    return escapeHtml(code) + (parts.length ? ' · ' + parts.map(escapeHtml).join(' · ') : '');
+    return escapeHtml(code) + (parts.length ? ' - ' + parts.map(escapeHtml).join(' - ') : '');
   };
   let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Pendientes</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>';
   html += '<div style="font-size:12px;font-weight:600;color:#96908A">Por programar (' + porProgramar.length + ')</div>';
@@ -2578,12 +2569,14 @@ function openOrderModal(orderId) {
   const techs = (o.technicians || []).map(t => t.name).join(', ') || 'Por asignar';
   let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">' + escapeHtml(code) + '</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>';
   html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px">' + escapeHtml(title) + '</div>';
-  html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Técnico:</span> ' + escapeHtml(techs) + '</div>';
-  if (o.start) html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Horario:</span> ' + escapeHtml(o.start.slice(11,16)) + '–' + escapeHtml(o.end.slice(11,16)) + '</div>';
+  html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Tï¿½cnico:</span> ' + escapeHtml(techs) + '</div>';
+  if (o.start) html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Horario:</span> ' + escapeHtml(o.start.slice(11,16)) + 'ï¿½' + escapeHtml(o.end.slice(11,16)) + '</div>';
   html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Estado:</span> ' + escapeHtml((typeof statusOf === 'function' ? statusOf(o.status).label : o.status)) + '</div>';
   html += '<div style="display:flex;gap:6px;margin-top:10px">';
   html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" onclick="state.selectedOrderId=' + orderId + ';state.view=\'order-detail\';render();document.querySelector(\'div[style*=\"z-index:10000\"]\')?.remove()">Abrir orden</button>';
   html += '</div>';
   openModal(html);
 }
+
+
 
