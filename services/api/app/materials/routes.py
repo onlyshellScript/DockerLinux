@@ -1,4 +1,5 @@
-﻿from flask import Blueprint, request, jsonify
+# -*- coding: utf-8 -*-
+from flask import Blueprint, request, jsonify
 
 from app.extensions import db
 from app.identity.decorators import require_auth, require_role
@@ -139,3 +140,4 @@ def profiles_update(profile_id):
     if not p:
         return jsonify({"error": "profile not found"}), 404
     return jsonify(p.to_dict()), 200
+

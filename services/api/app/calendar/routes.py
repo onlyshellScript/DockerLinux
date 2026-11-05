@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from flask import Blueprint, request, jsonify
 
 from app.extensions import db
@@ -85,3 +86,4 @@ def availability(tid):
     if err:
         return jsonify({"error": err}), 422
     return jsonify(data), 200
+

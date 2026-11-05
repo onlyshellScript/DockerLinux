@@ -1,12 +1,21 @@
-﻿from flask import Flask
+from flask import Flask
 
 from app.config import Config
 from app.extensions import db, migrate
 
 
+# -*- coding: utf-8 -*-
 def create_app(config_object=None):
     app = Flask(__name__)
     app.config.from_object(config_object or Config)
+
+    @app.after_request
+    def apply_utf8_charset(response):
+        ct = response.headers.get("Content-Type", "")
+        if "charset" not in ct:
+            if ct.startswith("text/") or ct == "application/json":
+                response.headers["Content-Type"] = ct + "; charset=utf-8"
+        return response
 
     db.init_app(app)
     migrate.init_app(app, db)

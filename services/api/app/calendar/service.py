@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import threading
 from datetime import datetime, timedelta, timezone
 
@@ -397,3 +398,4 @@ def assign_order(order_id, data, user, roles):
         wo.version = (wo.version or 0) + 1
         db.session.commit()
         return wo, None
+

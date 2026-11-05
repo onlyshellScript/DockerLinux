@@ -1,4 +1,5 @@
-﻿from app.extensions import db
+# -*- coding: utf-8 -*-
+from app.extensions import db
 from app.materials.models import Material, StockMovement, TechnicianProfile, MOVEMENT_IN, MOVEMENT_OUT
 
 
@@ -106,3 +107,4 @@ def update_profile(profile_id, data):
             setattr(p, field, data[field])
     db.session.commit()
     return p
+

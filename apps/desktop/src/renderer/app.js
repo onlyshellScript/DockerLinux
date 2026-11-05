@@ -1776,12 +1776,13 @@ async function openScheduleModal(opts) {
         <label style="font-size:12px;color:#96908A">Motivo del cambio *</label>
         <select id="schReason" class="sigos-input" style="height:36px;width:100%;margin-bottom:4px">
           <option value="">Selecciona motivo</option>
-          <option value="Cliente reprogram�">Cliente reprogram�</option>
-          <option value="T�cnico no disponible">T�cnico no disponible</option>
+          <option value="Cliente reprogramó">Cliente reprogramó</option>
+          <option value="Técnico no disponible">Técnico no disponible</option>
           <option value="Clima">Clima</option>
           <option value="Falta de material">Falta de material</option>
           <option value="Otro">Otro</option>
         </select>
+        <div id="schReasonError" style="font-size:11px;color:#D63B3B;margin-top:2px"></div>
         <input type="text" id="schReasonComment" class="sigos-input" style="height:32px;width:100%" placeholder="Comentario adicional">
       </div>
     </div>
@@ -1966,10 +1967,12 @@ async function openScheduleModal(opts) {
     if (!oid) { notify('Selecciona una orden.', 'error'); return; }
     if (!dateInput.value || !startInput.value || !endInput.value) { notify('Completa fecha y hora.', 'error'); return; }
     const isReprogram = !!(orderSel.selectedOptions[0] && orderSel.selectedOptions[0].dataset.scheduled);
-    if (isReprogram) {
-      const reason = modal.querySelector('#schReason').value;
-      if (!reason) { notify('Motivo del cambio obligatorio.', 'error'); return; }
-    }
+     const reasonErr = modal.querySelector('#schReasonError');
+     if (reasonErr) reasonErr.textContent = '';
+     if (isReprogram) {
+       const reason = modal.querySelector('#schReason').value;
+       if (!reason) { if (reasonErr) reasonErr.textContent = 'Motivo del cambio obligatorio.'; modal.querySelector('#schReason').focus(); return; }
+     }
     const payload = {
       start: dateInput.value + 'T' + startInput.value + ':00',
       end: dateInput.value + 'T' + endInput.value + ':00',

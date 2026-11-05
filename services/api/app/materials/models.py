@@ -1,4 +1,5 @@
-﻿from datetime import datetime, timezone
+# -*- coding: utf-8 -*-
+from datetime import datetime, timezone
 
 import sqlalchemy as sa
 
@@ -81,7 +82,7 @@ class TechnicianProfile(db.Model):
     phone = db.Column(db.String(30))
     email = db.Column(db.String(120))
     specialty = db.Column(db.String(80))
-    specialty_code = db.Column(db.String(60), db.ForeignKey("specialties.code", ondelete="RESTRICT"))
+    specialty_code = db.Column(db.String(60), db.ForeignKey("specialties.code", ondelete="NO ACTION"))
     legacy_zone = db.Column(db.String(250))
     document_type = db.Column(db.String(20))
     document_number = db.Column(db.String(40))
@@ -127,3 +128,4 @@ class TechnicianProfile(db.Model):
                 for c in (getattr(self, "coverages", None) or [])
             ],
         }
+
