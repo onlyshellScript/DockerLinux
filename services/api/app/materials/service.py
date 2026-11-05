@@ -1,27 +1,145 @@
 ﻿# -*- coding: utf-8 -*-
 from app.extensions import db
-from app.materials.models import Material, StockMovement, TechnicianProfile, TechnicianStock, MOVEMENT_IN, MOVEMENT_OUT
+from app.common.normalize import normalize_text
+from app.materials.models import (
+    Material, StockMovement, TechnicianProfile, TechnicianStock,
+    MOVEMENT_IN, MOVEMENT_OUT, MOVEMENT_CONSUMPTION, MOVEMENT_ADJUSTMENT, MOVEMENT_RETURN,
+    MOVEMENT_TRANSFER_OUT, ALL_MOVEMENTS,
+)
+from app.settings.models import OperationalSettings
+from app.settings import service as settings_service
+
+
+def _critical_threshold():
+    op = OperationalSettings.query.first()
+    if not op:
+        op = OperationalSettings()
+        db.session.add(op)
+        db.session.commit()
+    return float(op.stock_critical_threshold or 0.5)
+
+
+def material_status(stock, minimum):
+    stock = float(stock or 0)
+    minimum = float(minimum or 0)
+    threshold = _critical_threshold()
+    if minimum <= 0:
+        if stock <= 0:
+            return "critical"
+        return "ok"
+    if stock <= 0 or stock <= minimum * threshold:
+        return "critical"
+    if stock <= minimum:
+        return "low"
+    return "ok"
+
+
+def _material_code_exists(code, exclude_id=None):
+    q = Material.query.filter(db.func.lower(Material.code) == code.lower())
+    if exclude_id:
+        q = q.filter(Material.id != exclude_id)
+    return q.first() is not None
 
 
 def create_material(data):
+    name = (data.get("name") or "").strip()
+    code = (data.get("code") or "").strip()
+    unit = (data.get("unit") or "").strip()
+    if not name or not code or not unit:
+        raise ValueError("name, code and unit required")
+    norm_code = normalize_text(code)
+    if _material_code_exists(code):
+        raise ValueError("duplicate_code")
+    initial_stock = float(data.get("current_stock", data.get("initial_stock", 0)) or 0)
+    if initial_stock < 0:
+        raise ValueError("invalid_stock")
     m = Material(
-        name=data["name"],
+        name=name,
+        code=code,
         description=data.get("description"),
-        unit=data["unit"],
-        current_stock=data.get("current_stock", 0),
+        unit=unit,
+        current_stock=0,
         min_stock=data.get("min_stock", 0),
         unit_price=data.get("unit_price", 0),
+        is_active=data.get("is_active", True),
     )
     db.session.add(m)
+    db.session.flush()
+    if initial_stock > 0:
+        mv = StockMovement(
+            material_id=m.id,
+            quantity=initial_stock,
+            movement_type=MOVEMENT_ADJUSTMENT,
+            user_id=data.get("user_id") or 1,
+            notes="Saldo inicial",
+        )
+        db.session.add(mv)
+        m.current_stock = initial_stock
     db.session.commit()
     return m
 
 
-def list_materials(is_active=None):
-    q = Material.query
+def _apply_movement(mat, quantity, movement_type):
+    qty = float(quantity)
+    if movement_type in (MOVEMENT_IN, MOVEMENT_RETURN, MOVEMENT_ADJUSTMENT):
+        # adjustment sets? We treat positive adjustment as increase; negative not allowed here.
+        mat.current_stock = float(mat.current_stock or 0) + qty
+    elif movement_type in (MOVEMENT_OUT, MOVEMENT_CONSUMPTION, MOVEMENT_TRANSFER_OUT):
+        mat.current_stock = float(mat.current_stock or 0) - qty
+    else:
+        raise ValueError("invalid movement_type")
+
+
+def list_materials(q=None, status=None, unit=None, is_active=None, page=1, page_size=20, sort="name", order="asc"):
+    query = Material.query
     if is_active is not None:
-        q = q.filter_by(is_active=is_active)
-    return q.order_by(Material.name).all()
+        query = query.filter_by(is_active=is_active)
+    if unit:
+        query = query.filter(Material.unit == unit)
+    if q:
+        nq = normalize_text(q)
+        query = query.filter(db.or_(
+            db.func.lower(Material.name).contains(nq),
+            db.func.lower(Material.code).contains(nq),
+        ))
+    # status filter applied after computing; we filter in python for derived status
+    all_items = query.all()
+    # compute derived status
+    enriched = []
+    for m in all_items:
+        st = material_status(m.current_stock, m.min_stock)
+        if status and st != status:
+            continue
+        enriched.append((m, st))
+    # sort
+    reverse = (order or "asc").lower() == "desc"
+    keymap = {
+        "name": lambda x: (x[0].name or "").lower(),
+        "code": lambda x: (x[0].code or "").lower(),
+        "stock": lambda x: float(x[0].current_stock or 0),
+        "status": lambda x: x[1],
+    }
+    enriched.sort(key=keymap.get(sort, keymap["name"]), reverse=reverse)
+    total = len(enriched)
+    page = max(1, int(page or 1))
+    page_size = max(1, min(100, int(page_size or 20)))
+    start = (page - 1) * page_size
+    page_items = enriched[start:start + page_size]
+    # counts over all active? over filtered base (q/unit/active) but before status
+    counts = {"total": len(all_items), "ok": 0, "low": 0, "critical": 0}
+    for m in all_items:
+        st = material_status(m.current_stock, m.min_stock)
+        counts[st if st in ("ok", "low", "critical") else "ok"] += 1
+    total_value = sum(float(m.current_stock or 0) * float(m.unit_price or 0) for m, _ in enriched if False) 
+    total_value = sum(float(m.current_stock or 0) * float(m.unit_price or 0) for m in all_items)
+    return {
+        "items": [{"material": m, "status": st} for m, st in page_items],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "counts": counts,
+        "total_value": total_value,
+    }
 
 
 def get_material(mat_id):
@@ -32,6 +150,12 @@ def update_material(mat_id, data):
     m = db.session.get(Material, mat_id)
     if not m:
         return None
+    if "code" in data and data["code"] is not None:
+        new_code = str(data["code"]).strip()
+        if new_code and new_code != m.code:
+            if _material_code_exists(new_code, exclude_id=m.id):
+                raise ValueError("duplicate_code")
+            m.code = new_code
     for field in ("name", "description", "unit", "min_stock", "unit_price", "is_active"):
         if field in data:
             setattr(m, field, data[field])
@@ -39,20 +163,65 @@ def update_material(mat_id, data):
     return m
 
 
+def _enqueue_stock_alert(material, old_status, new_status, user_id):
+    if new_status not in ("low", "critical"):
+        return
+    if old_status == new_status:
+        return
+    # one notification per crossing
+    from app.identity.models import User
+    from app.notifications.service import enqueue_notification
+    recipients = User.query.filter(User.roles.any(name__in=["admin", "dispatcher"]) if False else True).all()
+    # filter by role names
+    target_users = []
+    for u in User.query.all():
+        role_names = [r.name for r in getattr(u, "roles", [])]
+        if "admin" in role_names or "dispatcher" in role_names:
+            target_users.append(u)
+    subject = f"Stock {'critico' if new_status == 'critical' else 'bajo'}: {material.name}"
+    message = f"El material {material.name} ({material.code}) paso a estado {new_status}. Stock actual: {material.current_stock} {material.unit}."
+    for u in target_users:
+        if getattr(u, "email", None):
+            try:
+                enqueue_notification(u.id, "email", u.email, subject, message)
+            except Exception:
+                pass
+
+
 def register_movement(mat_id, quantity, movement_type, user_id, work_order_id=None, notes=None):
-    m = db.session.get(Material, mat_id)
+    quantity = float(quantity)
+    if movement_type == MOVEMENT_ADJUSTMENT:
+        if quantity == 0:
+            return None, "invalid_quantity"
+    else:
+        if quantity <= 0:
+            return None, "invalid_quantity"
+    if movement_type not in ALL_MOVEMENTS:
+        return None, "invalid_type"
+    m = Material.query.filter_by(id=mat_id).with_for_update().first()
     if not m:
         return None, "not_found"
+    old_status = material_status(m.current_stock, m.min_stock)
     if movement_type == MOVEMENT_IN:
-        m.current_stock += quantity
+        m.current_stock = float(m.current_stock or 0) + quantity
+    elif movement_type == MOVEMENT_RETURN:
+        m.current_stock = float(m.current_stock or 0) + quantity
     elif movement_type == MOVEMENT_OUT:
-        if m.current_stock < quantity:
+        if float(m.current_stock or 0) < quantity:
             return None, "insufficient_stock"
-        m.current_stock -= quantity
+        m.current_stock = float(m.current_stock or 0) - quantity
+    elif movement_type == MOVEMENT_CONSUMPTION:
+        if float(m.current_stock or 0) < quantity:
+            return None, "insufficient_stock"
+        m.current_stock = float(m.current_stock or 0) - quantity
+    elif movement_type == MOVEMENT_ADJUSTMENT:
+        new_stock = float(m.current_stock or 0) + quantity
+        if new_stock < 0:
+            return None, "insufficient_stock"
+        m.current_stock = new_stock
     else:
-        if m.current_stock < quantity:
-            return None, "insufficient_stock"
-        m.current_stock -= quantity
+        return None, "invalid_type"
+    new_status = material_status(m.current_stock, m.min_stock)
     mv = StockMovement(
         material_id=mat_id,
         quantity=quantity,
@@ -63,6 +232,7 @@ def register_movement(mat_id, quantity, movement_type, user_id, work_order_id=No
     )
     db.session.add(mv)
     db.session.commit()
+    _enqueue_stock_alert(m, old_status, new_status, user_id)
     return mv, None
 
 

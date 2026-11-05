@@ -8,8 +8,11 @@ from app.extensions import db
 MOVEMENT_IN = "IN"
 MOVEMENT_OUT = "OUT"
 MOVEMENT_CONSUMPTION = "CONSUMPTION"
+MOVEMENT_ADJUSTMENT = "ADJUSTMENT"
+MOVEMENT_RETURN = "RETURN"
+MOVEMENT_TRANSFER_OUT = "TRANSFER_OUT"
 
-ALL_MOVEMENTS = [MOVEMENT_IN, MOVEMENT_OUT, MOVEMENT_CONSUMPTION]
+ALL_MOVEMENTS = [MOVEMENT_IN, MOVEMENT_OUT, MOVEMENT_CONSUMPTION, MOVEMENT_ADJUSTMENT, MOVEMENT_RETURN]
 
 
 class Material(db.Model):
@@ -17,11 +20,12 @@ class Material(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, index=True)
+    code = db.Column(db.String(40), unique=True, index=True)
     description = db.Column(db.String(250))
     unit = db.Column(db.String(20), nullable=False)
     current_stock = db.Column(db.Float, nullable=False, default=0)
     min_stock = db.Column(db.Float, nullable=False, default=0)
-    unit_price = db.Column(db.Float, nullable=False, default=0)
+    unit_price = db.Column(db.Numeric(18, 2), nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(
@@ -34,6 +38,7 @@ class Material(db.Model):
         return {
             "id": self.id,
             "name": self.name,
+            "code": self.code,
             "description": self.description,
             "unit": self.unit,
             "current_stock": self.current_stock,

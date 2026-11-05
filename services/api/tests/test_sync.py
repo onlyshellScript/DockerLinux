@@ -122,7 +122,7 @@ def test_pull_changes(client, app):
     client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Material pull", "unit": "pza"},
+        json={"name": "Material pull", "code": "MATPULL", "unit": "pza"},
     )
 
     resp = client.get("/api/v1/sync/pull", headers={"Authorization": f"Bearer {token}"})

@@ -35,6 +35,7 @@ class OperationalSettings(db.Model):
     min_advance_hours = db.Column(db.Integer, nullable=False, default=0)
     travel_margin_minutes = db.Column(db.Integer, nullable=False, default=0)
     calendar_interval = db.Column(db.Integer, nullable=False, default=30)
+    stock_critical_threshold = db.Column(db.Float, nullable=False, default=0.5)
     version = db.Column(db.Integer, nullable=False, default=0, server_default=sa.text("0"))
     updated_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

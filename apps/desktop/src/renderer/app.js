@@ -239,7 +239,7 @@ function shellTemplate() {
   const roles = (user.roles || []).join(', ');
   const items = (list) => list.filter(navAllowed).map((item) => `
     <a href="#" class="sidebar-nav-item${state.view === item.key ? ' active' : ''}" data-view="${item.key}">
-      <span style="flex-shrink:0">${icon(item.icon, 18)}</span><span style="flex:1">${escapeHtml(item.label)}</span>
+      <span style="flex-shrink:0">${icon(item.icon, 18)}</span><span style="flex:1">${escapeHtml(item.label)}</span>${item.key === 'materials' ? '<span data-menu-badge="materials" style="display:none;background:#E8A520;color:#fff;border-radius:999px;padding:0 6px;font-size:11px;font-weight:700;margin-left:6px"></span>' : ''}
     </a>`).join('');
   return `
   <div class="shell">
@@ -312,6 +312,8 @@ function renderView() {
   const longDate = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   $('#viewSub').textContent = longDate.charAt(0).toUpperCase() + longDate.slice(1);
   $('#topbarActions').innerHTML = '';
+  const placeholders = { materials: 'Buscar materiales por nombre o código…', orders: 'Buscar órdenes, técnicos, clientes...', technicians: 'Buscar técnicos...', calendar: 'Buscar...', settings: 'Buscar...' };
+  const gs = $('#globalSearch'); if (gs) gs.placeholder = placeholders[state.view] || 'Buscar...';
   if (state.view === 'dashboard') renderDashboard(content);
   else if (state.view === 'orders') renderOrders(content);
   else if (state.view === 'order-detail') renderOrderDetail(content);
@@ -1570,27 +1572,305 @@ function showCredentials(username, password) {
   $('#closeCred', modal).addEventListener('click', close);
 }
 
-async function renderMaterials(content) {
+﻿async function renderMaterials(content) {
+  if (!state.materialsFilters) state.materialsFilters = { q: '', status: '', unit: '' };
+  if (!state.materialsPage) state.materialsPage = 1;
+  const filters = state.materialsFilters;
   content.innerHTML = `<div class="skeleton" style="height:240px"></div>`;
-  const res = await api('GET', '/api/v1/materials');
-  if (!res.ok) { content.innerHTML = `<div style="color:#991B1B">${escapeHtml(res.body?.error || 'Error')}</div>`; return; }
-  const mats = res.body || [];
-  const totalValue = mats.reduce((a,m) => a + (m.current_stock||0)*(m.unit_price||0), 0);
+  const params = new URLSearchParams();
+  if (filters.q) params.set('q', filters.q);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.unit) params.set('unit', filters.unit);
+  params.set('page', state.materialsPage);
+  params.set('page_size', 20);
+  const res = await api('GET', '/api/v1/materials?' + params.toString());
+  if (!res.ok) {
+    const msg = (res.body && (res.body.message || res.body.error)) || 'Error al cargar materiales.';
+    content.innerHTML = `<div style="color:#991B1B;margin-bottom:8px">${escapeHtml(msg)}</div><button class="sigos-btn-secondary" id="retryMaterials">Reintentar</button>`;
+    const rb = $('#retryMaterials'); if (rb) rb.addEventListener('click', () => renderMaterials(content));
+    return;
+  }
+  const data = res.body || {};
+  const items = data.items || [];
+  const counts = data.counts || { total: 0, ok: 0, low: 0, critical: 0 };
+  const total = data.total || 0;
+  const pageSize = data.page_size || 20;
+  const currentPage = data.page || 1;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalValue = data.total_value || 0;
+  items.forEach((m) => { if (!m.status) m.status = materialStatus(m.current_stock, m.min_stock).key; });
+
+  const roles = (state.session?.user?.roles || []);
+  const canManage = roles.includes('admin') || roles.includes('dispatcher');
+  const units = Array.from(new Set(items.map((m) => m.unit).filter(Boolean)));
+
+  const card = (key, label, count, color) => `
+    <div class="sigos-card" style="padding:14px;cursor:pointer;border:2px solid ${filters.status === key ? color : 'transparent'}" data-filter-status="${key}">
+      <div style="font-size:12px;color:#96908A">${label}</div>
+      <div style="font-family:Outfit;font-weight:700;font-size:24px;color:${color}">${count}</div>
+    </div>`;
+
   content.innerHTML = `
-    <div style="margin-bottom:8px;font-size:13px;color:#3A4552">Valor inmovilizado: <strong>${totalValue.toFixed(2)}</strong></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="font-family:Outfit;font-weight:700;font-size:20px;color:#163028;margin:0">Inventario de Materiales</h2>
+        <div style="font-size:13px;color:#96908A">${total} materiales</div>
+      </div>
+      ${canManage ? `<button class="sigos-btn-primary" id="addMaterialBtn" style="height:36px">${icon('plus',16)} Agregar material</button>` : ''}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+      ${card('', 'Total materiales', counts.total, '#163028')}
+      ${card('ok', 'Stock OK', counts.ok, '#22C55E')}
+      ${card('low', 'Stock bajo', counts.low, '#E8A520')}
+      ${card('critical', 'Nivel crítico', counts.critical, '#D63B3B')}
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+      <select id="filterStatus" class="sigos-select" style="height:36px">
+        <option value="">Todos los estados</option>
+        <option value="ok" ${filters.status==='ok'?'selected':''}>OK</option>
+        <option value="low" ${filters.status==='low'?'selected':''}>Bajo</option>
+        <option value="critical" ${filters.status==='critical'?'selected':''}>Crítico</option>
+      </select>
+      <select id="filterUnit" class="sigos-select" style="height:36px">
+        <option value="">Todas las unidades</option>
+        ${units.map((u) => `<option value="${escapeHtml(u)}" ${filters.unit===u?'selected':''}>${escapeHtml(u)}</option>`).join('')}
+      </select>
+      ${canManage ? `<button id="exportCsvBtn" class="sigos-btn-secondary" style="height:36px">Exportar CSV</button>` : ''}
+    </div>
     <div class="sigos-card" style="overflow:hidden">
       <table class="tbl">
-        <thead><tr><th>Nombre</th><th>Unidad</th><th>Stock</th><th>Mínimo</th><th>Precio</th><th>Estado</th></tr></thead>
-        <tbody>${mats.map((m) => {
-          const stock = m.current_stock ?? m.stock ?? 0;
-          const min = m.min_stock ?? m.minStock ?? 0;
-          const badge = stock <= min ? 'badge-cancelled' : (stock <= min*1.25 ? 'badge-pending' : 'badge-completed');
-          const label = stock <= min ? 'Crítico' : (stock <= min*1.25 ? 'Advertencia' : 'Óptimo');
-          return `<tr class="tbl-row"><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.unit)}</td><td>${stock}</td><td>${min}</td><td>${m.unit_price ?? ''}</td><td><span class="${badge}">${label}</span></td></tr>`;
-        }).join('') || '<tr><td colspan="6" class="empty-state__text">Sin materiales</td></tr>'}</tbody>
+        <thead><tr><th>Código</th><th>Nombre</th><th>Unidad</th><th>Stock</th><th>Mínimo</th><th>Nivel</th><th>Estado</th><th>Precio</th>${canManage?'<th>Acciones</th>':''}</tr></thead>
+        <tbody>
+          ${items.map((m) => {
+            const st = materialStatus(m.current_stock, m.min_stock);
+            const pct = stockLevelPct(m.current_stock, m.min_stock);
+            const barColor = st.bar;
+            return `<tr class="tbl-row">
+              <td style="font-family:JetBrains Mono,monospace;font-size:12px">${escapeHtml(m.code || '')}</td>
+              <td>${escapeHtml(m.name)}</td>
+              <td>${escapeHtml(m.unit)}</td>
+              <td>${m.current_stock}</td>
+              <td>${m.min_stock}</td>
+              <td style="min-width:120px"><div style="background:#E5E7EB;border-radius:4px;height:6px;overflow:hidden"><div style="width:${pct}%;background:${barColor};height:6px"></div></div><div style="font-size:10px;color:#96908A;margin-top:2px">${pct}%</div></td>
+              <td><span class="${st.badge}">${st.label}</span></td>
+              <td>${formatCOP(m.unit_price)}</td>
+              ${canManage ? `<td style="white-space:nowrap">
+                <button class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-edit="${m.id}">Editar</button>
+                <button class="sigos-btn-primary" style="height:28px;padding:0 8px;margin-left:4px" data-replenish="${m.id}">Reponer</button>
+                <button class="sigos-btn-secondary" style="height:28px;padding:0 8px;margin-left:4px" data-adjust="${m.id}">Ajustar</button>
+              </td>` : ''}
+            </tr>`;
+          }).join('') || `<tr><td colspan="${canManage?9:8}" class="empty-state__text">Sin materiales</td></tr>`}
+        </tbody>
       </table>
-    </div>`;
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;color:#3A4552">Valor del inventario: <strong>${formatCOP(totalValue)}</strong></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="sigos-btn-secondary" id="prevPage" ${currentPage<=1?'disabled':''} style="height:32px">‹</button>
+        <span style="font-size:12px;color:#96908A">Página ${currentPage} de ${totalPages}</span>
+        <button class="sigos-btn-secondary" id="nextPage" ${currentPage>=totalPages?'disabled':''} style="height:32px">›</button>
+      </div>
+    </div>
+  `;
+
+  // bind topbar search
+  const gs = $('#globalSearch');
+  if (gs) {
+    gs.placeholder = 'Buscar materiales por nombre o código…';
+    gs.value = filters.q || '';
+    gs.oninput = () => { filters.q = gs.value; state.materialsPage = 1; renderMaterials(content); };
+  }
+
+  // cards filter
+  $$('[data-filter-status]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const key = el.getAttribute('data-filter-status');
+      filters.status = (filters.status === key) ? '' : key;
+      state.materialsPage = 1;
+      renderMaterials(content);
+    });
+  });
+
+  const fsSel = $('#filterStatus');
+  if (fsSel) fsSel.addEventListener('change', () => { filters.status = fsSel.value; state.materialsPage = 1; renderMaterials(content); });
+  const fuSel = $('#filterUnit');
+  if (fuSel) fuSel.addEventListener('change', () => { filters.unit = fuSel.value; state.materialsPage = 1; renderMaterials(content); });
+
+  const prev = $('#prevPage'); if (prev) prev.addEventListener('click', () => { if (state.materialsPage > 1) { state.materialsPage--; renderMaterials(content); } });
+  const next = $('#nextPage'); if (next) next.addEventListener('click', () => { if (state.materialsPage < totalPages) { state.materialsPage++; renderMaterials(content); } });
+
+  const addBtn = $('#addMaterialBtn');
+  if (addBtn) addBtn.addEventListener('click', () => openMaterialModal(content));
+  const exportBtn = $('#exportCsvBtn');
+  if (exportBtn) exportBtn.addEventListener('click', () => {
+    const p = new URLSearchParams();
+    if (filters.q) p.set('q', filters.q);
+    if (filters.status) p.set('status', filters.status);
+    if (filters.unit) p.set('unit', filters.unit);
+    window.open('/api/v1/materials/export?' + p.toString(), '_blank');
+  });
+
+  $$('[data-edit]').forEach((b) => b.addEventListener('click', () => openMaterialModal(content, Number(b.getAttribute('data-edit')))));
+  $$('[data-replenish]').forEach((b) => b.addEventListener('click', () => openReplenishModal(content, Number(b.getAttribute('data-replenish')))));
+  $$('[data-adjust]').forEach((b) => b.addEventListener('click', () => openAdjustModal(content, Number(b.getAttribute('data-adjust')))));
 }
+
+updateMenuBadge();
+
+async function openMaterialModal(content, matId) {
+  const isEdit = !!matId;
+  let mat = null;
+  if (isEdit) {
+    const r = await api('GET', '/api/v1/materials/' + matId);
+    if (r.ok) mat = r.body;
+  }
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+  overlay.innerHTML = `
+    <div class="sigos-card" style="width:480px;max-width:95vw;padding:20px">
+      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">${isEdit ? 'Editar material' : 'Agregar material'}</h3>
+      <div class="fld"><label>Nombre *</label><input class="sigos-input" id="mName" value="${escapeHtml(mat?.name || '')}"></div>
+      <div class="fld"><label>Código *</label><input class="sigos-input" id="mCode" value="${escapeHtml(mat?.code || '')}" ${isEdit?'disabled':''}></div>
+      <div class="fld"><label>Unidad *</label><select class="sigos-input" id="mUnit"><option value="pza" ${(mat?.unit==='pza')?'selected':''}>pza</option><option value="lt" ${(mat?.unit==='lt')?'selected':''}>lt</option><option value="m" ${(mat?.unit==='m')?'selected':''}>m</option><option value="kg" ${(mat?.unit==='kg')?'selected':''}>kg</option></select></div>
+      ${!isEdit ? `<div class="fld"><label>Stock inicial</label><input type="number" class="sigos-input" id="mStock" value="0" min="0"></div>` : ''}
+      <div class="fld"><label>Mínimo</label><input type="number" class="sigos-input" id="mMin" value="${mat?.min_stock ?? 0}" min="0"></div>
+      <div class="fld"><label>Precio (COP)</label><input type="number" class="sigos-input" id="mPrice" value="${mat?.unit_price ?? 0}" min="0"></div>
+      ${isEdit ? `<div class="fld"><label><input type="checkbox" id="mActive" ${mat?.is_active?'checked':''}> Activo</label></div>` : ''}
+      <div id="mWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="sigos-btn-secondary" id="mCancel">Cancelar</button>
+        <button class="sigos-btn-primary" id="mSave">Guardar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  $('#mCancel').addEventListener('click', close);
+  $('#mSave').addEventListener('click', async () => {
+    const min = Number($('#mMin').value || 0);
+    if (min === 0) {
+      if (!window.confirm('Este material nunca generará alertas de stock. ¿Continuar?')) return;
+    }
+    const payload = {
+      name: $('#mName').value.trim(),
+      code: $('#mCode').value.trim(),
+      unit: $('#mUnit').value,
+      min_stock: min,
+      unit_price: Number($('#mPrice').value || 0),
+    };
+    if (!isEdit) {
+      payload.current_stock = Number($('#mStock').value || 0);
+    } else {
+      payload.is_active = !!$('#mActive').checked;
+    }
+    const url = isEdit ? ('/api/v1/materials/' + matId) : '/api/v1/materials';
+    const method = isEdit ? 'PUT' : 'POST';
+    const r = await api(method, url, payload);
+    if (!r.ok) { $('#mWarn').textContent = (r.body && (r.body.message || r.body.error)) || 'Error'; return; }
+    close();
+    notify(isEdit ? 'Material actualizado.' : 'Material creado.', 'success');
+    state.materialsPage = 1;
+    renderMaterials(content);
+    updateMenuBadge();
+  });
+}
+
+async function openReplenishModal(content, matId) {
+  const r = await api('GET', '/api/v1/materials/' + matId);
+  if (!r.ok) { notify('No se pudo cargar el material.', 'error'); return; }
+  const mat = r.body;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+  overlay.innerHTML = `
+    <div class="sigos-card" style="width:420px;max-width:95vw;padding:20px">
+      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">Reponer stock</h3>
+      <div style="font-size:13px;color:#96908A;margin-bottom:8px">${escapeHtml(mat.name)} · stock actual: ${mat.current_stock} ${escapeHtml(mat.unit)}</div>
+      <div class="fld"><label>Cantidad a ingresar</label><input type="number" class="sigos-input" id="repQty" min="1" value="1"></div>
+      <div class="fld"><label>Motivo</label><input class="sigos-input" id="repNotes" placeholder="Compra, devolución..."></div>
+      <div id="repResult" style="font-size:12px;color:#3A4552;margin:8px 0"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="sigos-btn-secondary" id="repCancel">Cancelar</button>
+        <button class="sigos-btn-primary" id="repSave">Confirmar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  $('#repCancel').addEventListener('click', close);
+  const updateResult = () => {
+    const q = Number($('#repQty').value || 0);
+    $('#repResult').textContent = 'Stock resultante: ' + (Number(mat.current_stock) + q) + ' ' + mat.unit;
+  };
+  $('#repQty').addEventListener('input', updateResult);
+  updateResult();
+  $('#repSave').addEventListener('click', async () => {
+    const qty = Number($('#repQty').value || 0);
+    if (qty <= 0) { notify('Cantidad inválida.', 'error'); return; }
+    const r = await api('POST', '/api/v1/materials/' + matId + '/movements', { quantity: qty, movement_type: 'IN', notes: $('#repNotes').value.trim() || 'Reposición' });
+    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+    close();
+    notify('Stock repuesto.', 'success');
+    renderMaterials(content);
+    updateMenuBadge();
+  });
+}
+
+async function openAdjustModal(content, matId) {
+  const r = await api('GET', '/api/v1/materials/' + matId);
+  if (!r.ok) { notify('No se pudo cargar el material.', 'error'); return; }
+  const mat = r.body;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+  overlay.innerHTML = `
+    <div class="sigos-card" style="width:420px;max-width:95vw;padding:20px">
+      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">Ajustar stock (conteo físico)</h3>
+      <div style="font-size:13px;color:#96908A;margin-bottom:8px">${escapeHtml(mat.name)} · stock actual: ${mat.current_stock} ${escapeHtml(mat.unit)}</div>
+      <div class="fld"><label>Nuevo conteo físico</label><input type="number" class="sigos-input" id="adjCount" min="0" value="${mat.current_stock}"></div>
+      <div class="fld"><label>Motivo (obligatorio)</label><input class="sigos-input" id="adjReason" placeholder="Inventario físico..."></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="sigos-btn-secondary" id="adjCancel">Cancelar</button>
+        <button class="sigos-btn-primary" id="adjSave">Confirmar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  $('#adjCancel').addEventListener('click', close);
+  $('#adjSave').addEventListener('click', async () => {
+    const newCount = Number($('#adjCount').value || 0);
+    const reason = $('#adjReason').value.trim();
+    if (!reason) { notify('Motivo obligatorio.', 'error'); return; }
+    const delta = newCount - Number(mat.current_stock);
+    if (delta === 0) { notify('Sin cambios.', 'info'); close(); return; }
+    const r = await api('POST', '/api/v1/materials/' + matId + '/movements', { quantity: delta, movement_type: 'ADJUSTMENT', notes: reason });
+    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+    close();
+    notify('Stock ajustado.', 'success');
+    renderMaterials(content);
+    updateMenuBadge();
+  });
+}
+
+async function updateMenuBadge() {
+  try {
+    const r = await api('GET', '/api/v1/materials?status=low&page=1&page_size=1');
+    // need counts; fetch first page with counts
+    const r2 = await api('GET', '/api/v1/materials?page=1&page_size=1');
+    if (!r2.ok) return;
+    const counts = r2.body.counts || {};
+    const low = counts.low || 0;
+    const crit = counts.critical || 0;
+    const total = low + crit;
+    const badge = document.querySelector('[data-menu-badge="materials"]');
+    if (!badge) return;
+    if (total === 0) { badge.style.display = 'none'; return; }
+    badge.style.display = 'inline-block';
+    badge.textContent = total;
+    badge.style.background = crit > 0 ? '#D63B3B' : '#E8A520';
+  } catch (e) {}
+}
+
 
 async function renderUsers(content) {
   content.innerHTML = `<div class="skeleton" style="height:240px"></div>`;

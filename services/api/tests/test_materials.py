@@ -35,7 +35,7 @@ def test_create_material(client, app):
     resp = client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Filtro de aire", "unit": "pza", "current_stock": 10, "unit_price": 5000},
+        json={"name": "Filtro de aire", "code": "FILTRO-AIRE", "unit": "pza", "current_stock": 10, "unit_price": 5000},
     )
     assert resp.status_code == 201
     data = resp.get_json()
@@ -62,7 +62,7 @@ def test_stock_in_and_out(client, app):
     resp = client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Refrigerante", "unit": "lt", "current_stock": 0},
+        json={"name": "Refrigerante", "code": "REFRIG", "unit": "lt", "current_stock": 0},
     )
     mat_id = resp.get_json()["id"]
 
@@ -97,7 +97,7 @@ def test_insufficient_stock(client, app):
     resp = client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Tornillo", "unit": "pza", "current_stock": 3},
+        json={"name": "Tornillo", "code": "TORN", "unit": "pza", "current_stock": 3},
     )
     mat_id = resp.get_json()["id"]
 
@@ -106,7 +106,7 @@ def test_insufficient_stock(client, app):
         headers={"Authorization": f"Bearer {token}"},
         json={"quantity": 10, "movement_type": "OUT"},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 409
     assert "insufficient" in resp.get_json()["error"]
 
 
@@ -117,7 +117,7 @@ def test_movements_history(client, app):
     resp = client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Cable", "unit": "m", "current_stock": 0},
+        json={"name": "Cable", "code": "CABLE", "unit": "m", "current_stock": 0},
     )
     mat_id = resp.get_json()["id"]
 

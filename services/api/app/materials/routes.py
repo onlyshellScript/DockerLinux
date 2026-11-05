@@ -4,9 +4,12 @@ from flask import Blueprint, request, jsonify
 from app.extensions import db
 from app.identity.decorators import require_auth, require_role
 from app.identity.models import User
-from app.materials.models import ALL_MOVEMENTS
+from app.workorders.models import WorkOrder
+from app.materials.models import TechnicianProfile
+from app.materials.models import ALL_MOVEMENTS, MOVEMENT_ADJUSTMENT
 from app.materials.service import (
     create_material,
+    material_status,
     list_materials,
     get_material,
     update_material,
@@ -37,18 +40,69 @@ def materials_list():
     is_active = request.args.get("is_active")
     if is_active is not None:
         is_active = is_active.lower() == "true"
-    materials = list_materials(is_active=is_active)
-    return jsonify([m.to_dict() for m in materials]), 200
+    page = request.args.get("page", 1, type=int)
+    page_size = request.args.get("page_size", 20, type=int)
+    q = request.args.get("q")
+    status = request.args.get("status")
+    unit = request.args.get("unit")
+    sort = request.args.get("sort", "name")
+    order = request.args.get("order", "asc")
+    result = list_materials(q=q, status=status, unit=unit, is_active=is_active, page=page, page_size=page_size, sort=sort, order=order)
+    items = []
+    for row in result["items"]:
+        m = row["material"]
+        d = m.to_dict()
+        d["status"] = row["status"]
+        items.append(d)
+    return jsonify({
+        "items": items,
+        "total": result["total"],
+        "page": result["page"],
+        "page_size": result["page_size"],
+        "counts": result["counts"],
+        "total_value": float(result["total_value"]),
+    }), 200
 
 
 @blueprint.post("/materials")
 @require_role("admin", "dispatcher")
 def materials_create():
-    data = request.get_json()
-    if not data or not data.get("name") or not data.get("unit"):
-        return jsonify({"error": "name and unit required"}), 400
-    m = create_material(data)
-    return jsonify(m.to_dict()), 201
+    data = request.get_json() or {}
+    if not data.get("name") or not data.get("unit") or not data.get("code"):
+        return jsonify({"error": "name, code and unit required", "message": "name, code and unit required"}), 422
+    data = dict(data)
+    data["user_id"] = getattr(request, "user_id", None)
+    try:
+        m = create_material(data)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "duplicate_code":
+            return jsonify({"error": "code already exists", "message": "code already exists", "code": "DUPLICATE_CODE"}), 409
+        return jsonify({"error": msg, "message": msg}), 422
+    d = m.to_dict()
+    d["status"] = material_status(m.current_stock, m.min_stock)
+    return jsonify(d), 201
+
+
+@blueprint.get("/materials/export")
+@require_role("admin", "dispatcher")
+def materials_export():
+    is_active = request.args.get("is_active")
+    if is_active is not None:
+        is_active = is_active.lower() == "true"
+    result = list_materials(q=request.args.get("q"), status=request.args.get("status"), unit=request.args.get("unit"),
+                            is_active=is_active, page=1, page_size=100000, sort=request.args.get("sort","name"),
+                            order=request.args.get("order","asc"))
+    import csv, io
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Codigo", "Nombre", "Unidad", "Stock", "Minimo", "Precio", "Estado"])
+    for row in result["items"]:
+        m = row["material"]
+        writer.writerow([m.code, m.name, m.unit, m.current_stock, m.min_stock, m.unit_price, row["status"]])
+    from flask import Response
+    return Response(buf.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=materiales.csv"})
 
 
 @blueprint.get("/materials/<int:mat_id>")
@@ -65,11 +119,19 @@ def materials_get(mat_id):
 def materials_update(mat_id):
     data = request.get_json()
     if not data:
-        return jsonify({"error": "request body required"}), 400
-    m = update_material(mat_id, data)
+        return jsonify({"error": "request body required", "message": "request body required"}), 400
+    try:
+        m = update_material(mat_id, data)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "duplicate_code":
+            return jsonify({"error": "code already exists", "message": "code already exists", "code": "DUPLICATE_CODE"}), 409
+        return jsonify({"error": msg, "message": msg}), 422
     if not m:
-        return jsonify({"error": "material not found"}), 404
-    return jsonify(m.to_dict()), 200
+        return jsonify({"error": "material not found", "message": "material not found"}), 404
+    d = m.to_dict()
+    d["status"] = material_status(m.current_stock, m.min_stock)
+    return jsonify(d), 200
 
 
 # ---- Stock movements ----
@@ -77,23 +139,35 @@ def materials_update(mat_id):
 @blueprint.post("/materials/<int:mat_id>/movements")
 @require_role("admin", "dispatcher")
 def materials_movement(mat_id):
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "request body required"}), 400
+    data = request.get_json() or {}
     quantity = data.get("quantity")
     movement_type = data.get("movement_type")
-    if quantity is None or quantity <= 0:
-        return jsonify({"error": "positive quantity required"}), 400
+    if quantity is None:
+        return jsonify({"error": "quantity required", "message": "quantity required"}), 422
+    try:
+        quantity = float(quantity)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid quantity", "message": "invalid quantity"}), 422
     if movement_type not in ALL_MOVEMENTS:
-        return jsonify({"error": "invalid movement_type"}), 400
+        return jsonify({"error": "invalid movement_type", "message": "invalid movement_type"}), 422
+    if movement_type == MOVEMENT_ADJUSTMENT:
+        if quantity == 0:
+            return jsonify({"error": "quantity must not be zero", "message": "quantity must not be zero"}), 422
+    else:
+        if quantity <= 0:
+            return jsonify({"error": "positive quantity required", "message": "positive quantity required"}), 422
     mv, error = register_movement(
         mat_id, quantity, movement_type, request.user_id,
         work_order_id=data.get("work_order_id"), notes=data.get("notes"),
     )
     if error == "not_found":
-        return jsonify({"error": "material not found"}), 404
+        return jsonify({"error": "material not found", "message": "material not found"}), 404
     if error == "insufficient_stock":
-        return jsonify({"error": "insufficient stock"}), 400
+        return jsonify({"error": "insufficient stock", "message": "insufficient stock", "code": "INSUFFICIENT_STOCK"}), 409
+    if error == "invalid_quantity":
+        return jsonify({"error": "invalid quantity", "message": "invalid quantity"}), 422
+    if error:
+        return jsonify({"error": error, "message": error}), 400
     return jsonify(mv.to_dict()), 201
 
 
@@ -257,3 +331,45 @@ def material_requests_deliver(req_id):
     if not req:
         return jsonify({"error": "not found"}), 404
     return jsonify(req.to_dict()), 200
+
+
+@blueprint.post("/work-orders/<int:wo_id>/materials")
+@require_role("admin", "dispatcher", "technician")
+def consume_work_order_material(wo_id):
+    data = request.get_json() or {}
+    mat_id = data.get("material_id")
+    qty_raw = data.get("quantity")
+    if not mat_id or qty_raw is None:
+        return jsonify({"error": "material_id and quantity required", "message": "material_id and quantity required"}), 422
+    try:
+        qty = float(qty_raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid quantity", "message": "invalid quantity"}), 422
+    if qty <= 0:
+        return jsonify({"error": "positive quantity required", "message": "positive quantity required"}), 422
+    wo = db.session.get(WorkOrder, wo_id)
+    if not wo:
+        return jsonify({"error": "work order not found", "message": "work order not found"}), 404
+    if wo.status in ("cancelled", "closed", "completed"):
+        return jsonify({"error": "order does not accept materials", "message": "order does not accept materials", "code": "ORDER_NOT_ELIGIBLE"}), 409
+    roles = getattr(request, "user_roles", [])
+    if "technician" in roles and "admin" not in roles and "dispatcher" not in roles:
+        if wo.assigned_to_id != request.user_id:
+            return jsonify({"error": "forbidden", "message": "forbidden"}), 403
+        profile = TechnicianProfile.query.filter_by(user_id=request.user_id).first()
+        if not profile:
+            return jsonify({"error": "technician profile not found", "message": "technician profile not found"}), 404
+        tech_id = profile.id
+    else:
+        tech_id = data.get("technician_id")
+        if not tech_id:
+            return jsonify({"error": "technician_id required", "message": "technician_id required"}), 422
+        tech_id = int(tech_id)
+    mv, err = consume_for_order(int(mat_id), tech_id, qty, wo_id, request.user_id, data.get("notes"))
+    if err == "insufficient_stock":
+        return jsonify({"error": "insufficient stock", "message": "insufficient stock", "code": "INSUFFICIENT_STOCK"}), 409
+    if err:
+        return jsonify({"error": err, "message": err}), 400
+    d = mv.to_dict()
+    d["status"] = None
+    return jsonify(d), 201

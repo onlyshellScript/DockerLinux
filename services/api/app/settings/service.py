@@ -100,6 +100,7 @@ def operational_dict():
         "min_advance_hours": op.min_advance_hours,
         "travel_margin_minutes": op.travel_margin_minutes,
         "calendar_interval": op.calendar_interval,
+        "stock_critical_threshold": op.stock_critical_threshold,
         "version": op.version,
     }
 
