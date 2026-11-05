@@ -210,6 +210,28 @@ def update_material(mat_id, data):
             if _material_code_exists(new_code, exclude_id=m.id):
                 raise ValueError("duplicate_code")
             m.code = new_code
+    if "catalog_item_id" in data:
+        new_cid = data["catalog_item_id"]
+        if new_cid is None:
+            m.catalog_item_id = None
+        else:
+            try:
+                new_cid = int(new_cid)
+            except (TypeError, ValueError):
+                raise ValueError("invalid catalog_item_id")
+            from app.materials.models import MaterialCatalog
+            ci = db.session.get(MaterialCatalog, new_cid)
+            if not ci:
+                raise ValueError("catalog_item not found")
+            # duplicate inventory item
+            dup = Material.query.filter(Material.catalog_item_id == new_cid, Material.id != m.id).first()
+            if dup:
+                raise ValueError("already_inventoried")
+            m.catalog_item_id = new_cid
+            # sync name/code/unit from catalog
+            m.name = ci.name
+            m.code = ci.code
+            m.unit = ci.unit.code if ci.unit else m.unit
     for field in ("name", "description", "unit", "min_stock", "unit_price", "is_active"):
         if field in data:
             setattr(m, field, data[field])

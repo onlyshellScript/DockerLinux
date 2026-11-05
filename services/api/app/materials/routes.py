@@ -217,8 +217,8 @@ def materials_update(mat_id):
         m = update_material(mat_id, data)
     except ValueError as e:
         msg = str(e)
-        if msg == "duplicate_code":
-            return jsonify({"error": "code already exists", "message": "code already exists", "code": "DUPLICATE_CODE"}), 409
+        if msg in ("duplicate_code", "already_inventoried"):
+            return jsonify({"error": msg, "message": msg, "code": msg.upper()}), 409
         return jsonify({"error": msg, "message": msg}), 422
     if not m:
         return jsonify({"error": "material not found", "message": "material not found"}), 404

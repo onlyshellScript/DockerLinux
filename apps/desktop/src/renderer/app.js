@@ -1572,8 +1572,8 @@ function showCredentials(username, password) {
   $('#closeCred', modal).addEventListener('click', close);
 }
 
-﻿async function renderMaterials(content) {
-  if (!state.materialsFilters) state.materialsFilters = { q: '', status: '', unit: '' };
+﻿﻿async function renderMaterials(content) {
+  if (!state.materialsFilters) state.materialsFilters = { q: '', status: '', unit: '', category: '' };
   if (!state.materialsPage) state.materialsPage = 1;
   const filters = state.materialsFilters;
   content.innerHTML = `<div class="skeleton" style="height:240px"></div>`;
@@ -1583,25 +1583,33 @@ function showCredentials(username, password) {
   if (filters.unit) params.set('unit', filters.unit);
   params.set('page', state.materialsPage);
   params.set('page_size', 20);
-  const res = await api('GET', '/api/v1/materials?' + params.toString());
-  if (!res.ok) {
-    const msg = (res.body && (res.body.message || res.body.error)) || 'Error al cargar materiales.';
+
+  const [matRes, catRes] = await Promise.all([
+    api('GET', '/api/v1/materials?' + params.toString()),
+    api('GET', '/api/v1/material-categories'),
+  ]);
+  if (!matRes.ok) {
+    const msg = (matRes.body && (matRes.body.message || matRes.body.error)) || 'Error al cargar materiales.';
     content.innerHTML = `<div style="color:#991B1B;margin-bottom:8px">${escapeHtml(msg)}</div><button class="sigos-btn-secondary" id="retryMaterials">Reintentar</button>`;
     const rb = $('#retryMaterials'); if (rb) rb.addEventListener('click', () => renderMaterials(content));
     return;
   }
-  const data = res.body || {};
-  const items = data.items || [];
+  const data = matRes.body || {};
+  const allItems = data.items || [];
+  // client-side category filter (materials include category)
+  const items = filters.category ? allItems.filter((m) => m.category === filters.category) : allItems;
   const counts = data.counts || { total: 0, ok: 0, low: 0, critical: 0 };
   const total = data.total || 0;
   const pageSize = data.page_size || 20;
   const currentPage = data.page || 1;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const totalValue = data.total_value || 0;
+  const categories = catRes.ok ? (catRes.body || []) : [];
   items.forEach((m) => { if (!m.status) m.status = materialStatus(m.current_stock, m.min_stock).key; });
 
   const roles = (state.session?.user?.roles || []);
   const canManage = roles.includes('admin') || roles.includes('dispatcher');
+  const isAdmin = roles.includes('admin');
   const units = Array.from(new Set(items.map((m) => m.unit).filter(Boolean)));
 
   const card = (key, label, count, color) => `
@@ -1616,7 +1624,10 @@ function showCredentials(username, password) {
         <h2 style="font-family:Outfit;font-weight:700;font-size:20px;color:#163028;margin:0">Inventario de Materiales</h2>
         <div style="font-size:13px;color:#96908A">${total} materiales</div>
       </div>
-      ${canManage ? `<button class="sigos-btn-primary" id="addMaterialBtn" style="height:36px">${icon('plus',16)} Agregar material</button>` : ''}
+      <div style="display:flex;gap:8px">
+        ${isAdmin ? `<button class="sigos-btn-secondary" id="addCatalogBtn" style="height:36px">Agregar al catálogo</button>` : ''}
+        ${canManage ? `<button class="sigos-btn-primary" id="addMaterialBtn" style="height:36px">${icon('plus',16)} Agregar material</button>` : ''}
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
       ${card('', 'Total materiales', counts.total, '#163028')}
@@ -1625,6 +1636,10 @@ function showCredentials(username, password) {
       ${card('critical', 'Nivel crítico', counts.critical, '#D63B3B')}
     </div>
     <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+      <select id="filterCategory" class="sigos-select" style="height:36px">
+        <option value="">Todas las categorías</option>
+        ${categories.map((c) => `<option value="${escapeHtml(c.name)}" ${filters.category===c.name?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}
+      </select>
       <select id="filterStatus" class="sigos-select" style="height:36px">
         <option value="">Todos los estados</option>
         <option value="ok" ${filters.status==='ok'?'selected':''}>OK</option>
@@ -1639,28 +1654,35 @@ function showCredentials(username, password) {
     </div>
     <div class="sigos-card" style="overflow:hidden">
       <table class="tbl">
-        <thead><tr><th>Código</th><th>Nombre</th><th>Unidad</th><th>Stock</th><th>Mínimo</th><th>Nivel</th><th>Estado</th><th>Precio</th>${canManage?'<th>Acciones</th>':''}</tr></thead>
+        <thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Unidad</th><th>Stock</th><th>Mínimo</th><th>Nivel</th><th>Estado</th><th>Precio</th>${canManage?'<th>Acciones</th>':''}</tr></thead>
         <tbody>
           ${items.map((m) => {
             const st = materialStatus(m.current_stock, m.min_stock);
             const pct = stockLevelPct(m.current_stock, m.min_stock);
-            const barColor = st.bar;
+            const inherited = (m.catalog_item_id == null);
+            const cat = inherited ? 'Sin catálogo' : (m.category || '');
             return `<tr class="tbl-row">
               <td style="font-family:JetBrains Mono,monospace;font-size:12px">${escapeHtml(m.code || '')}</td>
-              <td>${escapeHtml(m.name)}</td>
+              <td>${escapeHtml(m.name)}${inherited ? ' <span class="badge-pending" style="font-size:10px">Sin catálogo</span>' : ''}</td>
+              <td>${escapeHtml(cat)}</td>
               <td>${escapeHtml(m.unit)}</td>
               <td>${m.current_stock}</td>
               <td>${m.min_stock}</td>
-              <td style="min-width:120px"><div style="background:#E5E7EB;border-radius:4px;height:6px;overflow:hidden"><div style="width:${pct}%;background:${barColor};height:6px"></div></div><div style="font-size:10px;color:#96908A;margin-top:2px">${pct}%</div></td>
+              <td style="min-width:120px"><div style="background:#E5E7EB;border-radius:4px;height:6px;overflow:hidden"><div style="width:${pct}%;background:${st.bar};height:6px"></div></div><div style="font-size:10px;color:#96908A;margin-top:2px">${pct}%</div></td>
               <td><span class="${st.badge}">${st.label}</span></td>
               <td>${formatCOP(m.unit_price)}</td>
               ${canManage ? `<td style="white-space:nowrap">
-                <button class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-edit="${m.id}">Editar</button>
-                <button class="sigos-btn-primary" style="height:28px;padding:0 8px;margin-left:4px" data-replenish="${m.id}">Reponer</button>
-                <button class="sigos-btn-secondary" style="height:28px;padding:0 8px;margin-left:4px" data-adjust="${m.id}">Ajustar</button>
+                ${inherited ? `
+                  <button class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-link="${m.id}">Vincular</button>
+                  <button class="sigos-btn-secondary" style="height:28px;padding:0 8px;margin-left:4px" data-deactivate="${m.id}">Desactivar</button>
+                ` : `
+                  <button class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-edit="${m.id}">Editar</button>
+                  <button class="sigos-btn-primary" style="height:28px;padding:0 8px;margin-left:4px" data-replenish="${m.id}">Reponer</button>
+                  <button class="sigos-btn-secondary" style="height:28px;padding:0 8px;margin-left:4px" data-adjust="${m.id}">Ajustar</button>
+                `}
               </td>` : ''}
             </tr>`;
-          }).join('') || `<tr><td colspan="${canManage?9:8}" class="empty-state__text">Sin materiales</td></tr>`}
+          }).join('') || `<tr><td colspan="${canManage?10:9}" class="empty-state__text">Sin materiales</td></tr>`}
         </tbody>
       </table>
     </div>
@@ -1674,7 +1696,6 @@ function showCredentials(username, password) {
     </div>
   `;
 
-  // bind topbar search
   const gs = $('#globalSearch');
   if (gs) {
     gs.placeholder = 'Buscar materiales por nombre o código…';
@@ -1682,7 +1703,6 @@ function showCredentials(username, password) {
     gs.oninput = () => { filters.q = gs.value; state.materialsPage = 1; renderMaterials(content); };
   }
 
-  // cards filter
   $$('[data-filter-status]').forEach((el) => {
     el.addEventListener('click', () => {
       const key = el.getAttribute('data-filter-status');
@@ -1692,6 +1712,8 @@ function showCredentials(username, password) {
     });
   });
 
+  const fc = $('#filterCategory');
+  if (fc) fc.addEventListener('change', () => { filters.category = fc.value; state.materialsPage = 1; renderMaterials(content); });
   const fsSel = $('#filterStatus');
   if (fsSel) fsSel.addEventListener('change', () => { filters.status = fsSel.value; state.materialsPage = 1; renderMaterials(content); });
   const fuSel = $('#filterUnit');
@@ -1702,21 +1724,276 @@ function showCredentials(username, password) {
 
   const addBtn = $('#addMaterialBtn');
   if (addBtn) addBtn.addEventListener('click', () => openMaterialModal(content));
+  const addCatBtn = $('#addCatalogBtn');
+  if (addCatBtn) addCatBtn.addEventListener('click', () => openAddCatalogModal(content));
   const exportBtn = $('#exportCsvBtn');
   if (exportBtn) exportBtn.addEventListener('click', () => {
     const p = new URLSearchParams();
     if (filters.q) p.set('q', filters.q);
     if (filters.status) p.set('status', filters.status);
     if (filters.unit) p.set('unit', filters.unit);
+    if (filters.category) p.set('category', filters.category);
     window.open('/api/v1/materials/export?' + p.toString(), '_blank');
   });
 
   $$('[data-edit]').forEach((b) => b.addEventListener('click', () => openMaterialModal(content, Number(b.getAttribute('data-edit')))));
   $$('[data-replenish]').forEach((b) => b.addEventListener('click', () => openReplenishModal(content, Number(b.getAttribute('data-replenish')))));
   $$('[data-adjust]').forEach((b) => b.addEventListener('click', () => openAdjustModal(content, Number(b.getAttribute('data-adjust')))));
+  $$('[data-link]').forEach((b) => b.addEventListener('click', () => openLinkCatalogModal(content, Number(b.getAttribute('data-link')))));
+  $$('[data-deactivate]').forEach((b) => b.addEventListener('click', async () => {
+    if (!window.confirm('¿Desactivar este material?')) return;
+    const r = await api('PUT', '/api/v1/materials/' + Number(b.getAttribute('data-deactivate')), { is_active: false });
+    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+    notify('Material desactivado.', 'success');
+    renderMaterials(content);
+    updateMenuBadge();
+  }));
 }
 
-updateMenuBadge();
+async function openMaterialModal(content, matId) {
+  const isEdit = !!matId;
+  let mat = null;
+  if (isEdit) {
+    const r = await api('GET', '/api/v1/materials/' + matId);
+    if (r.ok) mat = r.body;
+  }
+  // load categories and catalog
+  const [catRes, catalogRes] = await Promise.all([
+    api('GET', '/api/v1/material-categories'),
+    api('GET', '/api/v1/material-catalog?available=true'),
+  ]);
+  const categories = catRes.ok ? (catRes.body || []) : [];
+  const catalog = catalogRes.ok ? (catalogRes.body || []) : [];
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+  overlay.innerHTML = `
+    <div class="sigos-card" style="width:560px;max-width:95vw;padding:20px;max-height:90vh;overflow:auto">
+      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">${isEdit ? 'Editar material' : 'Agregar material'}</h3>
+      ${isEdit ? `
+        <div class="fld"><label>Nombre</label><input class="sigos-input" value="${escapeHtml(mat?.name || '')}" disabled></div>
+        <div class="fld"><label>Código</label><input class="sigos-input" value="${escapeHtml(mat?.code || '')}" disabled></div>
+        <div class="fld"><label>Unidad</label><input class="sigos-input" value="${escapeHtml(mat?.unit || '')}" disabled></div>
+      ` : `
+        <div class="fld"><label>Categoría *</label>
+          <select class="sigos-input" id="mCat">
+            <option value="">Seleccionar categoría</option>
+            ${categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fld"><label>Material *</label>
+          <input class="sigos-input" id="mSearch" placeholder="Buscar material..." style="margin-bottom:4px">
+          <select class="sigos-input" id="mCatalog" size="6" style="height:140px">
+            <option value="">Seleccionar material</option>
+          </select>
+        </div>
+        <div id="mInfo" style="font-size:12px;color:#96908A;margin:8px 0"></div>
+      `}
+      <div class="fld"><label>Stock inicial</label><input type="number" class="sigos-input" id="mStock" value="${isEdit ? (mat?.current_stock ?? 0) : 0}" min="0" ${isEdit?'disabled':''}></div>
+      <div class="fld"><label>Mínimo</label><input type="number" class="sigos-input" id="mMin" value="${mat?.min_stock ?? 0}" min="0"></div>
+      <div class="fld"><label>Precio (COP)</label><input type="number" class="sigos-input" id="mPrice" value="${mat?.unit_price ?? 0}" min="0"></div>
+      ${isEdit ? `<div class="fld"><label><input type="checkbox" id="mActive" ${mat?.is_active?'checked':''}> Activo</label></div>` : ''}
+      <div id="mWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="sigos-btn-secondary" id="mCancel">Cancelar</button>
+        ${isAdmin && !isEdit ? `<button class="sigos-btn-secondary" id="mAddCatalog">Agregar al catálogo</button>` : ''}
+        <button class="sigos-btn-primary" id="mSave">Guardar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  $('#mCancel').addEventListener('click', close);
+
+  let selectedCatalogId = null;
+  const renderCatalogOptions = (catId, q) => {
+    const sel = $('#mCatalog');
+    if (!sel) return;
+    const nq = (q || '').trim().toLowerCase();
+    const filtered = catalog.filter((c) => {
+      if (catId && String(c.category_id) !== String(catId)) return false;
+      if (nq && !((c.name || '').toLowerCase().includes(nq) || (c.code || '').toLowerCase().includes(nq))) return false;
+      return true;
+    });
+    sel.innerHTML = filtered.map((c) => {
+      const disabled = c._inventoried ? 'disabled' : '';
+      const label = c._inventoried ? (c.name + ' — Ya está en inventario · Reponer') : c.name;
+      return `<option value="${c.id}" ${disabled}>${escapeHtml(label)}</option>`;
+    }).join('') || '<option value="">Sin resultados</option>';
+  };
+
+  if (!isEdit) {
+    // mark inventoried items
+    const inv = await api('GET', '/api/v1/materials?page=1&page_size=1000');
+    const invIds = new Set((inv.ok ? (inv.body.items || []) : []).map((m) => m.catalog_item_id));
+    catalog.forEach((c) => { c._inventoried = invIds.has(c.id); });
+
+    const catSel = $('#mCat');
+    const searchInput = $('#mSearch');
+    const updateInfo = () => {
+      const cid = selectedCatalogId;
+      const item = catalog.find((c) => String(c.id) === String(cid));
+      const info = $('#mInfo');
+      if (item && info) {
+        info.innerHTML = `Unidad: <strong>${escapeHtml(item.unit)}</strong> · Medida: ${escapeHtml(item.measure || '-')} · Etapas: ${escapeHtml(item.stage || '-')}`;
+        // decimal handling
+        const stockInput = $('#mStock');
+        if (stockInput) stockInput.step = item.allows_decimal ? 'any' : '1';
+      }
+    };
+    if (catSel) catSel.addEventListener('change', () => { renderCatalogOptions(catSel.value, searchInput ? searchInput.value : ''); });
+    if (searchInput) searchInput.addEventListener('input', () => { renderCatalogOptions(catSel ? catSel.value : '', searchInput.value); });
+    const catSelEl = $('#mCatalog');
+    if (catSelEl) catSelEl.addEventListener('change', () => { selectedCatalogId = catSelEl.value; updateInfo(); });
+    renderCatalogOptions('', '');
+  }
+
+  $('#mSave').addEventListener('click', async () => {
+    const min = Number($('#mMin').value || 0);
+    if (min === 0) {
+      if (!window.confirm('Este material nunca generará alertas de stock. ¿Continuar?')) return;
+    }
+    if (!isEdit) {
+      if (!selectedCatalogId) { $('#mWarn').textContent = 'Selecciona un material del catálogo.'; return; }
+    }
+    const payload = {
+      min_stock: min,
+      unit_price: Number($('#mPrice').value || 0),
+    };
+    if (!isEdit) {
+      payload.catalog_item_id = Number(selectedCatalogId);
+      payload.current_stock = Number($('#mStock').value || 0);
+    } else {
+      payload.is_active = !!$('#mActive').checked;
+    }
+    const url = isEdit ? ('/api/v1/materials/' + matId) : '/api/v1/materials';
+    const method = isEdit ? 'PUT' : 'POST';
+    const r = await api(method, url, payload);
+    if (!r.ok) {
+      const msg = (r.body && (r.body.message || r.body.error)) || 'Error';
+      if (r.status === 409) $('#mWarn').textContent = 'Ya está en inventario. Usa Reponer.';
+      else $('#mWarn').textContent = msg;
+      return;
+    }
+    close();
+    notify(isEdit ? 'Material actualizado.' : 'Material creado.', 'success');
+    state.materialsPage = 1;
+    renderMaterials(content);
+    updateMenuBadge();
+  });
+
+  const addCat = $('#mAddCatalog');
+  if (addCat) addCat.addEventListener('click', () => { close(); openAddCatalogModal(content); });
+}
+
+async function openAddCatalogModal(content) {
+  const [catRes, unitRes] = await Promise.all([
+    api('GET', '/api/v1/material-categories'),
+    api('GET', '/api/v1/material-units'),
+  ]);
+  const categories = catRes.ok ? (catRes.body || []) : [];
+  const units = unitRes.ok ? (unitRes.body || []) : [];
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+  overlay.innerHTML = `
+    <div class="sigos-card" style="width:520px;max-width:95vw;padding:20px;max-height:90vh;overflow:auto">
+      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">Agregar al catálogo</h3>
+      <div class="fld"><label>Categoría *</label><select class="sigos-input" id="cCat">${categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Código *</label><input class="sigos-input" id="cCode"></div>
+      <div class="fld"><label>Nombre *</label><input class="sigos-input" id="cName"></div>
+      <div class="fld"><label>Unidad *</label><select class="sigos-input" id="cUnit">${units.map((u) => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.code)})</option>`).join('')}</select></div>
+      <div class="fld"><label>Medida</label><input class="sigos-input" id="cMeasure"></div>
+      <div class="fld"><label>Etapa</label><input class="sigos-input" id="cStage"></div>
+      <div class="fld"><label>Aplica a</label><input class="sigos-input" id="cApplies" value="todos"></div>
+      <div id="cWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
+      <div id="cSimilar" style="color:#96908A;font-size:12px;margin:8px 0"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="sigos-btn-secondary" id="cCancel">Cancelar</button>
+        <button class="sigos-btn-primary" id="cSave">Guardar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  $('#cCancel').addEventListener('click', close);
+  $('#cSave').addEventListener('click', async () => {
+    const payload = {
+      category_id: Number($('#cCat').value),
+      code: $('#cCode').value.trim(),
+      name: $('#cName').value.trim(),
+      unit_id: Number($('#cUnit').value),
+      measure: $('#cMeasure').value.trim() || null,
+      stage: $('#cStage').value.trim() || null,
+      applies_to: $('#cApplies').value.trim() || 'todos',
+    };
+    const r = await api('POST', '/api/v1/material-catalog', payload);
+    if (!r.ok) {
+      const msg = (r.body && (r.body.message || r.body.error)) || 'Error';
+      $('#cWarn').textContent = msg;
+      return;
+    }
+    if (r.body && r.body.similar && r.body.similar.length) {
+      $('#cSimilar').textContent = 'Nombres similares: ' + r.body.similar.join(', ');
+    }
+    close();
+    notify('Elemento agregado al catálogo.', 'success');
+    renderMaterials(content);
+  });
+}
+
+async function openLinkCatalogModal(content, matId) {
+  const [matRes, catalogRes] = await Promise.all([
+    api('GET', '/api/v1/materials/' + matId),
+    api('GET', '/api/v1/material-catalog?available=true'),
+  ]);
+  if (!matRes.ok) { notify('No se pudo cargar el material.', 'error'); return; }
+  const mat = matRes.body;
+  const catalog = catalogRes.ok ? (catalogRes.body || []) : [];
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+  overlay.innerHTML = `
+    <div class="sigos-card" style="width:520px;max-width:95vw;padding:20px;max-height:90vh;overflow:auto">
+      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">Vincular a catálogo</h3>
+      <div style="font-size:13px;color:#96908A;margin-bottom:8px">${escapeHtml(mat.name)} · stock: ${mat.current_stock}</div>
+      <div class="fld"><label>Buscar material</label><input class="sigos-input" id="linkSearch" placeholder="Buscar..."></div>
+      <select class="sigos-input" id="linkCatalog" size="8" style="height:180px">
+        ${catalog.map((c) => `<option value="${c.id}">${escapeHtml(c.code)} — ${escapeHtml(c.name)}</option>`).join('')}
+      </select>
+      <div id="linkWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="sigos-btn-secondary" id="linkCancel">Cancelar</button>
+        <button class="sigos-btn-primary" id="linkSave">Vincular</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  $('#linkCancel').addEventListener('click', close);
+  const searchInput = $('#linkSearch');
+  const sel = $('#linkCatalog');
+  if (searchInput && sel) {
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      Array.from(sel.options).forEach((opt) => {
+        const item = catalog.find((c) => String(c.id) === opt.value);
+        const hay = ((item?.code || '') + ' ' + (item?.name || '')).toLowerCase();
+        opt.style.display = !q || hay.includes(q) ? '' : 'none';
+      });
+    });
+  }
+  $('#linkSave').addEventListener('click', async () => {
+    const cid = Number(sel.value);
+    if (!cid) { $('#linkWarn').textContent = 'Selecciona un material.'; return; }
+    if (!window.confirm('¿Vincular este material al catálogo? Se conservarán stock y movimientos.')) return;
+    const r = await api('PUT', '/api/v1/materials/' + matId, { catalog_item_id: cid });
+    if (!r.ok) { $('#linkWarn').textContent = (r.body && (r.body.message || r.body.error)) || 'Error'; return; }
+    close();
+    notify('Material vinculado.', 'success');
+    renderMaterials(content);
+    updateMenuBadge();
+  });
+}
+
 
 async function openMaterialModal(content, matId) {
   const isEdit = !!matId;

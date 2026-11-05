@@ -43,6 +43,8 @@ class Material(db.Model):
             "name": self.name,
             "code": self.code,
             "catalog_item_id": self.catalog_item_id,
+            "category": (self.catalog_item.category.name if getattr(self, "catalog_item", None) and self.catalog_item.category else ("Sin catalogo" if self.catalog_item_id is None else None)),
+            "catalog_name": (self.catalog_item.name if getattr(self, "catalog_item", None) else None),
             "description": self.description,
             "unit": self.unit,
             "current_stock": self.current_stock,
