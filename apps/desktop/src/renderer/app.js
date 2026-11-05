@@ -367,6 +367,7 @@ async function renderCalendar(content) {
      if (!validDate(state.calendarState.anchor)) state.calendarState.anchor = calTodayStr();
    }
   const cs = state.calendarState;
+  if (!cs.collapsed) cs.collapsed = { pending: false, detail: false };
   // load tz from settings public
    try {
      const s = await api('GET', '/api/v1/settings/public');
@@ -436,48 +437,55 @@ async function renderCalendar(content) {
   let html = '';
   // topbar actions area handled by view title; add period nav
    const canSchedule = hasRole('admin') || hasRole('dispatcher');
-   html += '<div style="display:flex;flex-direction:column;height:100%;gap:8px">';
+   html += '<div class="cal-root" style="display:flex;flex-direction:column;height:100%;min-height:0;gap:8px;overflow:hidden">';
    // row 1
-   html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+   const lu = cs.lastUpdated ? new Date(cs.lastUpdated).toLocaleTimeString('es-CO') : '';
+   html += '<div class="cal-toolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
    html += '<button class="sigos-btn-secondary" style="width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calPrev" aria-label="Anterior"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>';
    html += '<button class="sigos-btn-secondary" style="height:36px" id="calToday">Hoy</button>';
    html += '<button class="sigos-btn-secondary" style="width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calNext" aria-label="Siguiente"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>';
-   html += '<span style="font-family:Outfit;font-weight:600;font-size:15px;color:#163028;margin-left:8px">' + escapeHtml(label) + '</span>';
+   html += '<span style="font-family:Outfit;font-weight:600;font-size:16px;color:#163028;margin-left:8px">' + escapeHtml(label) + '</span>';
    html += '<div style="margin-left:12px;display:flex;gap:4px">';
    ['day','week','month'].forEach(v => {
      const lbl = v==='day'?'Día':v==='week'?'Semana':'Mes';
      html += '<button class="sigos-btn-secondary" data-calview="' + v + '" style="height:36px' + (cs.view===v?';background:#163028;color:#fff':'') + '">' + lbl + '</button>';
    });
    html += '</div>';
-   html += '<div style="margin-left:auto;display:flex;gap:6px">';
+   html += '<span style="margin-left:auto;font-size:11px;color:#96908A">Actualizado ' + escapeHtml(lu) + '</span>';
+   html += '<button class="sigos-btn-secondary" style="width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calRefresh" title="Refrescar" aria-label="Refrescar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>';
    html += '<button class="sigos-btn-primary" ' + (canSchedule?'':'disabled title="Sin permisos"') + ' style="height:36px" id="calSchedule">+ Programar visita</button>';
-   html += '</div></div>';
+   html += '</div>';
    // row 2: chips + filters
    const hasActiveFilters = !!(cs.filters.technician_id || cs.filters.status || cs.filters.type || cs.filters.priority || cs.filters.city_id || cs.filters.zone_id || cs.filters.include_cancelled);
-   html += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
-   html += '<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;cursor:pointer" id="chipProg">Programadas <span style="font-family:Outfit;font-weight:800;font-size:18px;color:#2A5C45">' + programmed + '</span></span>';
-   html += '<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;cursor:pointer" id="chipUnas">Sin asignar <span style="font-family:Outfit;font-weight:800;font-size:18px;color:#C9892A">' + unassignedCount + '</span></span>';
-   html += '<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;cursor:pointer" id="chipProg2">En ejecución <span style="font-family:Outfit;font-weight:800;font-size:18px;color:#2A5C45">' + inProgress + '</span></span>';
-   // technician select
+   const activeFilterCount = [cs.filters.technician_id, cs.filters.status, cs.filters.type, cs.filters.priority, cs.filters.city_id, cs.filters.zone_id, cs.filters.include_cancelled].filter(Boolean).length;
+   html += '<div class="cal-toolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+   html += '<span class="cal-chip" style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;height:28px;cursor:pointer" id="chipProg">Programadas <span style="font-family:Outfit;font-weight:800;font-size:15px;color:#2A5C45">' + programmed + '</span></span>';
+   html += '<span class="cal-chip" style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;height:28px;cursor:pointer" id="chipUnas">Sin asignar <span style="font-family:Outfit;font-weight:800;font-size:15px;color:#C9892A">' + unassignedCount + '</span></span>';
+   html += '<span class="cal-chip" style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;height:28px;cursor:pointer" id="chipProg2">En ejecución <span style="font-family:Outfit;font-weight:800;font-size:15px;color:#2A5C45">' + inProgress + '</span></span>';
    const techOptions = techOpts.map(t => '<option value="' + (t.user_id||t.id) + '"' + (String(cs.filters.technician_id)===String(t.user_id||t.id)?' selected':'') + '>' + escapeHtml(t.full_name||t.username||('Técnico '+(t.user_id||t.id))) + '</option>').join('');
-   const statusOpts = ['pending','assigned','in_progress','completed','closed','cancelled'].map(s => '<option value="' + s + '"' + (cs.filters.status===s?' selected':'') + '>' + escapeHtml(s) + '</option>').join('');
-   const typeOptions = typeOpts.map(t => '<option value="' + escapeHtml(t.code) + '"' + (cs.filters.type===t.code?' selected':'') + '>' + escapeHtml(t.label) + '</option>').join('');
-   const prioOptions = ['low','medium','high','urgent'].map(p => '<option value="' + p + '"' + (cs.filters.priority===p?' selected':'') + '>' + escapeHtml(p) + '</option>').join('');
-   const cityOptions = cityOpts.map(c => '<option value="' + c.id + '"' + (String(cs.filters.city_id)===String(c.id)?' selected':'') + '>' + escapeHtml(c.name||c.label) + '</option>').join('');
-   const zoneOptions = zoneOpts.map(z => '<option value="' + z.id + '"' + (String(cs.filters.zone_id)===String(z.id)?' selected':'') + '>' + escapeHtml(z.name) + '</option>').join('');
-   html += '<select class="sigos-input" style="height:36px;min-width:150px" id="calFiltTech"><option value="">Todos los técnicos</option>' + techOptions + '</select>';
-   html += '<select class="sigos-input" style="height:36px;min-width:130px" id="calFiltStatus"><option value="">Todos los estados</option>' + statusOpts + '</select>';
-   html += '<select class="sigos-input" style="height:36px;min-width:120px" id="calFiltType"><option value="">Todos los tipos</option>' + typeOptions + '</select>';
-   html += '<select class="sigos-input" style="height:36px;min-width:130px" id="calFiltPrio"><option value="">Todas las prioridades</option>' + prioOptions + '</select>';
-   html += '<select class="sigos-input" style="height:36px;min-width:130px" id="calFiltCity"><option value="">Todas las ciudades</option>' + cityOptions + '</select>';
-   html += '<select class="sigos-input" style="height:36px;min-width:130px" id="calFiltZone"><option value="">Todas las zonas</option>' + zoneOptions + '</select>';
-   html += '<label style="font-size:12px;display:inline-flex;align-items:center;gap:4px"><input type="checkbox" id="calFiltCancel"> Incluir canceladas</label>';
-   if (hasActiveFilters) html += '<button class="sigos-btn-secondary" style="height:36px" id="calClear">Limpiar</button>';
-   if (!error) html += '<span style="font-size:12px;color:#96908A">' + items.length + ' resultado' + (items.length===1?'':'s') + '</span>';
-   const lu = cs.lastUpdated ? new Date(cs.lastUpdated).toLocaleTimeString('es-CO') : '';
-   html += '<span style="font-size:11px;color:#96908A;margin-left:auto">Actualizado ' + escapeHtml(lu) + '</span>';
-   html += '<button class="sigos-btn-secondary" style="height:32px" id="calRefresh">Refrescar</button>';
+   const statusOpts = ['pending','assigned','in_progress','completed','closed','cancelled'].map(s => '<option value="' + s + '"' + (cs.filters.status===s?' selected':'') + '>' + escapeHtml((typeof statusOf==='function'?statusOf(s).label:s)) + '</option>').join('');
+   html += '<select class="sigos-input" id="calFiltTech"><option value="">Todos los técnicos</option>' + techOptions + '</select>';
+   html += '<select class="sigos-input" id="calFiltStatus"><option value="">Todos los estados</option>' + statusOpts + '</select>';
+   html += '<button class="sigos-btn-secondary" style="height:36px" id="calFiltersBtn">Filtros' + (activeFilterCount ? ' ' + activeFilterCount : '') + '</button>';
+   if (hasActiveFilters) html += '<button class="sigos-btn-secondary" style="height:36px;font-size:12px" id="calClear">Limpiar</button>';
+   if (!error) html += '<span style="font-size:11px;color:#96908A;margin-left:auto">' + items.length + ' resultado' + (items.length===1?'':'s') + '</span>';
    html += '</div>';
+   // filters popover
+   if (cs.filtersPopoverOpen) {
+     html += '<div id="calFiltersPopover" style="position:fixed;top:120px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #DDD9D3;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:12px;z-index:9999;min-width:280px">';
+     const typeOptions = typeOpts.map(t => '<option value="' + escapeHtml(t.code) + '"' + (cs.filters.type===t.code?' selected':'') + '>' + escapeHtml(t.label) + '</option>').join('');
+     const prioOptions = ['low','medium','high','urgent'].map(p => '<option value="' + p + '"' + (cs.filters.priority===p?' selected':'') + '>' + escapeHtml((typeof priorityOf==='function'?priorityOf(p).label:p)) + '</option>').join('');
+     const cityOptions = cityOpts.map(c => '<option value="' + c.id + '"' + (String(cs.filters.city_id)===String(c.id)?' selected':'') + '>' + escapeHtml(c.name||c.label) + '</option>').join('');
+     const zoneOptions = zoneOpts.map(z => '<option value="' + z.id + '"' + (String(cs.filters.zone_id)===String(z.id)?' selected':'') + '>' + escapeHtml(z.name) + '</option>').join('');
+     html += '<div style="display:grid;gap:8px">';
+     html += '<label style="font-size:12px">Tipo <select class="sigos-input" id="popType"><option value="">Todos</option>' + typeOptions + '</select></label>';
+     html += '<label style="font-size:12px">Prioridad <select class="sigos-input" id="popPrio"><option value="">Todas</option>' + prioOptions + '</select></label>';
+     html += '<label style="font-size:12px">Ciudad <select class="sigos-input" id="popCity"><option value="">Todas</option>' + cityOptions + '</select></label>';
+     html += '<label style="font-size:12px">Zona <select class="sigos-input" id="popZone"><option value="">Todas</option>' + zoneOptions + '</select></label>';
+     html += '<label style="font-size:12px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="popCancel" ' + (cs.filters.include_cancelled?'checked':'') + '> Incluir canceladas</label>';
+     html += '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="sigos-btn-secondary" style="height:32px" id="popReset">Restablecer</button><button class="sigos-btn-primary" style="height:32px" id="popApply">Aplicar</button></div>';
+     html += '</div></div>';
+   }
   if (offline) {
     html += '<div style="background:#FDECEA;color:#D63B3B;padding:8px;border-radius:6px;font-size:12px">Sin conexión · datos de las ' + new Date().toLocaleTimeString('es-CO') + '</div>';
   } else if (error) {
@@ -486,10 +494,10 @@ async function renderCalendar(content) {
   } else if (!error && !items.length && !unassigned.length) {
     html += '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">📅 Sin visitas programadas</div><div class="empty-state__text">No hay visitas en este rango. Programa una nueva desde Órdenes.</div><button class="sigos-btn-secondary" id="calGoOrders">Ir a Órdenes</button></div></div>';
   }
-  // main layout: grid + panel
-  html += '<div style="display:flex;gap:8px;flex:1;min-height:0">';
-  // calendar grid
-   html += '<div class="cal-grid-scroll" style="flex:1;min-width:0;overflow:auto;border:1px solid #DDD9D3;border-radius:8px;background:#fff">';
+   // main layout: grid + panel
+   html += '<div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px">';
+   // calendar grid
+   html += '<div class="cal-grid-scroll" style="min-height:0;overflow:auto;border:1px solid #DDD9D3;border-radius:8px;background:#fff">';
   if (cs.view === 'month') {
     html += '<div style="display:grid;grid-template-columns:repeat(7,1fr)">';
     ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(d => { html += '<div style="padding:6px;font-size:11px;font-weight:600;color:#96908A;border-bottom:1px solid #DDD9D3;text-align:center">' + d + '</div>'; });
@@ -562,7 +570,7 @@ async function renderCalendar(content) {
            html += '<div class="cal-event" data-event-id="' + e.order_id + '" tabindex="0" title="' + escapeHtml(orderCode(e) + ' ' + e.title) + '" style="position:absolute;top:' + top + 'px;left:' + left + ';width:' + width + ';height:' + height + 'px;background:#F3F8F5;' + selStyle + dash + ';border-radius:4px;padding:2px 4px;font-size:11px;overflow:hidden;pointer-events:auto;cursor:pointer">';
            const review = needsReview(e, pub);
            html += '<div style="font-family:JetBrains Mono,monospace;font-size:10px">' + escapeHtml(orderCode(e)) + (review ? ' ⚠' : '') + '</div>';
-          html += '<div style="font-weight:600">' + escapeHtml(e.title) + '</div>';
+           html += '<div style="font-weight:600;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">' + escapeHtml(e.title) + '</div>';
            html += '<div style="color:#64748B">' + escapeHtml((e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar') + '</div>';
            html += '<div class="cal-resize-handle" data-event-id="' + e.order_id + '" style="position:absolute;bottom:0;left:0;right:0;height:6px;cursor:ns-resize"></div>';
            html += '</div>';
@@ -579,10 +587,13 @@ async function renderCalendar(content) {
      html += '</div>';
    }
   html += '</div>';
-  // right panel
-  html += '<div style="width:340px;flex-shrink:0;display:flex;flex-direction:column;gap:8px">';
+   // right panel
+   html += '<div style="min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px">';
   // unassigned tray
-  html += '<div class="sigos-card" style="padding:10px"><div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028;margin-bottom:6px">Pendientes</div>';
+   const pendingCollapsed = cs.collapsed.pending;
+   html += '<div class="sigos-card" style="padding:12px 14px">';
+   html += '<div class="cal-collapse-header" data-panel="pending" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:' + (pendingCollapsed?'0':'6') + 'px">Pendientes <span>' + (pendingCollapsed ? '▸' : '▾') + '</span></div>';
+   if (!pendingCollapsed) {
   const porProgramar = unassigned.filter(o => !o.scheduled_at);
   const porAsignar = unassigned.filter(o => o.scheduled_at && !o.assigned_to_id);
   if (unassignedError) {
@@ -593,34 +604,55 @@ async function renderCalendar(content) {
   }
    const pendingLine = (o) => {
      const code = orderCode(o);
-     const parts = [o.customer_name || '—', o.installation_type_code || o.installation_type || '—', o.priority || '—'].filter(Boolean);
+     const main = o.title || o.customer_name || '';
+     const pr = (typeof priorityOf === 'function' && o.priority) ? priorityOf(o.priority).label : (o.priority || '');
+     const parts = [main, pr].filter(Boolean);
      return escapeHtml(code) + (parts.length ? ' · ' + parts.map(escapeHtml).join(' · ') : '');
    };
    porProgramar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
   html += '<div style="font-size:12px;font-weight:600;color:#96908A;margin-top:6px">Por asignar (' + porAsignar.length + ')</div>';
   if (!porAsignar.length) html += '<div style="font-size:11px;color:#96908A">Sin pendientes</div>';
-   porAsignar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
-  html += '</div>';
+    porAsignar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
+   }
+   html += '</div>';
    const selectedEvent = (items || []).find(e => e.order_id === cs.selectedEventId) || null;
    if (cs.selectedEventId && !selectedEvent) cs.selectedEventId = null;
    // selected event detail
-   html += '<div class="sigos-card" style="padding:10px"><div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028;margin-bottom:6px">Detalle de la visita</div>';
-   if (selectedEvent) {
+    const detailCollapsed = cs.collapsed.detail;
+    html += '<div class="sigos-card" style="padding:12px 14px">';
+    html += '<div class="cal-collapse-header" data-panel="detail" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:' + (detailCollapsed?'0':'6') + 'px">Detalle de la visita <span>' + (detailCollapsed ? '▸' : '▾') + '</span></div>';
+    if (!detailCollapsed) {
+    if (selectedEvent) {
      const e = selectedEvent;
      const techs = (e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar';
      html += '<div style="font-family:JetBrains Mono,monospace;font-size:11px;margin-bottom:2px">' + escapeHtml(orderCode(e)) + '</div>';
      html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px">' + escapeHtml(e.title) + '</div>';
-     const fields = [
-       ['Cliente', e.customer_name || '—'],
-       ['Dirección', e.address || e.city || '—'],
-       ['Tipo', e.installation_type || e.type || '—'],
-       ['Estado', (typeof statusOf === 'function' ? statusOf(e.status).label : e.status)],
-       ['Prioridad', (typeof priorityOf === 'function' ? priorityOf(e.priority).label : e.priority)],
-       ['Horario', e.start.slice(11,16) + '–' + e.end.slice(11,16)],
-       ['Técnico', techs],
-       ['Observaciones', e.schedule_notes || e.notes || '—'],
-     ];
-     fields.forEach(([k,v]) => { html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> ' + escapeHtml(v) + '</div>'; });
+      const rawFields = [
+        ['Cliente', e.customer_name],
+        ['Dirección', e.address || e.city],
+        ['Tipo', e.installation_type || e.type],
+        ['Estado', (typeof statusOf === 'function' ? statusOf(e.status).label : e.status)],
+        ['Prioridad', (typeof priorityOf === 'function' ? priorityOf(e.priority).label : e.priority)],
+        ['Horario', e.start.slice(11,16) + '–' + e.end.slice(11,16)],
+        ['Técnico', techs],
+        ['Observaciones', e.schedule_notes || e.notes],
+      ];
+      const shown = rawFields.filter(([k,v]) => (k === 'Estado' || k === 'Prioridad' || k === 'Horario' || k === 'Técnico') ? true : (v && String(v).trim() && v !== '—'));
+      if (shown.length <= 4 && !e.customer_name && !(e.address||e.city) && !(e.installation_type||e.type) && !(e.schedule_notes||e.notes)) {
+        html += '<div style="font-size:11px;color:#96908A;margin-bottom:6px">Sin datos de cliente registrados</div>';
+      } else {
+        shown.forEach(([k,v]) => {
+          if (k === 'Estado') {
+            const badge = (typeof statusOf === 'function') ? statusOf(e.status) : { label: v, color: '#3A4552', bg: '#F1F5F9' };
+            html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> <span style="padding:1px 6px;border-radius:999px;font-size:10px;background:' + escapeHtml(badge.bg) + ';color:' + escapeHtml(badge.color) + '">' + escapeHtml(badge.label) + '</span></div>';
+          } else if (k === 'Prioridad') {
+            const badge = (typeof priorityOf === 'function') ? priorityOf(e.priority) : { label: v, color: '#3A4552' };
+            html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> <span style="color:' + escapeHtml(badge.color) + ';font-weight:600">' + escapeHtml(badge.label) + '</span></div>';
+          } else {
+            html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> ' + escapeHtml(v) + '</div>';
+          }
+        });
+      }
      // actions
      const canSchedule = hasRole('admin') || hasRole('dispatcher');
      const st = e.status;
@@ -648,11 +680,12 @@ async function renderCalendar(content) {
      });
      html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="history">Ver historial</button>';
      html += '</div>';
-   } else {
-     html += '<div style="font-size:12px;color:#96908A">Selecciona una visita para ver su detalle y acciones.</div>';
-   }
-   html += '</div>';
-   if (!cs.selectedDay) cs.selectedDay = todayStr;
+    } else {
+      html += '<div style="font-size:12px;color:#96908A">Selecciona una visita para ver su detalle y acciones.</div>';
+    }
+    }
+    html += '</div>';
+    if (!cs.selectedDay) cs.selectedDay = todayStr;
    const selDay = cs.selectedDay;
    html += '<div class="sigos-card" style="padding:10px;flex:1;overflow:auto"><div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028;margin-bottom:6px">Órdenes del día seleccionado</div>';
    const selEvs = byDay[selDay] || [];
@@ -742,9 +775,48 @@ async function renderCalendar(content) {
    if (clear) clear.addEventListener('click', () => { cs.filters = { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false }; render(); });
    const refreshBtn = document.getElementById('calRefresh');
    if (refreshBtn) refreshBtn.addEventListener('click', () => render());
+   const filtersBtn = document.getElementById('calFiltersBtn');
+   if (filtersBtn) filtersBtn.addEventListener('click', () => { cs.filtersPopoverOpen = !cs.filtersPopoverOpen; render(); });
+   const popApply = document.getElementById('popApply');
+   if (popApply) popApply.addEventListener('click', () => {
+     cs.filters.type = document.getElementById('popType').value;
+     cs.filters.priority = document.getElementById('popPrio').value;
+     cs.filters.city_id = document.getElementById('popCity').value;
+     cs.filters.zone_id = document.getElementById('popZone').value;
+     cs.filters.include_cancelled = document.getElementById('popCancel').checked;
+     cs.filtersPopoverOpen = false;
+     render();
+   });
+   const popReset = document.getElementById('popReset');
+   if (popReset) popReset.addEventListener('click', () => {
+     cs.filters.type = ''; cs.filters.priority = ''; cs.filters.city_id = ''; cs.filters.zone_id = ''; cs.filters.include_cancelled = false;
+     cs.filtersPopoverOpen = false;
+     render();
+   });
+   // chip clicks
+   const chipProg = document.getElementById('chipProg');
+   if (chipProg) chipProg.addEventListener('click', () => { cs.filters.status = (cs.filters.status === 'assigned' ? '' : 'assigned'); render(); });
+   const chipUnas = document.getElementById('chipUnas');
+   if (chipUnas) chipUnas.addEventListener('click', () => { cs.filters.status = (cs.filters.status === 'pending' ? '' : 'pending'); render(); });
+   const chipProg2 = document.getElementById('chipProg2');
+   if (chipProg2) chipProg2.addEventListener('click', () => { cs.filters.status = (cs.filters.status === 'in_progress' ? '' : 'in_progress'); render(); });
   const retry = document.getElementById('calRetry');
   if (retry) retry.addEventListener('click', () => render());
    document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => { cs.selectedDay = el.dataset.day; render(); }));
+   document.querySelectorAll('.cal-collapse-header').forEach(h => h.addEventListener('click', () => { cs.collapsed[h.dataset.panel] = !cs.collapsed[h.dataset.panel]; render(); }));
+   if (cs.filtersPopoverOpen) {
+     setTimeout(() => {
+       const close = (ev) => {
+         const pop = document.getElementById('calFiltersPopover');
+         const btn = document.getElementById('calFiltersBtn');
+         if (pop && !pop.contains(ev.target) && btn && !btn.contains(ev.target)) {
+           cs.filtersPopoverOpen = false; render();
+           document.removeEventListener('click', close);
+         }
+       };
+       document.addEventListener('click', close);
+     }, 0);
+   }
    const schBtn = document.getElementById('calSchedule');
    if (schBtn) schBtn.addEventListener('click', () => openScheduleModal({}));
    document.querySelectorAll('[data-slot-date]').forEach(el => {
@@ -2018,7 +2090,7 @@ async function openScheduleModal(opts) {
     if (res.ok) {
       closeScheduleModal();
       notify('Visita programada.', 'success');
-      const cs = state.calendarState;
+   const cs = state.calendarState;
       cs.selectedEventId = Number(oid);
       cs.highlightId = Number(oid);
       render();
@@ -2495,3 +2567,5 @@ window.addEventListener('unhandledrejection', (e) => {
   const c = document.getElementById('content');
   if (c) c.innerHTML = '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">Error en la vista</div><div class="empty-state__text">' + escapeHtml(String(e.reason && (e.reason.message || e.reason) || 'Error desconocido')) + '</div></div></div>';
 });
+
+
