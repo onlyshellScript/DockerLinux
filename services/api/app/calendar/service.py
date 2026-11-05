@@ -163,7 +163,7 @@ def _state_allows_schedule(wo, is_reprogram=False, roles=None):
 
 def schedule_order(order_id, data, user, roles):
     from app.identity.models import User as U
-    wo = db.session.get(WorkOrder, order_id)
+    wo = WorkOrder.query.filter_by(id=order_id).with_for_update().first()
     if not wo:
         return None, "not_found"
     if "admin" not in roles and "dispatcher" not in roles:
@@ -335,7 +335,7 @@ def validate_schedule(order_id, data, roles):
 def assign_order(order_id, data, user, roles):
     if "admin" not in roles and "dispatcher" not in roles:
         return None, "forbidden"
-    wo = db.session.get(WorkOrder, order_id)
+    wo = WorkOrder.query.filter_by(id=order_id).with_for_update().first()
     if not wo:
         return None, "not_found"
     if wo.status in ("completed", "closed", "cancelled"):

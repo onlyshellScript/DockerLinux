@@ -509,9 +509,13 @@ async function renderCalendar(content) {
        html += '<div style="min-height:70px;border:1px solid #F0ECE4;padding:4px;cursor:pointer" data-day="' + key + '">';
        html += '<div style="font-size:11px;font-weight:600;' + (isToday?'color:#fff;background:#2A5C45;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center':'color:#3A4552') + '">' + d.getDate() + '</div>';
        if (evs.length) {
-         html += '<div style="margin-top:2px;display:flex;gap:2px;flex-wrap:wrap">';
-         evs.slice(0,4).forEach(e => { html += '<span style="width:6px;height:6px;border-radius:50%;background:' + (e.status==='in_progress'?'#C9892A':e.status==='completed'?'#2A5C45':'#96908A') + '"></span>'; });
-         html += '</div><div style="font-size:10px;color:#96908A">' + evs.length + '</div>';
+         html += '<div style="margin-top:2px;display:flex;flex-direction:column;gap:2px">';
+         evs.slice(0,2).forEach(e => {
+           const color = e.status==='in_progress'?'#C9892A':e.status==='completed'?'#2A5C45':e.schedule_status==='unassigned'?'#C9892A':'#8A847C';
+           html += '<div style="font-size:9px;padding:1px 3px;border-radius:3px;background:' + color + '22;color:' + color + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(orderCode(e)) + ' ' + escapeHtml((e.title||'').slice(0,12)) + '</div>';
+         });
+         if (evs.length > 2) html += '<div style="font-size:9px;color:#96908A">+' + (evs.length-2) + '</div>';
+         html += '</div>';
        }
        html += '</div>';
      });
@@ -592,102 +596,100 @@ async function renderCalendar(content) {
   html += '</div>';
    // right panel
    html += '<div style="min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px">';
-  // unassigned tray
-   const pendingCollapsed = cs.collapsed.pending;
-   html += '<div class="sigos-card" style="padding:12px 14px">';
-   html += '<div class="cal-collapse-header" data-panel="pending" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:' + (pendingCollapsed?'0':'6') + 'px">Pendientes <span>' + (pendingCollapsed ? '▸' : '▾') + '</span></div>';
-   if (!pendingCollapsed) {
-  const porProgramar = unassigned.filter(o => !o.scheduled_at);
-  const porAsignar = unassigned.filter(o => o.scheduled_at && !o.assigned_to_id);
-  if (unassignedError) {
-    html += '<div style="font-size:11px;color:#D63B3B">No se pudieron cargar los pendientes</div>';
-  } else {
-    html += '<div style="font-size:12px;font-weight:600;color:#96908A">Por programar (' + porProgramar.length + ')</div>';
-    if (!porProgramar.length && !unassignedError) html += '<div style="font-size:11px;color:#96908A">Todo programado ✓</div>';
-  }
-   const pendingLine = (o) => {
-     const code = orderCode(o);
-     const main = o.title || o.customer_name || '';
-     const pr = (typeof priorityOf === 'function' && o.priority) ? priorityOf(o.priority).label : (o.priority || '');
-     const parts = [main, pr].filter(Boolean);
-     return escapeHtml(code) + (parts.length ? ' · ' + parts.map(escapeHtml).join(' · ') : '');
-   };
-   porProgramar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
-  html += '<div style="font-size:12px;font-weight:600;color:#96908A;margin-top:6px">Por asignar (' + porAsignar.length + ')</div>';
-  if (!porAsignar.length) html += '<div style="font-size:11px;color:#96908A">Sin pendientes</div>';
-    porAsignar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
-   }
+   if (!cs.rightTab) cs.rightTab = "detail";
+   html += '<div style="display:flex;gap:4px;margin-bottom:8px">';
+   html += '<button class="sigos-btn-secondary" data-righttab="detail" style="height:32px;' + (cs.rightTab==="detail"? 'background:#163028;color:#fff' : '') + '">Detalle</button>';
+   html += '<button class="sigos-btn-secondary" data-righttab="pending" style="height:32px;' + (cs.rightTab==="pending"? 'background:#163028;color:#fff' : '') + '">Pendientes</button>';
    html += '</div>';
-   const selectedEvent = (items || []).find(e => e.order_id === cs.selectedEventId) || null;
-   if (cs.selectedEventId && !selectedEvent) cs.selectedEventId = null;
-   // selected event detail
-    const detailCollapsed = cs.collapsed.detail;
-    html += '<div class="sigos-card" style="padding:12px 14px">';
-    html += '<div class="cal-collapse-header" data-panel="detail" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:' + (detailCollapsed?'0':'6') + 'px">Detalle de la visita <span>' + (detailCollapsed ? '▸' : '▾') + '</span></div>';
-    if (!detailCollapsed) {
-    if (selectedEvent) {
-     const e = selectedEvent;
-     const techs = (e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar';
-     html += '<div style="font-family:JetBrains Mono,monospace;font-size:11px;margin-bottom:2px">' + escapeHtml(orderCode(e)) + '</div>';
-     html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px">' + escapeHtml(e.title) + '</div>';
-      const rawFields = [
-        ['Cliente', e.customer_name],
-        ['Dirección', e.address || e.city],
-        ['Tipo', e.installation_type || e.type],
-        ['Estado', (typeof statusOf === 'function' ? statusOf(e.status).label : e.status)],
-        ['Prioridad', (typeof priorityOf === 'function' ? priorityOf(e.priority).label : e.priority)],
-        ['Horario', e.start.slice(11,16) + '–' + e.end.slice(11,16)],
-        ['Técnico', techs],
-        ['Observaciones', e.schedule_notes || e.notes],
-      ];
-      const shown = rawFields.filter(([k,v]) => (k === 'Estado' || k === 'Prioridad' || k === 'Horario' || k === 'Técnico') ? true : (v && String(v).trim() && v !== '—'));
-      if (shown.length <= 4 && !e.customer_name && !(e.address||e.city) && !(e.installation_type||e.type) && !(e.schedule_notes||e.notes)) {
-        html += '<div style="font-size:11px;color:#96908A;margin-bottom:6px">Sin datos de cliente registrados</div>';
-      } else {
-        shown.forEach(([k,v]) => {
-          if (k === 'Estado') {
-            const badge = (typeof statusOf === 'function') ? statusOf(e.status) : { label: v, color: '#3A4552', bg: '#F1F5F9' };
-            html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> <span style="padding:1px 6px;border-radius:999px;font-size:10px;background:' + escapeHtml(badge.bg) + ';color:' + escapeHtml(badge.color) + '">' + escapeHtml(badge.label) + '</span></div>';
-          } else if (k === 'Prioridad') {
-            const badge = (typeof priorityOf === 'function') ? priorityOf(e.priority) : { label: v, color: '#3A4552' };
-            html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> <span style="color:' + escapeHtml(badge.color) + ';font-weight:600">' + escapeHtml(badge.label) + '</span></div>';
-          } else {
-            html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> ' + escapeHtml(v) + '</div>';
-          }
-        });
-      }
-     // actions
-     const canSchedule = hasRole('admin') || hasRole('dispatcher');
-     const st = e.status;
-     const canProgram = canSchedule && ['pending','assigned'].includes(st);
-     const canReprogram = canSchedule && ['pending','assigned','in_progress'].includes(st);
-     const canAssign = canSchedule && ['pending','assigned'].includes(st);
-     const canCancel = canSchedule && ['pending','assigned','in_progress'].includes(st);
-     const transitions = {
-       pending: ['assigned','cancelled'],
-       assigned: ['in_progress','cancelled'],
-       in_progress: ['completed'],
-       completed: ['closed'],
-       closed: [],
-       cancelled: [],
-     };
-     const validNext = (transitions[st] || []).filter(s => !(s==='cancelled' && !canCancel));
-     html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">';
-     html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="open">Abrir orden</button>';
-     if (canProgram || canReprogram) html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="schedule">' + (e.scheduled_at?'Reprogramar':'Programar') + '</button>';
-     else html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" disabled title="No permitido en este estado">Programar</button>';
-     if (canAssign) html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="assign">Asignar/Reasignar</button>';
-     validNext.forEach(ns => {
-       const label = ns === 'cancelled' ? 'Cancelar' : ('Cambiar a ' + ns);
-       html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="transition" data-next="' + ns + '">' + escapeHtml(label) + '</button>';
-     });
-     html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="history">Ver historial</button>';
+   if (cs.rightTab === "pending") {
+     const pendingCollapsed = cs.collapsed.pending;
+     html += '<div class="sigos-card" style="padding:12px 14px">';
+     html += '<div class="cal-collapse-header" data-panel="pending" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:' + (pendingCollapsed?'0':'6') + 'px">Pendientes <span>' + (pendingCollapsed ? '?' : '?') + '</span></div>';
+     if (!pendingCollapsed) {
+       const porProgramar = unassigned.filter(o => !o.scheduled_at);
+       const porAsignar = unassigned.filter(o => o.scheduled_at && !o.assigned_to_id);
+       if (unassignedError) {
+         html += '<div style="font-size:11px;color:#D63B3B">No se pudieron cargar los pendientes</div>';
+       } else {
+         html += '<div style="font-size:12px;font-weight:600;color:#96908A">Por programar (' + porProgramar.length + ')</div>';
+         if (!porProgramar.length && !unassignedError) html += '<div style="font-size:11px;color:#96908A">Todo programado ?</div>';
+       }
+       const pendingLine = (o) => {
+         const code = orderCode(o);
+         const main = o.title || o.customer_name || '';
+         const pr = (typeof priorityOf === 'function' && o.priority) ? priorityOf(o.priority).label : (o.priority || '');
+         const parts = [main, pr].filter(Boolean);
+         return escapeHtml(code) + (parts.length ? ' � ' + parts.map(escapeHtml).join(' � ') : '');
+       };
+       porProgramar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
+       html += '<div style="font-size:12px;font-weight:600;color:#96908A;margin-top:6px">Por asignar (' + porAsignar.length + ')</div>';
+       if (!porAsignar.length) html += '<div style="font-size:11px;color:#96908A">Sin pendientes</div>';
+       porAsignar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
+     }
      html += '</div>';
-    } else {
-      html += '<div style="font-size:12px;color:#96908A">Selecciona una visita para ver su detalle y acciones.</div>';
-    }
-    }
-    html += '</div>';
+   } else {
+     const selectedEvent = (items || []).find(e => e.order_id === cs.selectedEventId) || null;
+     if (cs.selectedEventId && !selectedEvent) cs.selectedEventId = null;
+     const detailCollapsed = cs.collapsed.detail;
+     html += '<div class="sigos-card" style="padding:12px 14px">';
+     html += '<div class="cal-collapse-header" data-panel="detail" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:' + (detailCollapsed?'0':'6') + 'px">Detalle de la visita <span>' + (detailCollapsed ? '?' : '?') + '</span></div>';
+     if (!detailCollapsed) {
+       if (selectedEvent) {
+         const e = selectedEvent;
+         const techs = (e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar';
+         html += '<div style="font-family:JetBrains Mono,monospace;font-size:11px;margin-bottom:2px">' + escapeHtml(orderCode(e)) + '</div>';
+         html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px">' + escapeHtml(e.title) + '</div>';
+         const rawFields = [
+           ['Cliente', e.customer_name],
+           ['Direcci�n', e.address || e.city],
+           ['Tipo', e.installation_type || e.type],
+           ['Estado', (typeof statusOf === 'function' ? statusOf(e.status).label : e.status)],
+           ['Prioridad', (typeof priorityOf === 'function' ? priorityOf(e.priority).label : e.priority)],
+           ['Horario', e.start.slice(11,16) + '�' + e.end.slice(11,16)],
+           ['T�cnico', techs],
+           ['Observaciones', e.schedule_notes || e.notes],
+         ];
+         const shown = rawFields.filter(([k,v]) => (k === 'Estado' || k === 'Prioridad' || k === 'Horario' || k === 'T�cnico') ? true : (v && String(v).trim() && v !== '�'));
+         if (shown.length <= 4 && !e.customer_name && !(e.address||e.city) && !(e.installation_type||e.type) && !(e.schedule_notes||e.notes)) {
+           html += '<div style="font-size:11px;color:#96908A;margin-bottom:6px">Sin datos de cliente registrados</div>';
+         } else {
+           shown.forEach(([k,v]) => {
+             if (k === 'Estado') {
+               const badge = (typeof statusOf === 'function') ? statusOf(e.status) : { label: v, color: '#3A4552', bg: '#F1F5F9' };
+               html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> <span style="padding:1px 6px;border-radius:999px;font-size:10px;background:' + escapeHtml(badge.bg) + ';color:' + escapeHtml(badge.color) + '">' + escapeHtml(badge.label) + '</span></div>';
+             } else if (k === 'Prioridad') {
+               const badge = (typeof priorityOf === 'function') ? priorityOf(e.priority) : { label: v, color: '#3A4552' };
+               html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> <span style="color:' + escapeHtml(badge.color) + ';font-weight:600">' + escapeHtml(badge.label) + '</span></div>';
+             } else {
+               html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> ' + escapeHtml(v) + '</div>';
+             }
+           });
+         }
+         const canSchedule = hasRole('admin') || hasRole('dispatcher');
+         const st = e.status;
+         const canProgram = canSchedule && ['pending','assigned'].includes(st);
+         const canReprogram = canSchedule && ['pending','assigned','in_progress'].includes(st);
+         const canAssign = canSchedule && ['pending','assigned'].includes(st);
+         const canCancel = canSchedule && ['pending','assigned','in_progress'].includes(st);
+         const transitions = { pending: ['assigned','cancelled'], assigned: ['in_progress','cancelled'], in_progress: ['completed'], completed: ['closed'], closed: [], cancelled: [] };
+         const validNext = (transitions[st] || []).filter(s => !(s==='cancelled' && !canCancel));
+         html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">';
+         html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="open">Abrir orden</button>';
+         if (canProgram || canReprogram) html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="schedule">' + (e.scheduled_at?'Reprogramar':'Programar') + '</button>';
+         else html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" disabled title="No permitido en este estado">Programar</button>';
+         if (canAssign) html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="assign">Asignar/Reasignar</button>';
+         validNext.forEach(ns => {
+           const label = ns === 'cancelled' ? 'Cancelar' : ('Cambiar a ' + ns);
+           html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="transition" data-next="' + ns + '">' + escapeHtml(label) + '</button>';
+         });
+         html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="history">Ver historial</button>';
+         html += '</div>';
+       } else {
+         html += '<div style="font-size:12px;color:#96908A">Selecciona una visita para ver su detalle y acciones.</div>';
+       }
+     }
+     html += '</div>';
+   }
     if (!cs.selectedDay) cs.selectedDay = todayStr;
    const selDay = cs.selectedDay;
    html += '<div class="sigos-card" style="padding:10px;flex:1;overflow:auto"><div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028;margin-bottom:6px">Órdenes del día seleccionado</div>';
@@ -806,6 +808,7 @@ async function renderCalendar(content) {
   const retry = document.getElementById('calRetry');
   if (retry) retry.addEventListener('click', () => render());
    document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => { cs.selectedDay = el.dataset.day; if (cs.view === 'month') { cs.view = 'week'; cs.anchor = el.dataset.day; } render(); }));
+   document.querySelectorAll('[data-righttab]').forEach(b => b.addEventListener('click', () => { cs.rightTab = b.dataset.righttab; render(); }));
    const collapseBtn = document.getElementById('calCollapseMonth');
    if (collapseBtn) collapseBtn.addEventListener('click', () => { cs.expanded = false; render(); });
    document.querySelectorAll('.cal-collapse-header').forEach(h => h.addEventListener('click', () => { cs.collapsed[h.dataset.panel] = !cs.collapsed[h.dataset.panel]; render(); }));
