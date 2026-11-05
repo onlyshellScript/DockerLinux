@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify
 
 from app.extensions import db
+from app.common.normalize import normalize_text
 from app.identity.decorators import require_auth, require_role
 from app.identity.models import User
 from app.workorders.models import WorkOrder
@@ -33,6 +34,92 @@ blueprint = Blueprint("materials", __name__)
 
 
 # ---- Materials ----
+
+# ---- Catalog (read) ----
+
+@blueprint.get("/material-categories")
+@require_auth
+def categories_list():
+    from app.materials.models import MaterialCategory
+    rows = MaterialCategory.query.filter_by(is_active=True).order_by(MaterialCategory.name).all()
+    return jsonify([r.to_dict() for r in rows]), 200
+
+
+@blueprint.get("/material-units")
+@require_auth
+def units_list():
+    from app.materials.models import MaterialUnit
+    rows = MaterialUnit.query.filter_by(is_active=True).order_by(MaterialUnit.name).all()
+    return jsonify([r.to_dict() for r in rows]), 200
+
+
+@blueprint.get("/material-catalog")
+@require_auth
+def catalog_list():
+    from app.materials.models import MaterialCatalog, MaterialCategory, MaterialUnit
+    q = request.args.get("q")
+    category = request.args.get("category")
+    available = request.args.get("available")
+    stage = request.args.get("stage")
+    applies_to = request.args.get("applies_to")
+    query = MaterialCatalog.query.filter_by(is_active=True)
+    if category:
+        cat = MaterialCategory.query.filter_by(code=category).first()
+        if cat:
+            query = query.filter_by(category_id=cat.id)
+    if stage:
+        query = query.filter_by(stage=stage)
+    if applies_to:
+        query = query.filter_by(applies_to=applies_to)
+    if q:
+        nq = normalize_text(q)
+        query = query.filter(db.func.lower(MaterialCatalog.name).contains(nq) | db.func.lower(MaterialCatalog.code).contains(nq))
+    rows = query.order_by(MaterialCatalog.name).all()
+    if available is not None:
+        avail = available.lower() == "true"
+        inv_ids = {m.catalog_item_id for m in Material.query.filter(Material.catalog_item_id.isnot(None)).all()}
+        filtered = []
+        for r in rows:
+            is_avail = r.id not in inv_ids
+            if is_avail == avail:
+                filtered.append(r)
+        rows = filtered
+    return jsonify([r.to_dict() for r in rows]), 200
+
+
+@blueprint.post("/material-catalog")
+@require_role("admin")
+def catalog_create():
+    from app.materials.models import MaterialCatalog, MaterialCategory, MaterialUnit
+    data = request.get_json() or {}
+    if not data.get("category_id") or not data.get("code") or not data.get("name") or not data.get("unit_id"):
+        return jsonify({"error": "category_id, code, name, unit_id required", "message": "category_id, code, name, unit_id required"}), 422
+    # duplicate normalized name
+    nn = normalize_text(data["name"])
+    if MaterialCatalog.query.filter_by(name_norm=nn).first():
+        return jsonify({"error": "duplicate name", "message": "duplicate name", "code": "DUPLICATE_NAME"}), 409
+    if MaterialCatalog.query.filter_by(code=data["code"]).first():
+        return jsonify({"error": "duplicate code", "message": "duplicate code", "code": "DUPLICATE_CODE"}), 409
+    # similar names warning (not blocking): check contains
+    similar = MaterialCatalog.query.filter(MaterialCatalog.name_norm.contains(nn[:8])).all() if len(nn) >= 4 else []
+    ci = MaterialCatalog(
+        category_id=int(data["category_id"]),
+        code=data["code"].strip(),
+        name=data["name"].strip(),
+        name_norm=nn,
+        unit_id=int(data["unit_id"]),
+        measure=data.get("measure"),
+        stage=data.get("stage"),
+        applies_to=data.get("applies_to"),
+        is_active=True,
+    )
+    db.session.add(ci)
+    db.session.commit()
+    resp = ci.to_dict()
+    if similar:
+        resp["similar"] = [s.name for s in similar[:5]]
+    return jsonify(resp), 201
+
 
 @blueprint.get("/materials")
 @require_auth
@@ -68,16 +155,22 @@ def materials_list():
 @require_role("admin", "dispatcher")
 def materials_create():
     data = request.get_json() or {}
-    if not data.get("name") or not data.get("unit") or not data.get("code"):
-        return jsonify({"error": "name, code and unit required", "message": "name, code and unit required"}), 422
+    # reject free-text fields
+    if any(k in data for k in ("name", "code", "unit")):
+        return jsonify({"error": "free-text fields not allowed; use catalog_item_id",
+                       "message": "free-text fields not allowed; use catalog_item_id", "code": "FREE_TEXT_NOT_ALLOWED"}), 422
+    if not data.get("catalog_item_id"):
+        return jsonify({"error": "catalog_item_id required", "message": "catalog_item_id required"}), 422
     data = dict(data)
     data["user_id"] = getattr(request, "user_id", None)
     try:
         m = create_material(data)
     except ValueError as e:
         msg = str(e)
-        if msg == "duplicate_code":
-            return jsonify({"error": "code already exists", "message": "code already exists", "code": "DUPLICATE_CODE"}), 409
+        if msg == "already_inventoried":
+            return jsonify({"error": "already inventoried", "message": "already inventoried", "code": "ALREADY_INVENTORIED"}), 409
+        if msg == "catalog_item not found":
+            return jsonify({"error": "catalog_item not found", "message": "catalog_item not found"}), 422
         return jsonify({"error": msg, "message": msg}), 422
     d = m.to_dict()
     d["status"] = material_status(m.current_stock, m.min_stock)
@@ -166,6 +259,8 @@ def materials_movement(mat_id):
         return jsonify({"error": "insufficient stock", "message": "insufficient stock", "code": "INSUFFICIENT_STOCK"}), 409
     if error == "invalid_quantity":
         return jsonify({"error": "invalid quantity", "message": "invalid quantity"}), 422
+    if error == "invalid_quantity_precision":
+        return jsonify({"error": "quantity precision not allowed for unit", "message": "quantity precision not allowed for unit"}), 422
     if error:
         return jsonify({"error": error, "message": error}), 400
     return jsonify(mv.to_dict()), 201

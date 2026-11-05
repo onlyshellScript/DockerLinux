@@ -3,7 +3,14 @@ from app.identity.models import User, Role
 from app.materials.models import Material
 
 
+import os
+sys_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if sys_path not in __import__("sys").path:
+    __import__("sys").path.insert(0, sys_path)
+
 def _seed(app):
+    from seeds.load_catalog import load_into_app
+    cat_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "seeds", "materiales_gas_natural.json")
     with app.app_context():
         admin_role = Role(name="admin", description="Administrador")
         disp_role = Role(name="dispatcher", description="Despachador")
@@ -21,6 +28,7 @@ def _seed(app):
 
         db.session.add_all([admin, tech])
         db.session.commit()
+        load_into_app(app, cat_path)
         return admin.id, tech.id
 
 
@@ -32,15 +40,19 @@ def _login(client, username, password):
 def test_create_material(client, app):
     _seed(app)
     token = _login(client, "admin", "Admin123!")
+    from app.materials.models import MaterialCatalog
+    with app.app_context():
+        ci = MaterialCatalog.query.first()
+        cid = ci.id
     resp = client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Filtro de aire", "code": "FILTRO-AIRE", "unit": "pza", "current_stock": 10, "unit_price": 5000},
+        json={"catalog_item_id": cid, "current_stock": 10, "min_stock": 0, "unit_price": 5000},
     )
     assert resp.status_code == 201
     data = resp.get_json()
-    assert data["name"] == "Filtro de aire"
     assert data["current_stock"] == 10
+    assert data["catalog_item_id"] == cid
 
 
 def test_technician_cannot_create_material(client, app):
@@ -59,10 +71,13 @@ def test_stock_in_and_out(client, app):
     token = _login(client, "admin", "Admin123!")
 
     # Create material
+    from app.materials.models import MaterialCatalog
+    with app.app_context():
+        cid = MaterialCatalog.query.first().id
     resp = client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Refrigerante", "code": "REFRIG", "unit": "lt", "current_stock": 0},
+        json={"catalog_item_id": cid, "current_stock": 0, "min_stock": 0, "unit_price": 5000},
     )
     mat_id = resp.get_json()["id"]
 
@@ -94,10 +109,13 @@ def test_insufficient_stock(client, app):
     admin_id, tech_id = _seed(app)
     token = _login(client, "admin", "Admin123!")
 
+    from app.materials.models import MaterialCatalog
+    with app.app_context():
+        cid = MaterialCatalog.query.first().id
     resp = client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Tornillo", "code": "TORN", "unit": "pza", "current_stock": 3},
+        json={"catalog_item_id": cid, "current_stock": 3, "min_stock": 0, "unit_price": 5000},
     )
     mat_id = resp.get_json()["id"]
 
@@ -114,10 +132,13 @@ def test_movements_history(client, app):
     admin_id, tech_id = _seed(app)
     token = _login(client, "admin", "Admin123!")
 
+    from app.materials.models import MaterialCatalog
+    with app.app_context():
+        cid = MaterialCatalog.query.first().id
     resp = client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Cable", "code": "CABLE", "unit": "m", "current_stock": 0},
+        json={"catalog_item_id": cid, "current_stock": 0, "min_stock": 0, "unit_price": 5000},
     )
     mat_id = resp.get_json()["id"]
 
@@ -166,3 +187,43 @@ def test_technician_profile(client, app):
     )
     assert resp.status_code == 200
     assert resp.get_json()["is_available"] is False
+
+
+def test_free_text_rejected(client, app):
+    _seed(app)
+    token = _login(client, "admin", "Admin123!")
+    resp = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"name": "X", "unit": "pza"})
+    assert resp.status_code == 422
+
+
+def test_catalog_item_not_found(client, app):
+    _seed(app)
+    token = _login(client, "admin", "Admin123!")
+    resp = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": 999999, "current_stock": 1, "min_stock": 0, "unit_price": 1})
+    assert resp.status_code == 422
+
+
+def test_duplicate_catalog_item(client, app):
+    _seed(app)
+    token = _login(client, "admin", "Admin123!")
+    from app.materials.models import MaterialCatalog
+    with app.app_context():
+        cid = MaterialCatalog.query.first().id
+    r1 = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid, "current_stock": 1, "min_stock": 0, "unit_price": 1})
+    assert r1.status_code == 201
+    r2 = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid, "current_stock": 1, "min_stock": 0, "unit_price": 1})
+    assert r2.status_code == 409
+
+
+def test_decimal_precision_unit(client, app):
+    _seed(app)
+    token = _login(client, "admin", "Admin123!")
+    from app.materials.models import MaterialCatalog, MaterialUnit
+    with app.app_context():
+        # find a unit that does not allow decimal
+        u = MaterialUnit.query.filter_by(allows_decimal=False).first()
+        ci = MaterialCatalog.query.filter_by(unit_id=u.id).first()
+        cid = ci.id
+    # fractional stock on non-decimal unit -> 422
+    r = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid, "current_stock": 1.5, "min_stock": 0, "unit_price": 1})
+    assert r.status_code == 422

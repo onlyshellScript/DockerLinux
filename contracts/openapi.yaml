@@ -297,7 +297,37 @@ paths:
           description: Status history.
         '404':
           description: Not found.
-  /api/v1/materials:
+  /api/v1/material-categories:
+  get:
+    summary: List material categories
+    security: [ { bearerAuth: [] } ]
+    responses:
+      '200': { description: Categories. }
+/api/v1/material-units:
+  get:
+    summary: List material units
+    security: [ { bearerAuth: [] } ]
+    responses:
+      '200': { description: Units. }
+/api/v1/material-catalog:
+  get:
+    summary: List material catalog
+    security: [ { bearerAuth: [] } ]
+    parameters:
+      - { name: q, in: query, schema: { type: string } }
+      - { name: category, in: query, schema: { type: string } }
+      - { name: available, in: query, schema: { type: boolean } }
+      - { name: stage, in: query, schema: { type: string } }
+      - { name: applies_to, in: query, schema: { type: string } }
+    responses:
+      '200': { description: Catalog items. }
+  post:
+    summary: Add catalog item (admin)
+    security: [ { bearerAuth: [] } ]
+    responses:
+      '201': { description: Created. }
+      '409': { description: Duplicate. }
+/api/v1/materials:
     get:
       summary: List materials
       security:

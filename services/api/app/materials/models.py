@@ -27,6 +27,7 @@ class Material(db.Model):
     min_stock = db.Column(db.Float, nullable=False, default=0)
     unit_price = db.Column(db.Numeric(18, 2), nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    catalog_item_id = db.Column(db.Integer, db.ForeignKey("material_catalog.id", ondelete="NO ACTION"), unique=True, index=True)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(
         db.DateTime(timezone=True),
@@ -34,11 +35,14 @@ class Material(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    catalog_item = db.relationship("MaterialCatalog")
+
     def to_dict(self):
         return {
             "id": self.id,
             "name": self.name,
             "code": self.code,
+            "catalog_item_id": self.catalog_item_id,
             "description": self.description,
             "unit": self.unit,
             "current_stock": self.current_stock,
@@ -209,3 +213,66 @@ class TechnicianProfile(db.Model):
             ],
         }
 
+
+class MaterialCategory(db.Model):
+    __tablename__ = "material_categories"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(40), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    name_norm = db.Column(db.String(120), nullable=False, unique=True, index=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=sa.text("1"))
+
+    def to_dict(self):
+        return {"id": self.id, "code": self.code, "name": self.name, "name_norm": self.name_norm, "is_active": self.is_active}
+
+
+class MaterialUnit(db.Model):
+    __tablename__ = "material_units"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(20), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(60), nullable=False)
+    name_norm = db.Column(db.String(60), nullable=False, unique=True, index=True)
+    allows_decimal = db.Column(db.Boolean, nullable=False, default=False, server_default=sa.text("0"))
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=sa.text("1"))
+
+    def to_dict(self):
+        return {"id": self.id, "code": self.code, "name": self.name, "name_norm": self.name_norm,
+                "allows_decimal": self.allows_decimal, "is_active": self.is_active}
+
+
+class MaterialCatalog(db.Model):
+    __tablename__ = "material_catalog"
+
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey("material_categories.id", ondelete="NO ACTION"), nullable=False, index=True)
+    code = db.Column(db.String(40), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(200), nullable=False)
+    name_norm = db.Column(db.String(200), nullable=False, unique=True, index=True)
+    unit_id = db.Column(db.Integer, db.ForeignKey("material_units.id", ondelete="NO ACTION"), nullable=False, index=True)
+    measure = db.Column(db.String(60))
+    stage = db.Column(db.String(60))
+    applies_to = db.Column(db.String(40))
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=sa.text("1"))
+
+    category = db.relationship("MaterialCategory")
+    unit = db.relationship("MaterialUnit")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "category_id": self.category_id,
+            "category": self.category.name if self.category else None,
+            "code": self.code,
+            "name": self.name,
+            "name_norm": self.name_norm,
+            "unit_id": self.unit_id,
+            "unit": self.unit.code if self.unit else None,
+            "unit_name": self.unit.name if self.unit else None,
+            "allows_decimal": self.unit.allows_decimal if self.unit else False,
+            "measure": self.measure,
+            "stage": self.stage,
+            "applies_to": self.applies_to,
+            "is_active": self.is_active,
+        }

@@ -41,27 +41,81 @@ def _material_code_exists(code, exclude_id=None):
     return q.first() is not None
 
 
+def unit_allows_decimal(material):
+    if getattr(material, "catalog_item", None) and getattr(material.catalog_item, "unit", None):
+        return bool(material.catalog_item.unit.allows_decimal)
+    unit = (material.unit or "").lower()
+    return unit in ("m", "kg", "lt", "rollo", "metro", "kilogramo", "litro")
+
+
+def _validate_decimal(value, allows):
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return False
+    if not allows:
+        if abs(f - round(f)) > 1e-9:
+            return False
+    return True
+
+
 def create_material(data):
-    name = (data.get("name") or "").strip()
-    code = (data.get("code") or "").strip()
-    unit = (data.get("unit") or "").strip()
-    if not name or not code or not unit:
-        raise ValueError("name, code and unit required")
-    norm_code = normalize_text(code)
-    if _material_code_exists(code):
-        raise ValueError("duplicate_code")
-    initial_stock = float(data.get("current_stock", data.get("initial_stock", 0)) or 0)
+    catalog_item_id = data.get("catalog_item_id")
+    if not catalog_item_id:
+        raise ValueError("catalog_item_id required")
+    try:
+        catalog_item_id = int(catalog_item_id)
+    except (TypeError, ValueError):
+        raise ValueError("invalid catalog_item_id")
+    from app.materials.models import MaterialCatalog
+    ci = db.session.get(MaterialCatalog, catalog_item_id)
+    if not ci or not ci.is_active:
+        raise ValueError("catalog_item not found")
+
+    # duplicate inventory item
+    existing = Material.query.filter_by(catalog_item_id=catalog_item_id).first()
+    if existing:
+        raise ValueError("already_inventoried")
+
+    initial_stock = data.get("current_stock", data.get("initial_stock", 0))
+    if initial_stock is None:
+        initial_stock = 0
+    try:
+        initial_stock = float(initial_stock)
+    except (TypeError, ValueError):
+        raise ValueError("invalid stock")
     if initial_stock < 0:
-        raise ValueError("invalid_stock")
+        raise ValueError("invalid stock")
+    min_stock = data.get("min_stock", 0)
+    try:
+        min_stock = float(min_stock)
+    except (TypeError, ValueError):
+        raise ValueError("invalid min_stock")
+    if min_stock < 0:
+        raise ValueError("invalid min_stock")
+    unit_price = data.get("unit_price", 0)
+    try:
+        from decimal import Decimal
+        unit_price = Decimal(str(unit_price))
+    except Exception:
+        raise ValueError("invalid price")
+
+    allows = bool(ci.unit.allows_decimal) if ci.unit else (ci.unit_id is not None)
+    if not _validate_decimal(initial_stock, allows):
+        raise ValueError("stock precision not allowed for unit")
+    if not _validate_decimal(min_stock, allows):
+        raise ValueError("min_stock precision not allowed for unit")
+
     m = Material(
-        name=name,
-        code=code,
-        description=data.get("description"),
-        unit=unit,
+        name=ci.name,
+        code=ci.code,
+        description=data.get("description") or ci.measure,
+        unit=ci.unit.code if ci.unit else (data.get("unit") or "unidad"),
         current_stock=0,
-        min_stock=data.get("min_stock", 0),
-        unit_price=data.get("unit_price", 0),
+        min_stock=min_stock,
+        unit_price=unit_price,
         is_active=data.get("is_active", True),
+        catalog_item_id=ci.id,
     )
     db.session.add(m)
     db.session.flush()
@@ -201,6 +255,8 @@ def register_movement(mat_id, quantity, movement_type, user_id, work_order_id=No
     m = Material.query.filter_by(id=mat_id).with_for_update().first()
     if not m:
         return None, "not_found"
+    if not _validate_decimal(quantity, unit_allows_decimal(m)):
+        return None, "invalid_quantity_precision"
     old_status = material_status(m.current_stock, m.min_stock)
     if movement_type == MOVEMENT_IN:
         m.current_stock = float(m.current_stock or 0) + quantity

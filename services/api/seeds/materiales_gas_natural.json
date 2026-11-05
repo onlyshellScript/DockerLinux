@@ -1,0 +1,1662 @@
+[
+  {
+    "code": "GAS-001",
+    "name": "Tuberia de acero al carbono sin costura para gas",
+    "name_norm": "tuberia de acero al carbono sin costura para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de acero al carbono sin costura para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-002",
+    "name": "Tuberia de acero al carbono soldada para gas",
+    "name_norm": "tuberia de acero al carbono soldada para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de acero al carbono soldada para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-003",
+    "name": "Tuberia de polietileno de alta densidad para gas",
+    "name_norm": "tuberia de polietileno de alta densidad para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de polietileno de alta densidad para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-004",
+    "name": "Tuberia de polietileno de media densidad para gas",
+    "name_norm": "tuberia de polietileno de media densidad para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de polietileno de media densidad para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-005",
+    "name": "Tuberia de polietileno de alta densidad de segunda generacion para gas",
+    "name_norm": "tuberia de polietileno de alta densidad de segunda generacion para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de polietileno de alta densidad de segunda generacion para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-006",
+    "name": "Tuberia de cobre tipo K para gas",
+    "name_norm": "tuberia de cobre tipo k para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de cobre tipo k para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-007",
+    "name": "Tuberia de cobre tipo L para gas",
+    "name_norm": "tuberia de cobre tipo l para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de cobre tipo l para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-008",
+    "name": "Tuberia flexible corrugada de acero inoxidable para gas",
+    "name_norm": "tuberia flexible corrugada de acero inoxidable para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia flexible corrugada de acero inoxidable para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-009",
+    "name": "Tuberia de polipropileno random copolimero para gas",
+    "name_norm": "tuberia de polipropileno random copolimero para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de polipropileno random copolimero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-010",
+    "name": "Tuberia multicapa de aluminio para gas",
+    "name_norm": "tuberia multicapa de aluminio para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia multicapa de aluminio para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-011",
+    "name": "Tuberia de acero inoxidable para gas",
+    "name_norm": "tuberia de acero inoxidable para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de acero inoxidable para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-012",
+    "name": "Tuberia de polietileno con barrera de oxigeno para gas",
+    "name_norm": "tuberia de polietileno con barrera de oxigeno para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de polietileno con barrera de oxigeno para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-013",
+    "name": "Tuberia galvanizada para gas",
+    "name_norm": "tuberia galvanizada para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia galvanizada para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-014",
+    "name": "Tuberia de polietileno de alta densidad con proteccion UV para gas",
+    "name_norm": "tuberia de polietileno de alta densidad con proteccion uv para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de polietileno de alta densidad con proteccion uv para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-015",
+    "name": "Tuberia de acero al carbono revestida para gas",
+    "name_norm": "tuberia de acero al carbono revestida para gas",
+    "category": "Tuberia",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tuberia de acero al carbono revestida para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-016",
+    "name": "Codo de 90 grados de acero para gas",
+    "name_norm": "codo de 90 grados de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: codo de 90 grados de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-017",
+    "name": "Codo de 45 grados de acero para gas",
+    "name_norm": "codo de 45 grados de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: codo de 45 grados de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-018",
+    "name": "Codo de 90 grados de polietileno para gas",
+    "name_norm": "codo de 90 grados de polietileno para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: codo de 90 grados de polietileno para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-019",
+    "name": "Codo de 45 grados de polietileno para gas",
+    "name_norm": "codo de 45 grados de polietileno para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: codo de 45 grados de polietileno para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-020",
+    "name": "Tee igual de acero para gas",
+    "name_norm": "tee igual de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tee igual de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-021",
+    "name": "Tee reducida de acero para gas",
+    "name_norm": "tee reducida de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tee reducida de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-022",
+    "name": "Tee igual de polietileno para gas",
+    "name_norm": "tee igual de polietileno para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tee igual de polietileno para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-023",
+    "name": "Reduccion concentrica de acero para gas",
+    "name_norm": "reduccion concentrica de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: reduccion concentrica de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-024",
+    "name": "Reduccion excentrica de acero para gas",
+    "name_norm": "reduccion excentrica de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: reduccion excentrica de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-025",
+    "name": "Tapon de acero para gas",
+    "name_norm": "tapon de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tapon de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-026",
+    "name": "Tapon de polietileno para gas",
+    "name_norm": "tapon de polietileno para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tapon de polietileno para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-027",
+    "name": "Union universal de acero para gas",
+    "name_norm": "union universal de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: union universal de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-028",
+    "name": "Union de compresion para gas",
+    "name_norm": "union de compresion para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: union de compresion para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-029",
+    "name": "Niple de acero para gas",
+    "name_norm": "niple de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: niple de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-030",
+    "name": "Niple de laton para gas",
+    "name_norm": "niple de laton para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: niple de laton para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-031",
+    "name": "Casquillo de acero para gas",
+    "name_norm": "casquillo de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: casquillo de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-032",
+    "name": "Casquillo de polietileno para gas",
+    "name_norm": "casquillo de polietileno para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: casquillo de polietileno para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-033",
+    "name": "Codo de 90 grados de cobre para gas",
+    "name_norm": "codo de 90 grados de cobre para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: codo de 90 grados de cobre para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-034",
+    "name": "Tee igual de cobre para gas",
+    "name_norm": "tee igual de cobre para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tee igual de cobre para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-035",
+    "name": "Reduccion de cobre para gas",
+    "name_norm": "reduccion de cobre para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: reduccion de cobre para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-036",
+    "name": "Tapon de cobre para gas",
+    "name_norm": "tapon de cobre para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tapon de cobre para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-037",
+    "name": "Curva de barrido de acero para gas",
+    "name_norm": "curva de barrido de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: curva de barrido de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-038",
+    "name": "Curva de barrido de polietileno para gas",
+    "name_norm": "curva de barrido de polietileno para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: curva de barrido de polietileno para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-039",
+    "name": "Cruceta de acero para gas",
+    "name_norm": "cruceta de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cruceta de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-040",
+    "name": "Cross de reduccion de acero para gas",
+    "name_norm": "cross de reduccion de acero para gas",
+    "category": "Accesorios de tuberia",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cross de reduccion de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-041",
+    "name": "Valvula de bola de acero para gas",
+    "name_norm": "valvula de bola de acero para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de bola de acero para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-042",
+    "name": "Valvula de bola de laton para gas",
+    "name_norm": "valvula de bola de laton para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de bola de laton para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-043",
+    "name": "Valvula de compuerta para gas",
+    "name_norm": "valvula de compuerta para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de compuerta para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-044",
+    "name": "Valvula de globo para gas",
+    "name_norm": "valvula de globo para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de globo para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-045",
+    "name": "Valvula de retencion para gas",
+    "name_norm": "valvula de retencion para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de retencion para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-046",
+    "name": "Valvula de alivio para gas",
+    "name_norm": "valvula de alivio para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de alivio para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-047",
+    "name": "Valvula de seguridad para gas",
+    "name_norm": "valvula de seguridad para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de seguridad para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-048",
+    "name": "Valvula de corte rapido para gas",
+    "name_norm": "valvula de corte rapido para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de corte rapido para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-049",
+    "name": "Valvula de exceso de flujo para gas",
+    "name_norm": "valvula de exceso de flujo para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de exceso de flujo para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-050",
+    "name": "Valvula de bloqueo automatico para gas",
+    "name_norm": "valvula de bloqueo automatico para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de bloqueo automatico para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-051",
+    "name": "Valvula de control de presion para gas",
+    "name_norm": "valvula de control de presion para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de control de presion para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-052",
+    "name": "Valvula de purga para gas",
+    "name_norm": "valvula de purga para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de purga para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-053",
+    "name": "Valvula de cierre de emergencia para gas",
+    "name_norm": "valvula de cierre de emergencia para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de cierre de emergencia para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-054",
+    "name": "Valvula de pie para gas",
+    "name_norm": "valvula de pie para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de pie para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-055",
+    "name": "Valvula mariposa para gas",
+    "name_norm": "valvula mariposa para gas",
+    "category": "Valvulas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula mariposa para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-056",
+    "name": "Medidor de gas residencial",
+    "name_norm": "medidor de gas residencial",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas residencial.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-057",
+    "name": "Medidor de gas comercial",
+    "name_norm": "medidor de gas comercial",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas comercial.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-058",
+    "name": "Medidor de gas industrial",
+    "name_norm": "medidor de gas industrial",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas industrial.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-059",
+    "name": "Medidor de gas de diafragma",
+    "name_norm": "medidor de gas de diafragma",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas de diafragma.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-060",
+    "name": "Medidor de gas ultrasonico",
+    "name_norm": "medidor de gas ultrasonico",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas ultrasonico.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-061",
+    "name": "Medidor de gas rotativo",
+    "name_norm": "medidor de gas rotativo",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas rotativo.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-062",
+    "name": "Medidor de gas de turbina",
+    "name_norm": "medidor de gas de turbina",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas de turbina.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-063",
+    "name": "Medidor de gas de desplazamiento positivo",
+    "name_norm": "medidor de gas de desplazamiento positivo",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas de desplazamiento positivo.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-064",
+    "name": "Medidor de gas inteligente",
+    "name_norm": "medidor de gas inteligente",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas inteligente.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-065",
+    "name": "Medidor de gas de baja presion",
+    "name_norm": "medidor de gas de baja presion",
+    "category": "Medicion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: medidor de gas de baja presion.",
+    "stage": "Medicion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-066",
+    "name": "Regulador de presion de gas de baja",
+    "name_norm": "regulador de presion de gas de baja",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador de presion de gas de baja.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-067",
+    "name": "Regulador de presion de gas de media",
+    "name_norm": "regulador de presion de gas de media",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador de presion de gas de media.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-068",
+    "name": "Regulador de presion de gas de alta",
+    "name_norm": "regulador de presion de gas de alta",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador de presion de gas de alta.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-069",
+    "name": "Regulador de primera etapa para gas",
+    "name_norm": "regulador de primera etapa para gas",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador de primera etapa para gas.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-070",
+    "name": "Regulador de segunda etapa para gas",
+    "name_norm": "regulador de segunda etapa para gas",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador de segunda etapa para gas.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-071",
+    "name": "Regulador integral para gas",
+    "name_norm": "regulador integral para gas",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador integral para gas.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-072",
+    "name": "Regulador de servicio para gas",
+    "name_norm": "regulador de servicio para gas",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador de servicio para gas.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-073",
+    "name": "Regulador de linea para gas",
+    "name_norm": "regulador de linea para gas",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador de linea para gas.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-074",
+    "name": "Regulador de estacion para gas",
+    "name_norm": "regulador de estacion para gas",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador de estacion para gas.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-075",
+    "name": "Regulador de monitor para gas",
+    "name_norm": "regulador de monitor para gas",
+    "category": "Regulacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador de monitor para gas.",
+    "stage": "Regulacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-076",
+    "name": "Abrazadera de electrofusion para polietileno",
+    "name_norm": "abrazadera de electrofusion para polietileno",
+    "category": "Conexiones y empalmes",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: abrazadera de electrofusion para polietileno.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-077",
+    "name": "Manguito de electrofusion para polietileno",
+    "name_norm": "manguito de electrofusion para polietileno",
+    "category": "Conexiones y empalmes",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: manguito de electrofusion para polietileno.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-078",
+    "name": "Terminal de electrofusion para polietileno",
+    "name_norm": "terminal de electrofusion para polietileno",
+    "category": "Conexiones y empalmes",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: terminal de electrofusion para polietileno.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-079",
+    "name": "Racor de compresion para polietileno",
+    "name_norm": "racor de compresion para polietileno",
+    "category": "Conexiones y empalmes",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: racor de compresion para polietileno.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-080",
+    "name": "Racor de laton para polietileno",
+    "name_norm": "racor de laton para polietileno",
+    "category": "Conexiones y empalmes",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: racor de laton para polietileno.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-081",
+    "name": "Conector de transicion acero a polietileno",
+    "name_norm": "conector de transicion acero a polietileno",
+    "category": "Conexiones y empalmes",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: conector de transicion acero a polietileno.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-082",
+    "name": "Conector de transicion cobre a polietileno",
+    "name_norm": "conector de transicion cobre a polietileno",
+    "category": "Conexiones y empalmes",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: conector de transicion cobre a polietileno.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-083",
+    "name": "Empalme mecanico para tuberia de gas",
+    "name_norm": "empalme mecanico para tuberia de gas",
+    "category": "Conexiones y empalmes",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: empalme mecanico para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-084",
+    "name": "Empalme de compresion para tuberia de gas",
+    "name_norm": "empalme de compresion para tuberia de gas",
+    "category": "Conexiones y empalmes",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: empalme de compresion para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-085",
+    "name": "Manguito de reparacion para tuberia de gas",
+    "name_norm": "manguito de reparacion para tuberia de gas",
+    "category": "Conexiones y empalmes",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: manguito de reparacion para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-086",
+    "name": "Conector de laton para tuberia de gas",
+    "name_norm": "conector de laton para tuberia de gas",
+    "category": "Conexiones y empalmes",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: conector de laton para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-087",
+    "name": "Conector de acero para tuberia de gas",
+    "name_norm": "conector de acero para tuberia de gas",
+    "category": "Conexiones y empalmes",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: conector de acero para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-088",
+    "name": "Abrazadera de reparacion para tuberia de gas",
+    "name_norm": "abrazadera de reparacion para tuberia de gas",
+    "category": "Conexiones y empalmes",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: abrazadera de reparacion para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-089",
+    "name": "Conector rapido para manguera de gas",
+    "name_norm": "conector rapido para manguera de gas",
+    "category": "Conexiones y empalmes",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: conector rapido para manguera de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-090",
+    "name": "Acople de desconexion rapida para gas",
+    "name_norm": "acople de desconexion rapida para gas",
+    "category": "Conexiones y empalmes",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: acople de desconexion rapida para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-091",
+    "name": "Detector de gas combustible",
+    "name_norm": "detector de gas combustible",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: detector de gas combustible.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-092",
+    "name": "Detector de monoxido de carbono",
+    "name_norm": "detector de monoxido de carbono",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: detector de monoxido de carbono.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-093",
+    "name": "Valvula de exceso de temperatura para gas",
+    "name_norm": "valvula de exceso de temperatura para gas",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de exceso de temperatura para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-094",
+    "name": "Tapon de seguridad para gas",
+    "name_norm": "tapon de seguridad para gas",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: tapon de seguridad para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-095",
+    "name": "Capsula de proteccion para valvula de gas",
+    "name_norm": "capsula de proteccion para valvula de gas",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: capsula de proteccion para valvula de gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-096",
+    "name": "Protector de tuberia para gas",
+    "name_norm": "protector de tuberia para gas",
+    "category": "Proteccion y seguridad",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: protector de tuberia para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-097",
+    "name": "Caja de proteccion para medidor de gas",
+    "name_norm": "caja de proteccion para medidor de gas",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: caja de proteccion para medidor de gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-098",
+    "name": "Gabinete de seguridad para regulador de gas",
+    "name_norm": "gabinete de seguridad para regulador de gas",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: gabinete de seguridad para regulador de gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-099",
+    "name": "Valvula de alivio de presion para gas",
+    "name_norm": "valvula de alivio de presion para gas",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: valvula de alivio de presion para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-100",
+    "name": "Fusible termico para gas",
+    "name_norm": "fusible termico para gas",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: fusible termico para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-101",
+    "name": "Dispositivo de cierre automatico por fuga para gas",
+    "name_norm": "dispositivo de cierre automatico por fuga para gas",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: dispositivo de cierre automatico por fuga para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-102",
+    "name": "Sensor de fuga de gas",
+    "name_norm": "sensor de fuga de gas",
+    "category": "Proteccion y seguridad",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: sensor de fuga de gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-103",
+    "name": "Abrazadera de tuberia para gas",
+    "name_norm": "abrazadera de tuberia para gas",
+    "category": "Soportes y fijacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: abrazadera de tuberia para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-104",
+    "name": "Soporte de pared para tuberia de gas",
+    "name_norm": "soporte de pared para tuberia de gas",
+    "category": "Soportes y fijacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: soporte de pared para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-105",
+    "name": "Soporte de techo para tuberia de gas",
+    "name_norm": "soporte de techo para tuberia de gas",
+    "category": "Soportes y fijacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: soporte de techo para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-106",
+    "name": "Grapa de fijacion para tuberia de gas",
+    "name_norm": "grapa de fijacion para tuberia de gas",
+    "category": "Soportes y fijacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: grapa de fijacion para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-107",
+    "name": "Abrazadera de goma para tuberia de gas",
+    "name_norm": "abrazadera de goma para tuberia de gas",
+    "category": "Soportes y fijacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: abrazadera de goma para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-108",
+    "name": "Soporte deslizante para tuberia de gas",
+    "name_norm": "soporte deslizante para tuberia de gas",
+    "category": "Soportes y fijacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: soporte deslizante para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-109",
+    "name": "Soporte guia para tuberia de gas",
+    "name_norm": "soporte guia para tuberia de gas",
+    "category": "Soportes y fijacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: soporte guia para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-110",
+    "name": "Abrazadera de acero inoxidable para gas",
+    "name_norm": "abrazadera de acero inoxidable para gas",
+    "category": "Soportes y fijacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: abrazadera de acero inoxidable para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-111",
+    "name": "Soporte de anclaje para tuberia de gas",
+    "name_norm": "soporte de anclaje para tuberia de gas",
+    "category": "Soportes y fijacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: soporte de anclaje para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-112",
+    "name": "Abrazadera de aislamiento para tuberia de gas",
+    "name_norm": "abrazadera de aislamiento para tuberia de gas",
+    "category": "Soportes y fijacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: abrazadera de aislamiento para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-113",
+    "name": "Cinta de teflon para gas",
+    "name_norm": "cinta de teflon para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "rollo",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cinta de teflon para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-114",
+    "name": "Sellador anaerobico para gas",
+    "name_norm": "sellador anaerobico para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "kg",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: sellador anaerobico para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-115",
+    "name": "Sellador de roscas para gas",
+    "name_norm": "sellador de roscas para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "kg",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: sellador de roscas para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-116",
+    "name": "Compuesto sellante para gas",
+    "name_norm": "compuesto sellante para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "kg",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: compuesto sellante para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-117",
+    "name": "Cinta de identificacion para gas",
+    "name_norm": "cinta de identificacion para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "rollo",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cinta de identificacion para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-118",
+    "name": "Pintura de identificacion para tuberia de gas",
+    "name_norm": "pintura de identificacion para tuberia de gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: pintura de identificacion para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-119",
+    "name": "Pasta selladora para gas",
+    "name_norm": "pasta selladora para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "lt",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: pasta selladora para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-120",
+    "name": "Cinta de proteccion anticorrosiva para gas",
+    "name_norm": "cinta de proteccion anticorrosiva para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "rollo",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cinta de proteccion anticorrosiva para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-121",
+    "name": "Cinta de advertencia para gas",
+    "name_norm": "cinta de advertencia para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "rollo",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cinta de advertencia para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-122",
+    "name": "Material de relleno para zanja de gas",
+    "name_norm": "material de relleno para zanja de gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: material de relleno para zanja de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-123",
+    "name": "Arena para relleno de tuberia de gas",
+    "name_norm": "arena para relleno de tuberia de gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "kg",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: arena para relleno de tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-124",
+    "name": "Malla de advertencia para tuberia de gas",
+    "name_norm": "malla de advertencia para tuberia de gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "rollo",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: malla de advertencia para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-125",
+    "name": "Cinta de demarcacion para gas",
+    "name_norm": "cinta de demarcacion para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "rollo",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cinta de demarcacion para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-126",
+    "name": "Grasa lubricante para gas",
+    "name_norm": "grasa lubricante para gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "lt",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: grasa lubricante para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-127",
+    "name": "Desengrasante para instalaciones de gas",
+    "name_norm": "desengrasante para instalaciones de gas",
+    "category": "Materiales de instalacion y sellado",
+    "unit": "lt",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: desengrasante para instalaciones de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-128",
+    "name": "Electrodo para soldadura de tuberia de gas",
+    "name_norm": "electrodo para soldadura de tuberia de gas",
+    "category": "Soldadura y union",
+    "unit": "kg",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: electrodo para soldadura de tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-129",
+    "name": "Varilla de aporte para soldadura de gas",
+    "name_norm": "varilla de aporte para soldadura de gas",
+    "category": "Soldadura y union",
+    "unit": "kg",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: varilla de aporte para soldadura de gas.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-130",
+    "name": "Fundente para soldadura de gas",
+    "name_norm": "fundente para soldadura de gas",
+    "category": "Soldadura y union",
+    "unit": "kg",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: fundente para soldadura de gas.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-131",
+    "name": "Pasta para soldadura de gas",
+    "name_norm": "pasta para soldadura de gas",
+    "category": "Soldadura y union",
+    "unit": "lt",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: pasta para soldadura de gas.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-132",
+    "name": "Soplete para soldadura de gas",
+    "name_norm": "soplete para soldadura de gas",
+    "category": "Soldadura y union",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: soplete para soldadura de gas.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-133",
+    "name": "Equipo de soldadura oxiacetilenica para gas",
+    "name_norm": "equipo de soldadura oxiacetilenica para gas",
+    "category": "Soldadura y union",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: equipo de soldadura oxiacetilenica para gas.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-134",
+    "name": "Cilindro de acetileno para soldadura",
+    "name_norm": "cilindro de acetileno para soldadura",
+    "category": "Soldadura y union",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cilindro de acetileno para soldadura.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-135",
+    "name": "Cilindro de oxigeno para soldadura",
+    "name_norm": "cilindro de oxigeno para soldadura",
+    "category": "Soldadura y union",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cilindro de oxigeno para soldadura.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-136",
+    "name": "Regulador para soldadura oxiacetilenica",
+    "name_norm": "regulador para soldadura oxiacetilenica",
+    "category": "Soldadura y union",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: regulador para soldadura oxiacetilenica.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-137",
+    "name": "Manguera para soldadura de gas",
+    "name_norm": "manguera para soldadura de gas",
+    "category": "Soldadura y union",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: manguera para soldadura de gas.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-138",
+    "name": "Gafas de proteccion para soldadura",
+    "name_norm": "gafas de proteccion para soldadura",
+    "category": "Soldadura y union",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: gafas de proteccion para soldadura.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-139",
+    "name": "Guantes para soldadura",
+    "name_norm": "guantes para soldadura",
+    "category": "Soldadura y union",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: guantes para soldadura.",
+    "stage": "Instalacion",
+    "applies_to": "industrial"
+  },
+  {
+    "code": "GAS-140",
+    "name": "Placa de senalizacion de gas",
+    "name_norm": "placa de senalizacion de gas",
+    "category": "Senalizacion e identificacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: placa de senalizacion de gas.",
+    "stage": "Senalizacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-141",
+    "name": "Calcomania de identificacion de gas",
+    "name_norm": "calcomania de identificacion de gas",
+    "category": "Senalizacion e identificacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: calcomania de identificacion de gas.",
+    "stage": "Senalizacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-142",
+    "name": "Etiqueta de advertencia de gas",
+    "name_norm": "etiqueta de advertencia de gas",
+    "category": "Senalizacion e identificacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: etiqueta de advertencia de gas.",
+    "stage": "Senalizacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-143",
+    "name": "Senal de tuberia de gas",
+    "name_norm": "senal de tuberia de gas",
+    "category": "Senalizacion e identificacion",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: senal de tuberia de gas.",
+    "stage": "Senalizacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-144",
+    "name": "Marca de trazado para gas",
+    "name_norm": "marca de trazado para gas",
+    "category": "Senalizacion e identificacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: marca de trazado para gas.",
+    "stage": "Senalizacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-145",
+    "name": "Placa de prohibicion de llama abierta",
+    "name_norm": "placa de prohibicion de llama abierta",
+    "category": "Senalizacion e identificacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: placa de prohibicion de llama abierta.",
+    "stage": "Senalizacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-146",
+    "name": "Senal de ventilacion para gas",
+    "name_norm": "senal de ventilacion para gas",
+    "category": "Senalizacion e identificacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: senal de ventilacion para gas.",
+    "stage": "Senalizacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-147",
+    "name": "Placa de emergencia para gas",
+    "name_norm": "placa de emergencia para gas",
+    "category": "Senalizacion e identificacion",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: placa de emergencia para gas.",
+    "stage": "Senalizacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-148",
+    "name": "Llave para valvula de gas",
+    "name_norm": "llave para valvula de gas",
+    "category": "Equipos y herramientas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: llave para valvula de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-149",
+    "name": "Llave grifa para tuberia de gas",
+    "name_norm": "llave grifa para tuberia de gas",
+    "category": "Equipos y herramientas",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: llave grifa para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-150",
+    "name": "Cortatubos para tuberia de gas",
+    "name_norm": "cortatubos para tuberia de gas",
+    "category": "Equipos y herramientas",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: cortatubos para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-151",
+    "name": "Dobladora de tuberia para gas",
+    "name_norm": "dobladora de tuberia para gas",
+    "category": "Equipos y herramientas",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: dobladora de tuberia para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-152",
+    "name": "Roscadora para tuberia de gas",
+    "name_norm": "roscadora para tuberia de gas",
+    "category": "Equipos y herramientas",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: roscadora para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-153",
+    "name": "Detector electronico de fugas de gas",
+    "name_norm": "detector electronico de fugas de gas",
+    "category": "Equipos y herramientas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: detector electronico de fugas de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-154",
+    "name": "Manometro para gas",
+    "name_norm": "manometro para gas",
+    "category": "Equipos y herramientas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: manometro para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-155",
+    "name": "Termometro para gas",
+    "name_norm": "termometro para gas",
+    "category": "Equipos y herramientas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: termometro para gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-156",
+    "name": "Calibrador para tuberia de gas",
+    "name_norm": "calibrador para tuberia de gas",
+    "category": "Equipos y herramientas",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: calibrador para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-157",
+    "name": "Nivel para instalacion de gas",
+    "name_norm": "nivel para instalacion de gas",
+    "category": "Equipos y herramientas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: nivel para instalacion de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-158",
+    "name": "Taladro para instalacion de gas",
+    "name_norm": "taladro para instalacion de gas",
+    "category": "Equipos y herramientas",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: taladro para instalacion de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-159",
+    "name": "Amoladora para tuberia de gas",
+    "name_norm": "amoladora para tuberia de gas",
+    "category": "Equipos y herramientas",
+    "unit": "m",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: amoladora para tuberia de gas.",
+    "stage": "Instalacion",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-160",
+    "name": "Casco de seguridad para instalaciones de gas",
+    "name_norm": "casco de seguridad para instalaciones de gas",
+    "category": "Proteccion personal",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: casco de seguridad para instalaciones de gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-161",
+    "name": "Gafas de seguridad para gas",
+    "name_norm": "gafas de seguridad para gas",
+    "category": "Proteccion personal",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: gafas de seguridad para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-162",
+    "name": "Guantes de proteccion para gas",
+    "name_norm": "guantes de proteccion para gas",
+    "category": "Proteccion personal",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: guantes de proteccion para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-163",
+    "name": "Botas de seguridad para gas",
+    "name_norm": "botas de seguridad para gas",
+    "category": "Proteccion personal",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: botas de seguridad para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-164",
+    "name": "Chaleco reflectante para gas",
+    "name_norm": "chaleco reflectante para gas",
+    "category": "Proteccion personal",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: chaleco reflectante para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-165",
+    "name": "Respirador para gas",
+    "name_norm": "respirador para gas",
+    "category": "Proteccion personal",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: respirador para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  },
+  {
+    "code": "GAS-166",
+    "name": "Arnes de seguridad para gas",
+    "name_norm": "arnes de seguridad para gas",
+    "category": "Proteccion personal",
+    "unit": "pza",
+    "description": "Elemento utilizado en instalaciones y redes de gas natural: arnes de seguridad para gas.",
+    "stage": "Seguridad",
+    "applies_to": "todos"
+  }
+]

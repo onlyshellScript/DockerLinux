@@ -22,6 +22,13 @@ def _seed(app):
 
         db.session.add_all([admin, tech])
         db.session.commit()
+        import os, sys
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if base not in sys.path:
+            sys.path.insert(0, base)
+        from seeds.load_catalog import load_into_app
+        cat_path = os.path.join(base, "seeds", "materiales_gas_natural.json")
+        load_into_app(app, cat_path)
         return admin.id, tech.id
 
 
@@ -119,10 +126,13 @@ def test_pull_changes(client, app):
         headers={"Authorization": f"Bearer {token}"},
         json={"title": "WO pull test"},
     )
+    from app.materials.models import MaterialCatalog
+    with app.app_context():
+        cid = MaterialCatalog.query.first().id
     client.post(
         "/api/v1/materials",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Material pull", "code": "MATPULL", "unit": "pza"},
+        json={"catalog_item_id": cid, "current_stock": 1, "min_stock": 0, "unit_price": 5000},
     )
 
     resp = client.get("/api/v1/sync/pull", headers={"Authorization": f"Bearer {token}"})
