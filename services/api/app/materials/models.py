@@ -59,7 +59,10 @@ class StockMovement(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     material_id = db.Column(db.Integer, db.ForeignKey("materials.id"), nullable=False, index=True)
-    quantity = db.Column(db.Float, nullable=False)
+    quantity = db.Column(db.Float, nullable=False, default=0)
+    quantity_requested = db.Column(db.Float, nullable=False, default=0)
+    quantity_approved = db.Column(db.Float, nullable=False, default=0, server_default=sa.text("0"))
+    quantity_delivered = db.Column(db.Float, nullable=False, default=0, server_default=sa.text("0"))
     movement_type = db.Column(db.String(15), nullable=False)
     work_order_id = db.Column(db.Integer, db.ForeignKey("work_orders.id"))
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
@@ -112,7 +115,9 @@ class MaterialRequest(db.Model):
     requester_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="NO ACTION"), nullable=False, index=True)
     technician_id = db.Column(db.Integer, db.ForeignKey("technician_profiles.id", ondelete="NO ACTION"), nullable=True, index=True)
     work_order_id = db.Column(db.Integer, db.ForeignKey("work_orders.id", ondelete="NO ACTION"), nullable=True, index=True)
-    status = db.Column(db.String(20), nullable=False, default="pendiente")
+    status = db.Column(db.String(30), nullable=False, default="SUBMITTED")
+    client_operation_id = db.Column(db.String(36), unique=True, index=True)
+    delivered_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="NO ACTION"))
     reason = db.Column(db.Text)
     approved_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="NO ACTION"), nullable=True)
     approval_reason = db.Column(db.Text)
@@ -122,6 +127,8 @@ class MaterialRequest(db.Model):
     requester = db.relationship("User", foreign_keys=[requester_id])
     approver = db.relationship("User", foreign_keys=[approved_by_id])
     items = db.relationship("MaterialRequestItem", backref="request", cascade="all, delete-orphan")
+    events = db.relationship("MaterialRequestEvent", backref="request", cascade="all, delete-orphan", order_by="MaterialRequestEvent.created_at")
+    deliveries = db.relationship("MaterialRequestDelivery", backref="request", cascade="all, delete-orphan", order_by="MaterialRequestDelivery.created_at")
 
     def to_dict(self):
         return {
@@ -144,7 +151,10 @@ class MaterialRequestItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     request_id = db.Column(db.Integer, db.ForeignKey("material_requests.id", ondelete="CASCADE"), nullable=False, index=True)
     material_id = db.Column(db.Integer, db.ForeignKey("materials.id", ondelete="NO ACTION"), nullable=False, index=True)
-    quantity = db.Column(db.Float, nullable=False)
+    quantity = db.Column(db.Float, nullable=False, default=0)
+    quantity_requested = db.Column(db.Float, nullable=False, default=0)
+    quantity_approved = db.Column(db.Float, nullable=False, default=0, server_default=sa.text("0"))
+    quantity_delivered = db.Column(db.Float, nullable=False, default=0, server_default=sa.text("0"))
 
     material = db.relationship("Material")
 
@@ -277,4 +287,98 @@ class MaterialCatalog(db.Model):
             "stage": self.stage,
             "applies_to": self.applies_to,
             "is_active": self.is_active,
+        }
+
+
+class MaterialRequestEvent(db.Model):
+    __tablename__ = "material_request_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("material_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="NO ACTION"))
+    action = db.Column(db.String(40), nullable=False)
+    from_status = db.Column(db.String(30))
+    to_status = db.Column(db.String(30))
+    payload = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+
+    actor = db.relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "request_id": self.request_id,
+            "actor_id": self.actor_id,
+            "action": self.action,
+            "from_status": self.from_status,
+            "to_status": self.to_status,
+            "payload": self.payload,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class MaterialRequestDelivery(db.Model):
+    __tablename__ = "material_request_deliveries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("material_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="NO ACTION"), nullable=False)
+    operation_id = db.Column(db.String(36), index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+
+    items = db.relationship("MaterialRequestDeliveryItem", backref="delivery", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "request_id": self.request_id,
+            "actor_id": self.actor_id,
+            "operation_id": self.operation_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "items": [i.to_dict() for i in self.items],
+        }
+
+
+class MaterialRequestDeliveryItem(db.Model):
+    __tablename__ = "material_request_delivery_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    delivery_id = db.Column(db.Integer, db.ForeignKey("material_request_deliveries.id", ondelete="CASCADE"), nullable=False, index=True)
+    request_item_id = db.Column(db.Integer, db.ForeignKey("material_request_items.id", ondelete="NO ACTION"), nullable=False, index=True)
+    quantity_delivered = db.Column(db.Float, nullable=False)
+    movement_id = db.Column(db.Integer, db.ForeignKey("stock_movements.id", ondelete="NO ACTION"))
+
+    request_item = db.relationship("MaterialRequestItem")
+    movement = db.relationship("StockMovement")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "delivery_id": self.delivery_id,
+            "request_item_id": self.request_item_id,
+            "quantity_delivered": self.quantity_delivered,
+            "movement_id": self.movement_id,
+        }
+
+
+class MaterialRequestOperation(db.Model):
+    __tablename__ = "material_request_operations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    operation_id = db.Column(db.String(36), nullable=False, unique=True, index=True)
+    operation_type = db.Column(db.String(40), nullable=False, index=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="NO ACTION"))
+    request_id = db.Column(db.Integer, db.ForeignKey("material_requests.id", ondelete="NO ACTION"), index=True)
+    result = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "operation_id": self.operation_id,
+            "operation_type": self.operation_type,
+            "actor_id": self.actor_id,
+            "request_id": self.request_id,
+            "result": self.result,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

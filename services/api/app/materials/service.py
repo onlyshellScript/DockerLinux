@@ -11,6 +11,20 @@ from app.settings.models import OperationalSettings
 from app.settings import service as settings_service
 
 
+
+def _lock_row(table, key_col=None, key_val=None, extra=None, params=None):
+    bind = db.session.get_bind()
+    dialect = getattr(bind, "dialect", None)
+    name = getattr(dialect, "name", "")
+    if name != "mssql":
+        return
+    if key_col and key_val is not None:
+        sql = f"SELECT id FROM {table} WITH (UPDLOCK, HOLDLOCK) WHERE {key_col} = :v"
+        db.session.execute(text(sql), {"v": key_val})
+    elif extra:
+        sql = f"SELECT id FROM {table} WITH (UPDLOCK, HOLDLOCK) WHERE {extra}"
+        db.session.execute(text(sql), params or {})
+
 def _critical_threshold():
     op = OperationalSettings.query.first()
     if not op:
@@ -275,7 +289,7 @@ def register_movement(mat_id, quantity, movement_type, user_id, work_order_id=No
             return None, "invalid_quantity"
     if movement_type not in ALL_MOVEMENTS:
         return None, "invalid_type"
-    db.session.execute(text("SELECT id FROM materials WITH (UPDLOCK, HOLDLOCK) WHERE id = :id"), {"id": mat_id})
+    _lock_row("materials", "id", mat_id)
     m = db.session.get(Material, mat_id)
     if not m:
         return None, "not_found"
@@ -376,9 +390,9 @@ def transfer_stock(material_id, technician_id, quantity, user_id, notes=None):
     if not prof:
         return None, "technician_not_found"
     # lock rows
-    db.session.execute(text("SELECT id FROM materials WITH (UPDLOCK, HOLDLOCK) WHERE id = :id"), {"id": material_id})
+    _lock_row("materials", "id", material_id)
     m = db.session.get(Material, material_id)
-    db.session.execute(text("SELECT id FROM technician_stock WITH (UPDLOCK, HOLDLOCK) WHERE technician_id = :t AND material_id = :m"), {"t": technician_id, "m": material_id})
+    _lock_row("technician_stock", None, None, extra="technician_id = :t AND material_id = :m", params={"t": technician_id, "m": material_id})
     ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).first()
     if m.current_stock < quantity:
         return None, "insufficient_stock"
@@ -398,7 +412,7 @@ def transfer_stock(material_id, technician_id, quantity, user_id, notes=None):
 def consume_for_order(material_id, technician_id, quantity, work_order_id, user_id, notes=None):
     if quantity <= 0:
         return None, "invalid_quantity"
-    db.session.execute(text("SELECT id FROM technician_stock WITH (UPDLOCK, HOLDLOCK) WHERE technician_id = :t AND material_id = :m"), {"t": technician_id, "m": material_id})
+    _lock_row("technician_stock", None, None, extra="technician_id = :t AND material_id = :m", params={"t": technician_id, "m": material_id})
     ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).first()
     if not ts or ts.quantity < quantity:
         return None, "insufficient_stock"
@@ -418,12 +432,13 @@ def create_material_request(data, user_id):
         technician_id=data.get("technician_id"),
         work_order_id=data.get("work_order_id"),
         reason=data.get("reason"),
-        status="pendiente",
+        status="SUBMITTED",
     )
     db.session.add(req)
     db.session.flush()
     for it in data.get("items", []):
-        db.session.add(MaterialRequestItem(request_id=req.id, material_id=it["material_id"], quantity=it["quantity"]))
+        db.session.add(MaterialRequestItem(request_id=req.id, material_id=it["material_id"], quantity=it["quantity"],
+                                          quantity_requested=it["quantity"]))
     db.session.commit()
     return req
 
@@ -456,13 +471,13 @@ def deliver_request(req_id, user_id):
         return None, "invalid_state"
     # lock materials and transfer
     for it in req.items:
-        db.session.execute(text("SELECT id FROM materials WITH (UPDLOCK, HOLDLOCK) WHERE id = :id"), {"id": it.material_id})
+        _lock_row("materials", "id", it.material_id)
         m = db.session.get(Material, it.material_id)
         if not m or m.current_stock < it.quantity:
             return None, "insufficient_stock"
         m.current_stock -= it.quantity
         if req.technician_id:
-            db.session.execute(text("SELECT id FROM technician_stock WITH (UPDLOCK, HOLDLOCK) WHERE technician_id = :t AND material_id = :m"), {"t": req.technician_id, "m": it.material_id})
+            _lock_row("technician_stock", None, None, extra="technician_id = :t AND material_id = :m", params={"t": req.technician_id, "m": it.material_id})
             ts = TechnicianStock.query.filter_by(technician_id=req.technician_id, material_id=it.material_id).first()
             if not ts:
                 ts = TechnicianStock(technician_id=req.technician_id, material_id=it.material_id, quantity=0)
