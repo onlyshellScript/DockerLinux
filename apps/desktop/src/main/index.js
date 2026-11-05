@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, dialog, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { getHealth } = require('./healthClient');
@@ -57,6 +57,60 @@ async function apiRequest({ method, path: reqPath, body, form, token }) {
   }
 }
 
+
+async function saveFile(payload) {
+  try {
+    const { defaultName, filters, data } = payload || {};
+    const allowedExt = ['csv', 'xlsx', 'pdf'];
+    const ext = (defaultName || '').split('.').pop().toLowerCase();
+    if (!allowedExt.includes(ext)) return { ok: false, error: 'invalid extension' };
+    const result = await dialog.showSaveDialog({
+      title: 'Guardar como',
+      defaultPath: defaultName,
+      filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: true, canceled: true };
+    const chosenExt = result.filePath.split('.').pop().toLowerCase();
+    if (chosenExt !== ext) return { ok: false, error: 'invalid extension' };
+    const buf = Buffer.from(data);
+    require('node:fs').writeFileSync(result.filePath, buf);
+    return { ok: true, canceled: false, path: result.filePath };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+
+async function exportDownload(payload) {
+  try {
+    const { query, defaultName } = payload || {};
+    const token = payload && payload.token;
+    const url = API_BASE_URL + '/api/v1/materials/export/download?' + (query || '');
+    const res = await fetch(url, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+    if (!res.ok) {
+      let msg = 'Error';
+      try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
+      return { ok: false, error: msg };
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    const ext = (defaultName || 'inventario.csv').split('.').pop().toLowerCase();
+    const allowed = ['csv', 'xlsx', 'pdf'];
+    if (!allowed.includes(ext)) return { ok: false, error: 'invalid extension' };
+    const result = await dialog.showSaveDialog({
+      title: 'Guardar como',
+      defaultPath: defaultName,
+      filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: true, canceled: true };
+    const chosenExt = result.filePath.split('.').pop().toLowerCase();
+    if (chosenExt !== ext) return { ok: false, error: 'invalid extension' };
+    require('node:fs').writeFileSync(result.filePath, buf);
+    return { ok: true, canceled: false, path: result.filePath };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -80,6 +134,9 @@ app.whenReady().then(() => {
   ipcMain.handle('sigos:session:load', async () => readSession());
   ipcMain.handle('sigos:session:save', async (_event, session) => { writeSession(session); return true; });
   ipcMain.handle('sigos:session:clear', async () => { clearSession(); return true; });
+  ipcMain.handle('sigos:save-file', async (_event, payload) => saveFile(payload || {}));
+  ipcMain.handle('sigos:open-folder', async (_event, folderPath) => { try { await shell.openPath(require('node:path').dirname(folderPath)); return { ok: true }; } catch (e) { return { ok: false, error: String(e) }; } });
+  ipcMain.handle('sigos:export-download', async (_event, payload) => exportDownload(payload || {}));
 
   createWindow();
   app.on('activate', () => {

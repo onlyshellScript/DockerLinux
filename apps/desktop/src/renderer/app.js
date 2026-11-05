@@ -1727,14 +1727,7 @@ function showCredentials(username, password) {
   const addCatBtn = $('#addCatalogBtn');
   if (addCatBtn) addCatBtn.addEventListener('click', () => openAddCatalogModal(content));
   const exportBtn = $('#exportCsvBtn');
-  if (exportBtn) exportBtn.addEventListener('click', () => {
-    const p = new URLSearchParams();
-    if (filters.q) p.set('q', filters.q);
-    if (filters.status) p.set('status', filters.status);
-    if (filters.unit) p.set('unit', filters.unit);
-    if (filters.category) p.set('category', filters.category);
-    window.open('/api/v1/materials/export?' + p.toString(), '_blank');
-  });
+  if (exportBtn) exportBtn.addEventListener('click', () => openExportModal(content, filters));
 
   $$('[data-edit]').forEach((b) => b.addEventListener('click', () => openMaterialModal(content, Number(b.getAttribute('data-edit')))));
   $$('[data-replenish]').forEach((b) => b.addEventListener('click', () => openReplenishModal(content, Number(b.getAttribute('data-replenish')))));
@@ -2128,6 +2121,164 @@ async function openAdjustModal(content, matId) {
     updateMenuBadge();
   });
 }
+
+﻿async function openExportModal(content, filters) {
+  const columns = [
+    { key: 'codigo', label: 'Código' },
+    { key: 'nombre', label: 'Nombre' },
+    { key: 'categoria', label: 'Categoría' },
+    { key: 'unidad', label: 'Unidad' },
+    { key: 'stock', label: 'Stock' },
+    { key: 'minimo', label: 'Mínimo' },
+    { key: 'nivel', label: 'Nivel' },
+    { key: 'estado', label: 'Estado' },
+    { key: 'precio', label: 'Precio' },
+    { key: 'valor', label: 'Valor' },
+    { key: 'activo', label: 'Activo' },
+  ];
+  let selectedCols = ['codigo','nombre','categoria','unidad','stock','minimo','estado','precio','valor'];
+  let format = 'csv';
+  let separator = ';';
+  let orientation = 'landscape';
+  let previewData = null; // snapshot bytes/text
+  let previewKind = null;
+
+  const chips = [];
+  if (filters.q) chips.push('Búsqueda: ' + filters.q);
+  if (filters.status) chips.push('Estado: ' + filters.status);
+  if (filters.unit) chips.push('Unidad: ' + filters.unit);
+  if (filters.category) chips.push('Categoría: ' + filters.category);
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+  overlay.innerHTML = `
+    <div class="sigos-card" style="width:760px;max-width:96vw;padding:20px;max-height:92vh;overflow:auto">
+      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">Exportar inventario</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${chips.map((c) => `<span class="badge-medium" style="font-size:11px">${escapeHtml(c)}</span>`).join('') || '<span style="font-size:12px;color:#96908A">Sin filtros</span>'}</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <label style="font-size:13px"><input type="radio" name="fmt" value="csv" checked> CSV</label>
+        <label style="font-size:13px"><input type="radio" name="fmt" value="excel"> Excel</label>
+        <label style="font-size:13px"><input type="radio" name="fmt" value="pdf"> PDF</label>
+      </div>
+      <div id="fmtOpts" style="margin-bottom:12px"></div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Columnas</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
+          ${columns.map((c) => `<label style="font-size:12px"><input type="checkbox" data-col="${c.key}" ${selectedCols.includes(c.key)?'checked':''}> ${escapeHtml(c.label)}</label>`).join('')}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="sigos-btn-secondary" id="previewBtn" style="height:32px">Vista previa</button>
+        <button class="sigos-btn-primary" id="downloadBtn" style="height:32px" disabled>Descargar</button>
+        <span id="rowCount" style="font-size:12px;color:#96908A;align-self:center"></span>
+      </div>
+      <div id="previewArea" style="border:1px solid #E5E7EB;border-radius:6px;padding:8px;min-height:120px;max-height:320px;overflow:auto;font-size:12px"></div>
+      <div id="exportWarn" style="color:#991B1B;font-size:12px;margin-top:8px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="sigos-btn-secondary" id="exportCancel">Cerrar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  $('#exportCancel').addEventListener('click', close);
+
+  const getFormat = () => (overlay.querySelector('input[name="fmt"]:checked') || {}).value || 'csv';
+  const getColumns = () => Array.from(overlay.querySelectorAll('input[data-col]:checked')).map((i) => i.getAttribute('data-col'));
+  const buildQuery = (extra = {}) => {
+    const p = new URLSearchParams();
+    if (filters.q) p.set('q', filters.q);
+    if (filters.status) p.set('status', filters.status);
+    if (filters.unit) p.set('unit', filters.unit);
+    if (filters.category) p.set('category', filters.category);
+    p.set('columns', getColumns().join(','));
+    p.set('format', format);
+    if (format === 'csv') p.set('separator', separator);
+    if (format === 'pdf') p.set('orientation', orientation);
+    Object.entries(extra).forEach(([k,v]) => p.set(k,v));
+    return p.toString();
+  };
+
+  const renderOpts = () => {
+    format = getFormat();
+    const opts = $('#fmtOpts');
+    if (!opts) return;
+    if (format === 'csv') {
+      opts.innerHTML = `<label style="font-size:12px">Separador: <select id="sepSel" class="sigos-select" style="height:28px"><option value=";" ${separator===';'?'selected':''}>; (punto y coma)</option><option value="," ${separator===','?'selected':''}>, (coma)</option></select></label>`;
+      const s = $('#sepSel'); if (s) s.addEventListener('change', () => { separator = s.value; });
+    } else if (format === 'pdf') {
+      opts.innerHTML = `<label style="font-size:12px">Orientación: <select id="oriSel" class="sigos-select" style="height:28px"><option value="landscape" ${orientation==='landscape'?'selected':''}>Horizontal</option><option value="portrait" ${orientation==='portrait'?'selected':''}>Vertical</option></select></label>`;
+      const o = $('#oriSel'); if (o) o.addEventListener('change', () => { orientation = o.value; });
+    } else {
+      opts.innerHTML = '';
+    }
+  };
+  overlay.querySelectorAll('input[name="fmt"]').forEach((r) => r.addEventListener('change', () => { renderOpts(); previewData = null; $('#downloadBtn').disabled = true; }));
+  renderOpts();
+
+  const showPreview = (data) => {
+    const area = $('#previewArea');
+    if (!area) return;
+    if (format === 'csv') {
+      area.innerHTML = `<pre style="margin:0;white-space:pre-wrap">${escapeHtml(data.content || '')}</pre>`;
+    } else if (format === 'excel') {
+      const headers = data.headers || [];
+      const rows = data.rows || [];
+      area.innerHTML = `<div style="font-size:11px;color:#96908A;margin-bottom:4px">Pestaña Inventario (vista previa)</div>
+        <table class="tbl" style="font-size:11px"><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map((r) => `<tr>${r.map((v) => `<td>${escapeHtml(String(v))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    } else if (format === 'pdf') {
+      area.innerHTML = `<iframe src="data:application/pdf;base64,${data.content_base64}" style="width:100%;height:300px;border:none"></iframe>`;
+    }
+    const rc = $('#rowCount');
+    if (rc) rc.textContent = (data.total_rows != null ? data.total_rows : (data.rows ? data.rows.length : '')) + ' filas';
+    if (data.truncated) {
+      const w = $('#exportWarn'); if (w) w.textContent = 'Se alcanzó el límite de filas. La descarga incluirá hasta el límite.';
+    }
+  };
+
+  $('#previewBtn').addEventListener('click', async () => {
+    format = getFormat();
+    selectedCols = getColumns();
+    const warn = $('#exportWarn'); if (warn) warn.textContent = '';
+    const area = $('#previewArea'); if (area) area.innerHTML = '<div class="skeleton" style="height:120px"></div>';
+    const r = await api('GET', '/api/v1/materials/export/preview?' + buildQuery());
+    if (!r.ok) {
+      if (area) area.innerHTML = '';
+      const msg = (r.body && (r.body.message || r.body.error)) || 'Error';
+      if (warn) warn.textContent = msg;
+      return;
+    }
+    previewData = r.body;
+    previewKind = format;
+    showPreview(r.body);
+    // fetch full bytes for download snapshot by calling download? We'll store a flag; download will fetch same with limit none.
+    $('#downloadBtn').disabled = false;
+  });
+
+  $('#downloadBtn').addEventListener('click', async () => {
+    if (!previewData) { notify('Genera la vista previa primero.', 'error'); return; }
+    format = getFormat();
+    selectedCols = getColumns();
+    const btn = $('#downloadBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Descargando...'; }
+    const params = buildQuery();
+    const defaultName = 'inventario.' + (format === 'excel' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'csv');
+    const r = await window.sigos.exportDownload({ query: params, defaultName, token: state.session?.access_token });
+    if (btn) { btn.disabled = false; btn.textContent = 'Descargar'; }
+    if (!r || r.canceled) { return; }
+    if (!r.ok) { notify((r.error) || 'Error al descargar.', 'error'); return; }
+    notify('Archivo guardado: ' + r.path, 'success');
+    const ofBtn = document.createElement('button');
+    ofBtn.className = 'sigos-btn-secondary';
+    ofBtn.style.cssText = 'height:28px;margin-left:8px';
+    ofBtn.textContent = 'Abrir carpeta';
+    ofBtn.addEventListener('click', async () => { await window.sigos.openFolder(r.path); });
+    const alerts = $('#alerts') || $('#content');
+    if (alerts) alerts.prepend(ofBtn);
+  });
+}
+
 
 async function updateMenuBadge() {
   try {
