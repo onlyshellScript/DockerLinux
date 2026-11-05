@@ -35,11 +35,14 @@ def evidences_create(wo_id):
     ev, error = create_evidence(
         wo_id, request.user_id, evidence_type,
         file=file, description=request.form.get("description"),
+        roles=request.user_roles,
     )
-    if error == "invalid_extension":
+    if error in ("invalid_extension", "mime_not_allowed", "unknown_content_type"):
         return jsonify({"error": "file type not allowed"}), 400
     if error == "file_too_large":
-        return jsonify({"error": "file too large (max 10MB)"}), 400
+        return jsonify({"error": "file too large"}), 400
+    if error:
+        return jsonify({"error": error}), 400
     return jsonify(ev.to_dict()), 201
 
 
@@ -59,10 +62,11 @@ def evidences_download(ev_id):
     ev = get_evidence(ev_id)
     if not ev:
         return jsonify({"error": "evidence not found"}), 404
-    if not ev.stored_name:
+    storage_key = ev.storage_key or ev.stored_name
+    if not storage_key:
         return jsonify({"error": "no file to download"}), 400
     storage = get_storage()
-    path = storage.load(ev.stored_name)
+    path = storage.load(storage_key)
     if not path:
         return jsonify({"error": "file not found on storage"}), 404
     return send_file(path, mimetype=ev.file_type, download_name=ev.file_name, as_attachment=True)
@@ -71,7 +75,7 @@ def evidences_download(ev_id):
 @blueprint.delete("/evidences/<int:ev_id>")
 @require_role("admin")
 def evidences_delete(ev_id):
-    deleted = delete_evidence(ev_id)
+    deleted, error = delete_evidence(ev_id, roles=["admin"])
     if not deleted:
-        return jsonify({"error": "evidence not found"}), 404
+        return jsonify({"error": error or "not found"}), 404
     return jsonify({"message": "deleted"}), 200
