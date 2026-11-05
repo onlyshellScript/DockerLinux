@@ -1,4 +1,5 @@
-﻿# -*- coding: utf-8 -*-
+from sqlalchemy import text
+# -*- coding: utf-8 -*-
 from app.extensions import db
 from app.common.normalize import normalize_text
 from app.materials.models import (
@@ -274,7 +275,8 @@ def register_movement(mat_id, quantity, movement_type, user_id, work_order_id=No
             return None, "invalid_quantity"
     if movement_type not in ALL_MOVEMENTS:
         return None, "invalid_type"
-    m = Material.query.filter_by(id=mat_id).with_for_update().first()
+    db.session.execute(text("SELECT id FROM materials WITH (UPDLOCK, HOLDLOCK) WHERE id = :id"), {"id": mat_id})
+    m = db.session.get(Material, mat_id)
     if not m:
         return None, "not_found"
     if not _validate_decimal(quantity, unit_allows_decimal(m)):
@@ -374,8 +376,10 @@ def transfer_stock(material_id, technician_id, quantity, user_id, notes=None):
     if not prof:
         return None, "technician_not_found"
     # lock rows
-    m = Material.query.filter_by(id=material_id).with_for_update().first()
-    ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).with_for_update().first()
+    db.session.execute(text("SELECT id FROM materials WITH (UPDLOCK, HOLDLOCK) WHERE id = :id"), {"id": material_id})
+    m = db.session.get(Material, material_id)
+    db.session.execute(text("SELECT id FROM technician_stock WITH (UPDLOCK, HOLDLOCK) WHERE technician_id = :t AND material_id = :m"), {"t": technician_id, "m": material_id})
+    ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).first()
     if m.current_stock < quantity:
         return None, "insufficient_stock"
     m.current_stock -= quantity
@@ -394,7 +398,8 @@ def transfer_stock(material_id, technician_id, quantity, user_id, notes=None):
 def consume_for_order(material_id, technician_id, quantity, work_order_id, user_id, notes=None):
     if quantity <= 0:
         return None, "invalid_quantity"
-    ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).with_for_update().first()
+    db.session.execute(text("SELECT id FROM technician_stock WITH (UPDLOCK, HOLDLOCK) WHERE technician_id = :t AND material_id = :m"), {"t": technician_id, "m": material_id})
+    ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).first()
     if not ts or ts.quantity < quantity:
         return None, "insufficient_stock"
     ts.quantity -= quantity
@@ -451,12 +456,14 @@ def deliver_request(req_id, user_id):
         return None, "invalid_state"
     # lock materials and transfer
     for it in req.items:
-        m = Material.query.filter_by(id=it.material_id).with_for_update().first()
+        db.session.execute(text("SELECT id FROM materials WITH (UPDLOCK, HOLDLOCK) WHERE id = :id"), {"id": it.material_id})
+        m = db.session.get(Material, it.material_id)
         if not m or m.current_stock < it.quantity:
             return None, "insufficient_stock"
         m.current_stock -= it.quantity
         if req.technician_id:
-            ts = TechnicianStock.query.filter_by(technician_id=req.technician_id, material_id=it.material_id).with_for_update().first()
+            db.session.execute(text("SELECT id FROM technician_stock WITH (UPDLOCK, HOLDLOCK) WHERE technician_id = :t AND material_id = :m"), {"t": req.technician_id, "m": it.material_id})
+            ts = TechnicianStock.query.filter_by(technician_id=req.technician_id, material_id=it.material_id).first()
             if not ts:
                 ts = TechnicianStock(technician_id=req.technician_id, material_id=it.material_id, quantity=0)
                 db.session.add(ts)
