@@ -271,11 +271,11 @@ def test_cancelled_excluded(client, app):
 
 import pytest
 
-@pytest.mark.xfail(reason="SQLite in-memory no soporta concurrencia; validar en SQL Server real")
-def test_concurrent_schedule(client, app):
-    ids = _seed(app)
-    # create two orders
-    with app.app_context():
+@pytest.mark.sqlserver
+@pytest.mark.sqlserver
+def test_concurrent_schedule(sqlserver_client, sqlserver_app):
+    ids = _seed(sqlserver_app)
+    with sqlserver_app.app_context():
         from app.identity.models import User
         admin = User.query.filter_by(username="admin").first()
         wo1 = WorkOrder(title="C1", created_by_id=ids["admin_id"], status="pending", priority="medium",
@@ -286,11 +286,11 @@ def test_concurrent_schedule(client, app):
         db.session.commit()
         v1, v2 = wo1.version, wo2.version
         id1, id2 = wo1.id, wo2.id
-    token = _login(client, "admin", "Admin123!")
+    token = _login(sqlserver_client, "admin", "Admin123!")
     results = []
 
     def worker(order_id, version):
-        c = app.test_client()
+        c = sqlserver_app.test_client()
         r = c.post(f"/api/v1/work-orders/{order_id}/schedule",
                    headers={"Authorization": f"Bearer {token}"},
                    json={"start": "2026-11-04T09:00:00", "end": "2026-11-04T10:00:00",
@@ -301,9 +301,8 @@ def test_concurrent_schedule(client, app):
     t2 = threading.Thread(target=worker, args=(id2, v2))
     t1.start(); t2.start()
     t1.join(); t2.join()
-    # only one should succeed (200), the other conflict (409)
-    assert sorted(results) == [200, 409] or sorted(results) == [200, 200] is False
     assert results.count(200) == 1
+    assert 409 in results
 
 
 def test_unassigned_tray(client, app):
@@ -314,3 +313,24 @@ def test_unassigned_tray(client, app):
     data = resp.get_json()
     assert "items" in data
     assert any(i["id"] == ids["work_order_id"] for i in data["items"])
+
+
+def test_atomicity_schedule(client, app):
+    ids = _seed(app)
+    with app.app_context():
+        from app.identity.models import User
+        admin = User.query.filter_by(username="admin").first()
+        wo = WorkOrder.query.get(ids["work_order_id"])
+        from app.calendar import service as cs
+        from unittest.mock import patch
+        try:
+            with patch("app.workorders.models.WorkOrderStatusHistory", side_effect=RuntimeError("boom")):
+                cs.schedule_order(wo.id, {
+                    "start": "2026-11-04T09:00:00", "end": "2026-11-04T10:00:00",
+                    "technician_ids": [], "version": wo.version,
+                }, admin, ["admin"])
+        except Exception:
+            pass
+        db.session.rollback()
+        wo2 = WorkOrder.query.get(wo.id)
+        assert wo2.scheduled_at is None
