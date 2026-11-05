@@ -122,6 +122,9 @@ a:focus-visible {
 }
 .sigos-input:focus { border-color: #2E7A50; box-shadow: 0 0 0 2px rgba(46,122,80,0.12); }
 .cal-toolbar select { width: auto; min-width: 150px; max-width: 200px; flex: 0 0 auto; height: 36px; }
+.cal-expand { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.25s ease, opacity 0.25s ease; }
+.cal-expand.open { max-height: 1200px; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .cal-expand { transition: none; } }
 .sigos-input::placeholder { color: #96908A; }
 
 .sigos-select {
