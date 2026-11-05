@@ -1785,7 +1785,7 @@ async function openScheduleModal(opts) {
         <input type="text" id="schReasonComment" class="sigos-input" style="height:32px;width:100%" placeholder="Comentario adicional">
       </div>
     </div>
-    <div id="schSummary" style="margin-top:8px;font-size:12px;color:#3A4552;font-weight:600"></div>
+
     <div id="schValidation" style="margin-top:8px;font-size:12px"></div>
     <div id="schConflictActions" style="margin-top:8px;display:none;gap:6px"></div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
@@ -1888,14 +1888,7 @@ async function openScheduleModal(opts) {
     else techWarn.textContent = '';
   }
 
-  // summary
-  const summary = modal.querySelector('#schSummary');
-  function updateSummary() {
-    const o = unassigned.find(x => String(x.id) === String(orderSel.value));
-    const techOpt = techSel.selectedOptions[0];
-    const techLabel = techSel.value ? (techOpt ? techOpt.textContent.split(' � ')[0] : 'T�cnico') : 'Sin asignar';
-    summary.textContent = (dateInput.value || '') + ' � ' + (startInput.value || '') + '�' + (endInput.value || '') + ' � T�cnico: ' + techLabel + (o ? ' � ' + orderCode(o) : '');
-  }
+  // summary removed
 
   // validation
   const valDiv = modal.querySelector('#schValidation');
@@ -1948,8 +1941,8 @@ async function openScheduleModal(opts) {
 
   // events
   [orderSel, dateInput, startInput, endInput, techSel, modal.querySelector('#schReason')].forEach(el => {
-    el.addEventListener('change', () => { markDirty(); updateReasonVisibility(); refreshTechOptions(); updateTechWarning(); updateSummary(); scheduleValidate(); });
-    el.addEventListener('input', () => { markDirty(); updateSummary(); scheduleValidate(); });
+    el.addEventListener('change', () => { markDirty(); updateReasonVisibility(); refreshTechOptions(); updateTechWarning(); scheduleValidate(); });
+    el.addEventListener('input', () => { markDirty(); scheduleValidate(); });
   });
   modal.querySelector('#schOrderSearch').addEventListener('input', (e) => {
     const q = normalizeText(e.target.value);
@@ -2033,7 +2026,6 @@ async function openScheduleModal(opts) {
 
   // reason wrap initial
   updateReasonVisibility();
-  updateSummary();
   runValidation();
 
   // highlight saved event in grid after render? handled by cs.highlightId
@@ -2504,7 +2496,7 @@ function dayAgendaHtml(dayKey, byDay, pub, cs, todayStr) {
       const top = (startMin / 60) * 48;
       const height = (durMin / 60) * 48;
       const color = e.status === "in_progress" ? "#C9892A" : e.status === "completed" ? "#2A5C45" : "#8A847C";
-      html += '<div style="position:absolute;top:' + top + 'px;left:0;width:100%;height:' + height + 'px;background:#F3F8F5;border:1px solid ' + color + ';border-radius:4px;padding:2px 4px;font-size:11px;overflow:hidden">';
+      html += '<div onclick="openOrderModal(' + e.order_id + ')" style="position:absolute;top:' + top + 'px;left:0;width:100%;height:' + height + 'px;background:#F3F8F5;border:1px solid ' + color + ';border-radius:4px;padding:2px 4px;font-size:11px;overflow:hidden;cursor:pointer">';
       html += '<div style="font-family:JetBrains Mono,monospace;font-size:10px">' + escapeHtml(orderCode(e)) + '</div>';
       html += '<div style="font-weight:600">' + escapeHtml(e.title) + '</div>';
       html += '<div style="color:#64748B">' + escapeHtml((e.technicians || []).map((t) => t.name).join(", ") || "Por asignar") + '</div>';
@@ -2577,6 +2569,7 @@ function openOrderModal(orderId) {
   html += '</div>';
   openModal(html);
 }
+
 
 
 
