@@ -82,6 +82,7 @@ def add_evidence(
     previous_evidence_id = kwargs.pop("previous_evidence_id", kwargs.pop("previous_id", kwargs.pop("parent_evidence_id", None)))
     roles = kwargs.pop("roles", None)
     category = kwargs.pop("category", category)
+    operation_id = kwargs.pop("operation_id", kwargs.pop("client_operation_id", None))
     if kwargs.pop("evidence_type", None):
         # keep compatibility; do not override explicit category
         pass
@@ -92,6 +93,10 @@ def add_evidence(
         return None, "forbidden"
     if category not in EVIDENCE_CATEGORIES:
         return None, "invalid_category"
+    if operation_id:
+        existing = VisitEvidence.query.filter_by(client_operation_id=operation_id).first()
+        if existing:
+            return existing, None
 
     storage = get_storage()
     storage_key = None
@@ -146,6 +151,7 @@ def add_evidence(
         previous_evidence_id=previous_evidence_id,
         version_number=1,
         duplicate_of_id=duplicate_of_id,
+        client_operation_id=operation_id,
         # compatibility columns
         file_name=name,
         stored_name=storage_key,
@@ -317,16 +323,35 @@ def review_evidence(evidence_id, reviewer_id, decision, notes=None, roles=None):
     return review, None
 
 
-def submit_expediente(work_order_id, actor_id, roles=None):
+def submit_expediente(work_order_id, actor_id, roles=None, operation_id=None):
+    # idempotent: if already submitted, return current submitted items
+    existing_submitted = VisitEvidence.query.filter_by(work_order_id=work_order_id, status=EVIDENCE_SUBMITTED).all()
+    if existing_submitted and not VisitEvidence.query.filter_by(work_order_id=work_order_id, status=EVIDENCE_DRAFT).all():
+        return existing_submitted, None
     items = VisitEvidence.query.filter_by(work_order_id=work_order_id, status=EVIDENCE_DRAFT).all()
     out = []
     for ev in items:
         r, err = submit_evidence(ev.id, actor_id, roles=roles)
         if r:
             out.append(r)
-    _record_event(work_order_id, None, actor_id, "EXPEDIENTE_SUBMITTED", None, EVIDENCE_SUBMITTED, f"count={len(out)}")
-    db.session.commit()
+    if out:
+        _record_event(work_order_id, None, actor_id, "EXPEDIENTE_SUBMITTED", None, EVIDENCE_SUBMITTED, f"count={len(out)};operation={operation_id}")
+        db.session.commit()
     return out, None
+
+
+def resubmit_expediente(work_order_id, actor_id, roles=None, operation_id=None):
+    # requires correction state
+    corrected = VisitEvidence.query.filter_by(work_order_id=work_order_id, status=EVIDENCE_CORRECTION_REQUIRED).all()
+    out = []
+    for ev in corrected:
+        r, err = resubmit_evidence(ev.id, actor_id, roles=roles)
+        if r:
+            out.append(r)
+    if out:
+        _record_event(work_order_id, None, actor_id, "EXPEDIENTE_RESUBMITTED", None, EVIDENCE_RESUBMITTED, f"count={len(out)};operation={operation_id}")
+        db.session.commit()
+    return out, None if out else (None, "invalid_state")
 
 
 def start_review_expediente(work_order_id, actor_id, roles=None):
@@ -353,12 +378,17 @@ def register_signature(
     consent_version=None,
     roles=None,
     original_name=None,
+    operation_id=None,
 ):
     wo = get_work_order(work_order_id)
     if not wo:
         return None, "work_order_not_found"
     if roles is not None and not can_create_evidence(technician_id, roles, wo):
         return None, "forbidden"
+    if operation_id:
+        existing = VisitSignature.query.filter_by(client_operation_id=operation_id).first()
+        if existing:
+            return existing, None
 
     storage = get_storage()
     storage_key = None
@@ -382,6 +412,7 @@ def register_signature(
         consent_version=consent_version,
         technician_id=technician_id,
         refused=False,
+        client_operation_id=operation_id,
         created_at=_now(),
     )
     db.session.add(sig)
@@ -497,6 +528,62 @@ def list_events(work_order_id=None, evidence_id=None):
 # Permissions re-export for convenience
 def can_view(user_id, roles, work_order):
     return can_view_evidence(user_id, roles, work_order)
+
+
+def list_user_evidences(user_id, roles):
+    roles = set(roles or [])
+    if "admin" in roles or "dispatcher" in roles:
+        return VisitEvidence.query.order_by(VisitEvidence.received_at.desc()).all()
+    from app.workorders.models import WorkOrder
+    wo_ids = [w.id for w in WorkOrder.query.filter_by(assigned_to_id=user_id).all()]
+    if not wo_ids:
+        return []
+    return VisitEvidence.query.filter(VisitEvidence.work_order_id.in_(wo_ids)).order_by(VisitEvidence.received_at.desc()).all()
+
+
+def validate_submission(work_order_id):
+    errors = []
+    evidences = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
+    if not evidences:
+        errors.append("evidence_required")
+    sigs = VisitSignature.query.filter_by(work_order_id=work_order_id).all()
+    if not sigs:
+        errors.append("signature_or_refusal_required")
+    items = VisitChecklistItem.query.filter_by(work_order_id=work_order_id).all()
+    pending = [i for i in items if i.result not in ("COMPLETED", "NOT_COMPLETED")]
+    if items and pending:
+        errors.append("checklist_incomplete")
+    # status compatibility
+    ev_statuses = {e.status for e in evidences}
+    if ev_statuses and not ev_statuses.issubset({EVIDENCE_DRAFT, EVIDENCE_CORRECTION_REQUIRED, EVIDENCE_RESUBMITTED}):
+        errors.append("invalid_state")
+    return errors
+
+
+def get_expediente_status(work_order_id):
+    evidences = [e.to_dict() for e in list_evidences(work_order_id)]
+    signatures = [s.to_dict() for s in list_signatures(work_order_id)]
+    checklist = [i.to_dict() for i in list_checklist_items(work_order_id)]
+    events = [e.to_dict() for e in list_events(work_order_id=work_order_id)]
+    statuses = {e["status"] for e in evidences} if evidences else set()
+    overall = "DRAFT"
+    if statuses:
+        if "SUBMITTED" in statuses or "UNDER_REVIEW" in statuses:
+            overall = "SUBMITTED"
+        if "APPROVED" in statuses and len(statuses) == 1:
+            overall = "APPROVED"
+        if "REJECTED" in statuses:
+            overall = "REJECTED"
+        if "CORRECTION_REQUIRED" in statuses:
+            overall = "CORRECTION_REQUIRED"
+    return {
+        "work_order_id": work_order_id,
+        "status": overall,
+        "evidences": evidences,
+        "signatures": signatures,
+        "checklist": checklist,
+        "events": events,
+    }
 
 
 # Backwards-compatible aliases

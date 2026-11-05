@@ -62,6 +62,7 @@ class VisitEvidence(db.Model):
     previous_evidence_id = db.Column(db.Integer, db.ForeignKey("visit_evidences.id"))
     version_number = db.Column(db.Integer, nullable=False, default=1, server_default=sa.text("1"))
     duplicate_of_id = db.Column(db.Integer, db.ForeignKey("visit_evidences.id"))
+    client_operation_id = db.Column(db.String(36), index=True)
 
     # Compatibility columns retained for existing records/APIs
     file_name = db.Column(db.String(250))
@@ -117,6 +118,7 @@ class VisitSignature(db.Model):
     technician_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     refused = db.Column(db.Boolean, nullable=False, default=False, server_default=sa.text("0"))
     refusal_reason = db.Column(db.Text)
+    client_operation_id = db.Column(db.String(36), index=True)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     work_order = db.relationship("WorkOrder")

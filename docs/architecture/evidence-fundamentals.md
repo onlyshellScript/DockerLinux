@@ -28,6 +28,10 @@ Transiciones protegidas por `EVIDENCE_TRANSITIONS` en `app/evidence/models.py`.
 - Administrador/dispatcher: revisión y decisión.
 - Validación en cada lectura/descarga.
 
+## Identidad de la visita (E2)
+
+Una `WorkOrder` representa una única visita técnica de servicio. El expediente de evidencias se vincula a `work_order_id`; no se crea una entidad `Visit` adicional. Si una intervención distinta requiere otro expediente, debe crearse otra orden de trabajo. Esta regla evita que dos intervenciones compartan el mismo expediente.
+
 ## Contratos preliminares (E2/E3)
 
 - `POST /api/v1/work-orders/{id}/evidences`
