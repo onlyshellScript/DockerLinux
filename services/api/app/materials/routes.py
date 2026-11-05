@@ -19,6 +19,11 @@ from app.materials.service import (
     transfer_stock,
     consume_for_order,
     get_technician_stock,
+    create_material_request,
+    approve_request,
+    reject_request,
+    deliver_request,
+    list_requests,
 )
 
 blueprint = Blueprint("materials", __name__)
@@ -196,3 +201,59 @@ def technician_stock_list():
         return jsonify({"error": "technician_id required"}), 400
     items = get_technician_stock(tech_id)
     return jsonify([i.to_dict() for i in items]), 200
+
+# ---- Material requests ----
+
+@blueprint.get("/material-requests")
+@require_auth
+def material_requests_list():
+    status = request.args.get("status")
+    reqs = list_requests(status=status)
+    return jsonify([r.to_dict() for r in reqs]), 200
+
+
+@blueprint.post("/material-requests")
+@require_auth
+def material_requests_create():
+    data = request.get_json() or {}
+    if not data.get("items"):
+        return jsonify({"error": "items required"}), 400
+    req = create_material_request(data, request.user_id)
+    return jsonify(req.to_dict()), 201
+
+
+@blueprint.post("/material-requests/<int:req_id>/approve")
+@require_role("admin", "dispatcher")
+def material_requests_approve(req_id):
+    data = request.get_json() or {}
+    req, err = approve_request(req_id, request.user_id, data.get("reason"))
+    if err == "invalid_state":
+        return jsonify({"error": "invalid state"}), 409
+    if not req:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(req.to_dict()), 200
+
+
+@blueprint.post("/material-requests/<int:req_id>/reject")
+@require_role("admin", "dispatcher")
+def material_requests_reject(req_id):
+    data = request.get_json() or {}
+    req, err = reject_request(req_id, request.user_id, data.get("reason"))
+    if err == "invalid_state":
+        return jsonify({"error": "invalid state"}), 409
+    if not req:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(req.to_dict()), 200
+
+
+@blueprint.post("/material-requests/<int:req_id>/deliver")
+@require_role("admin", "dispatcher")
+def material_requests_deliver(req_id):
+    req, err = deliver_request(req_id, request.user_id)
+    if err == "invalid_state":
+        return jsonify({"error": "invalid state"}), 409
+    if err == "insufficient_stock":
+        return jsonify({"error": "insufficient stock"}), 400
+    if not req:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(req.to_dict()), 200

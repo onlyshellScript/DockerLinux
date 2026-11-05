@@ -94,6 +94,59 @@ class TechnicianStock(db.Model):
         }
 
 
+class MaterialRequest(db.Model):
+    __tablename__ = "material_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    requester_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="NO ACTION"), nullable=False, index=True)
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician_profiles.id", ondelete="NO ACTION"), nullable=True, index=True)
+    work_order_id = db.Column(db.Integer, db.ForeignKey("work_orders.id", ondelete="NO ACTION"), nullable=True, index=True)
+    status = db.Column(db.String(20), nullable=False, default="pendiente")
+    reason = db.Column(db.Text)
+    approved_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="NO ACTION"), nullable=True)
+    approval_reason = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    requester = db.relationship("User", foreign_keys=[requester_id])
+    approver = db.relationship("User", foreign_keys=[approved_by_id])
+    items = db.relationship("MaterialRequestItem", backref="request", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "requester_id": self.requester_id,
+            "technician_id": self.technician_id,
+            "work_order_id": self.work_order_id,
+            "status": self.status,
+            "reason": self.reason,
+            "approved_by_id": self.approved_by_id,
+            "approval_reason": self.approval_reason,
+            "items": [i.to_dict() for i in self.items],
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class MaterialRequestItem(db.Model):
+    __tablename__ = "material_request_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("material_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    material_id = db.Column(db.Integer, db.ForeignKey("materials.id", ondelete="NO ACTION"), nullable=False, index=True)
+    quantity = db.Column(db.Float, nullable=False)
+
+    material = db.relationship("Material")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "request_id": self.request_id,
+            "material_id": self.material_id,
+            "material": self.material.to_dict() if self.material else None,
+            "quantity": self.quantity,
+        }
+
+
 class TechnicianProfile(db.Model):
     __tablename__ = "technician_profiles"
 

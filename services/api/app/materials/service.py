@@ -155,3 +155,75 @@ def consume_for_order(material_id, technician_id, quantity, work_order_id, user_
     db.session.add(mv)
     db.session.commit()
     return mv, None
+
+from app.materials.models import MaterialRequest, MaterialRequestItem
+
+
+def create_material_request(data, user_id):
+    req = MaterialRequest(
+        requester_id=user_id,
+        technician_id=data.get("technician_id"),
+        work_order_id=data.get("work_order_id"),
+        reason=data.get("reason"),
+        status="pendiente",
+    )
+    db.session.add(req)
+    db.session.flush()
+    for it in data.get("items", []):
+        db.session.add(MaterialRequestItem(request_id=req.id, material_id=it["material_id"], quantity=it["quantity"]))
+    db.session.commit()
+    return req
+
+
+def approve_request(req_id, user_id, reason=None):
+    req = MaterialRequest.query.filter_by(id=req_id).with_for_update().first()
+    if not req or req.status != "pendiente":
+        return None, "invalid_state"
+    req.status = "autorizada"
+    req.approved_by_id = user_id
+    req.approval_reason = reason
+    db.session.commit()
+    return req, None
+
+
+def reject_request(req_id, user_id, reason=None):
+    req = MaterialRequest.query.filter_by(id=req_id).with_for_update().first()
+    if not req or req.status != "pendiente":
+        return None, "invalid_state"
+    req.status = "rechazada"
+    req.approved_by_id = user_id
+    req.approval_reason = reason
+    db.session.commit()
+    return req, None
+
+
+def deliver_request(req_id, user_id):
+    req = MaterialRequest.query.filter_by(id=req_id).with_for_update().first()
+    if not req or req.status != "autorizada":
+        return None, "invalid_state"
+    # lock materials and transfer
+    for it in req.items:
+        m = Material.query.filter_by(id=it.material_id).with_for_update().first()
+        if not m or m.current_stock < it.quantity:
+            return None, "insufficient_stock"
+        m.current_stock -= it.quantity
+        if req.technician_id:
+            ts = TechnicianStock.query.filter_by(technician_id=req.technician_id, material_id=it.material_id).with_for_update().first()
+            if not ts:
+                ts = TechnicianStock(technician_id=req.technician_id, material_id=it.material_id, quantity=0)
+                db.session.add(ts)
+                db.session.flush()
+            ts.quantity += it.quantity
+        mv = StockMovement(material_id=it.material_id, quantity=it.quantity, movement_type="TRANSFER_OUT",
+                           work_order_id=req.work_order_id, user_id=user_id, notes=f"Entrega solicitud {req.id}")
+        db.session.add(mv)
+    req.status = "entregada"
+    db.session.commit()
+    return req, None
+
+
+def list_requests(status=None):
+    q = MaterialRequest.query
+    if status:
+        q = q.filter_by(status=status)
+    return q.order_by(MaterialRequest.created_at.desc()).all()
