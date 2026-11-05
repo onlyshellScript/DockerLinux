@@ -542,19 +542,43 @@ def list_user_evidences(user_id, roles):
     return VisitEvidence.query.filter(VisitEvidence.work_order_id.in_(wo_ids)).order_by(VisitEvidence.received_at.desc()).all()
 
 
-def validate_submission(work_order_id):
+def get_default_policy(work_order=None):
+    return {
+        "required_categories": [],
+        "min_photos": 1,
+        "signature_required": True,
+        "allow_signature_refusal": True,
+        "required_checklist": [],
+    }
+
+
+def validate_submission(work_order_id, policy=None):
+    if policy is None:
+        wo = get_work_order(work_order_id)
+        policy = get_default_policy(wo)
     errors = []
     evidences = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
-    if not evidences:
-        errors.append("evidence_required")
-    sigs = VisitSignature.query.filter_by(work_order_id=work_order_id).all()
-    if not sigs:
-        errors.append("signature_or_refusal_required")
+    if len(evidences) < int(policy.get("min_photos", 0)):
+        errors.append("min_photos_not_met")
+    required_cats = set(policy.get("required_categories", []))
+    present_cats = {e.category for e in evidences}
+    for cat in required_cats:
+        if cat not in present_cats:
+            errors.append(f"missing_category:{cat}")
+    if policy.get("signature_required", True):
+        sigs = VisitSignature.query.filter_by(work_order_id=work_order_id).all()
+        if not sigs:
+            errors.append("signature_or_refusal_required")
+        if not policy.get("allow_signature_refusal", True):
+            if sigs and all(s.refused for s in sigs):
+                errors.append("signature_refusal_not_allowed")
     items = VisitChecklistItem.query.filter_by(work_order_id=work_order_id).all()
     pending = [i for i in items if i.result not in ("COMPLETED", "NOT_COMPLETED")]
     if items and pending:
         errors.append("checklist_incomplete")
-    # status compatibility
+    for req in policy.get("required_checklist", []):
+        if not any(i.label == req and i.result in ("COMPLETED", "NOT_COMPLETED") for i in items):
+            errors.append(f"missing_checklist:{req}")
     ev_statuses = {e.status for e in evidences}
     if ev_statuses and not ev_statuses.issubset({EVIDENCE_DRAFT, EVIDENCE_CORRECTION_REQUIRED, EVIDENCE_RESUBMITTED}):
         errors.append("invalid_state")
@@ -736,19 +760,17 @@ def start_review_admin(work_order_id, actor_id, roles=None, operation_id=None):
     evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
     if not evs:
         return None, "not_found"
-    # idempotent
     if all(e.status in (EVIDENCE_UNDER_REVIEW, EVIDENCE_APPROVED, EVIDENCE_REJECTED) for e in evs):
         return evs, None
-    out = []
+    changed = False
     for ev in evs:
         if ev.status in (EVIDENCE_SUBMITTED, EVIDENCE_RESUBMITTED):
-            r, err = start_review(ev.id, actor_id, roles=roles)
-            if r:
-                out.append(r)
-    if out:
+            ev.status = EVIDENCE_UNDER_REVIEW
+            changed = True
+    if changed:
         _record_event(work_order_id, None, actor_id, "ADMIN_REVIEW_STARTED", None, EVIDENCE_UNDER_REVIEW, f"operation={operation_id}")
         db.session.commit()
-    return (out or evs), None
+    return evs, None
 
 
 def request_correction_admin(work_order_id, actor_id, *, notes=None, items=None, roles=None, operation_id=None):
@@ -760,18 +782,16 @@ def request_correction_admin(work_order_id, actor_id, *, notes=None, items=None,
     evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
     if not evs:
         return None, "not_found"
-    # mark all submitted/under review as correction required
-    out = []
+    changed = False
     for ev in evs:
         if ev.status in (EVIDENCE_SUBMITTED, EVIDENCE_UNDER_REVIEW, EVIDENCE_RESUBMITTED):
-            r, err = request_correction(ev.id, actor_id, notes=notes, roles=["admin"])
-            if r:
-                out.append(r)
-    if not out:
+            ev.status = EVIDENCE_CORRECTION_REQUIRED
+            changed = True
+    if not changed:
         return None, "invalid_state"
     _record_event(work_order_id, None, actor_id, "CORRECTION_REQUESTED", None, EVIDENCE_CORRECTION_REQUIRED, notes)
     db.session.commit()
-    return out, None
+    return evs, None
 
 
 def approve_expediente(work_order_id, actor_id, roles=None, operation_id=None):
@@ -781,21 +801,16 @@ def approve_expediente(work_order_id, actor_id, roles=None, operation_id=None):
     evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
     if not evs:
         return None, "not_found"
-    # idempotent
     if all(e.status == EVIDENCE_APPROVED for e in evs):
         return evs, None
     if not all(e.status in (EVIDENCE_UNDER_REVIEW, EVIDENCE_SUBMITTED, EVIDENCE_RESUBMITTED) for e in evs):
         return None, "invalid_state"
-    out = []
     for ev in evs:
-        r, err = approve_evidence(ev.id, actor_id, roles=["admin"])
-        if r:
-            out.append(r)
-    if not out:
-        return None, "invalid_state"
+        ev.status = EVIDENCE_APPROVED
+        db.session.add(EvidenceReview(evidence_id=ev.id, reviewer_id=actor_id, decision=EVIDENCE_APPROVED, notes=None, created_at=datetime.now(timezone.utc)))
     _record_event(work_order_id, None, actor_id, "APPROVED", None, EVIDENCE_APPROVED, f"operation={operation_id}")
     db.session.commit()
-    return out, None
+    return evs, None
 
 
 def reject_expediente(work_order_id, actor_id, *, reason=None, roles=None, operation_id=None):
@@ -809,17 +824,17 @@ def reject_expediente(work_order_id, actor_id, *, reason=None, roles=None, opera
         return None, "not_found"
     if all(e.status == EVIDENCE_REJECTED for e in evs):
         return evs, None
-    out = []
+    changed = False
     for ev in evs:
         if ev.status in (EVIDENCE_SUBMITTED, EVIDENCE_UNDER_REVIEW, EVIDENCE_RESUBMITTED, EVIDENCE_CORRECTION_REQUIRED):
-            r, err = reject_evidence(ev.id, actor_id, notes=reason, roles=["admin"])
-            if r:
-                out.append(r)
-    if not out:
+            ev.status = EVIDENCE_REJECTED
+            db.session.add(EvidenceReview(evidence_id=ev.id, reviewer_id=actor_id, decision=EVIDENCE_REJECTED, notes=reason, created_at=datetime.now(timezone.utc)))
+            changed = True
+    if not changed:
         return None, "invalid_state"
     _record_event(work_order_id, None, actor_id, "REJECTED", None, EVIDENCE_REJECTED, reason)
     db.session.commit()
-    return out, None
+    return evs, None
 
 
 # Backwards-compatible aliases

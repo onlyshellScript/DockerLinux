@@ -209,7 +209,7 @@ def evidence_submit(wo_id):
         submitted = VisitEvidence.query.filter_by(work_order_id=wo_id, status="SUBMITTED").all()
         if submitted:
             return jsonify({"submitted": 0, "status": "SUBMITTED", "idempotent": True}), 200
-    errors = validate_submission(wo_id)
+    errors = validate_submission(wo_id, policy=data.get("policy"))
     if errors:
         return jsonify({"error": "incomplete_expediente", "details": errors}), 400
     items, error = submit_expediente(wo_id, request.user_id, roles=roles, operation_id=data.get("operation_id"))
