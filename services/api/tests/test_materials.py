@@ -227,3 +227,79 @@ def test_decimal_precision_unit(client, app):
     # fractional stock on non-decimal unit -> 422
     r = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid, "current_stock": 1.5, "min_stock": 0, "unit_price": 1})
     assert r.status_code == 422
+
+
+def _create_inherited(app, admin_id):
+    from app.materials.models import Material, StockMovement
+    with app.app_context():
+        m = Material(name="Heredado", code="HER-1", unit="pza", current_stock=7, min_stock=2, unit_price=100, is_active=True, catalog_item_id=None)
+        db.session.add(m)
+        db.session.flush()
+        db.session.add(StockMovement(material_id=m.id, quantity=7, movement_type="ADJUSTMENT", user_id=admin_id, notes="Saldo inicial"))
+        db.session.commit()
+        return m.id
+
+
+def test_link_catalog_success(client, app):
+    admin_id, tech_id = _seed(app)
+    token = _login(client, "admin", "Admin123!")
+    mid = _create_inherited(app, admin_id)
+    from app.materials.models import MaterialCatalog
+    with app.app_context():
+        # pick a catalog item not inventoried
+        inv = {m.catalog_item_id for m in Material.query.filter(Material.catalog_item_id.isnot(None)).all()}
+        ci = MaterialCatalog.query.filter(~MaterialCatalog.id.in_(inv) if inv else True).first()
+        cid = ci.id
+        old_stock = 7
+        old_price = 100
+    # count movements before
+    from app.materials.models import StockMovement
+    with app.app_context():
+        mv_before = StockMovement.query.filter_by(material_id=mid).count()
+    r = client.put(f"/api/v1/materials/{mid}", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid})
+    assert r.status_code == 200
+    with app.app_context():
+        m = Material.query.get(mid)
+        assert m.id == mid
+        assert m.catalog_item_id == cid
+        assert float(m.current_stock) == old_stock
+        assert float(m.unit_price) == old_price
+        mv_after = StockMovement.query.filter_by(material_id=mid).count()
+        assert mv_after == mv_before
+
+
+def test_link_catalog_already_inventoried(client, app):
+    admin_id, tech_id = _seed(app)
+    token = _login(client, "admin", "Admin123!")
+    from app.materials.models import MaterialCatalog, Material
+    with app.app_context():
+        ci = MaterialCatalog.query.first()
+        m1 = Material(name=ci.name, code=ci.code, unit="pza", current_stock=1, min_stock=0, unit_price=1, catalog_item_id=ci.id)
+        db.session.add(m1); db.session.commit()
+        m = Material(name="H2", code="H2", unit="pza", current_stock=1, min_stock=0, unit_price=1, catalog_item_id=None)
+        db.session.add(m); db.session.commit()
+        cid = ci.id
+        mid = m.id
+    r = client.put(f"/api/v1/materials/{mid}", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid})
+    assert r.status_code == 409
+
+
+def test_link_catalog_not_found(client, app):
+    admin_id, tech_id = _seed(app)
+    token = _login(client, "admin", "Admin123!")
+    mid = _create_inherited(app, admin_id)
+    r = client.put(f"/api/v1/materials/{mid}", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": 999999})
+    assert r.status_code == 422
+
+
+def test_link_catalog_forbidden(client, app):
+    admin_id, tech_id = _seed(app)
+    token = _login(client, "tech", "Tech123!")
+    mid = _create_inherited(app, admin_id)
+    from app.materials.models import MaterialCatalog
+    with app.app_context():
+        inv = {m.catalog_item_id for m in Material.query.filter(Material.catalog_item_id.isnot(None)).all()}
+        ci = MaterialCatalog.query.filter(~MaterialCatalog.id.in_(inv) if inv else True).first()
+        cid = ci.id
+    r = client.put(f"/api/v1/materials/{mid}", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid})
+    assert r.status_code == 403
