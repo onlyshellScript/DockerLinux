@@ -2458,83 +2458,113 @@ async function openRequestModal(content, reqId) {
   });
 }
 
-async function openRequestDetail(content, reqId) {
-  const r = await api('GET', '/api/v1/material-requests/' + reqId);
-  if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
-  const req = r.body;
+﻿async function openRequestDetail(content, reqId) {
+  const load = async () => {
+    const r = await api('GET', '/api/v1/material-requests/' + reqId);
+    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return null; }
+    return r.body;
+  };
+  let req = await load();
+  if (!req) return;
   const roles = (state.session?.user?.roles || []);
   const canManage = roles.includes('admin') || roles.includes('dispatcher');
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
-  overlay.innerHTML = `
-    <div class="sigos-card" style="width:720px;max-width:95vw;padding:20px;max-height:90vh;overflow:auto">
-      <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">Solicitud #${req.id}</h3>
-      <div style="font-size:13px;color:#96908A;margin-bottom:8px">Estado: <strong>${escapeHtml(req.status)}</strong> · Solicitante: ${escapeHtml(req.requester?.username || '')} · Orden: ${req.work_order_id || '-'}</div>
-      <table class="tbl" style="font-size:12px;margin-bottom:12px">
-        <thead><tr><th>Material</th><th>Solicitado</th><th>Aprobado</th><th>Entregado</th><th>Pendiente</th></tr></thead>
-        <tbody>${(req.items || []).map((it) => `<tr>
-          <td>${escapeHtml(it.material?.name || it.material_id)}</td>
-          <td>${it.quantity_requested}</td>
-          <td>${it.quantity_approved}</td>
-          <td>${it.quantity_delivered}</td>
-          <td>${(it.quantity_approved || 0) - (it.quantity_delivered || 0)}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-      <div style="font-size:13px;font-weight:600;margin-bottom:4px">Historial de eventos</div>
-      <div style="font-size:12px;color:#3A4552;margin-bottom:12px">
-        ${(req.events || []).map((e) => `<div style="padding:4px 0;border-bottom:1px solid #F0ECE4">${escapeHtml(e.created_at || '')} — ${escapeHtml(e.action)} ${escapeHtml(e.from_status || '')} → ${escapeHtml(e.to_status || '')} (actor ${e.actor_id})</div>`).join('') || 'Sin eventos'}
-      </div>
-      ${canManage ? `
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          ${req.status === 'SUBMITTED' ? `<button class="sigos-btn-primary" id="approveBtn" style="height:32px">Aprobar</button>
-          <button class="sigos-btn-secondary" id="rejectBtn" style="height:32px">Rechazar</button>` : ''}
-          ${['APPROVED','PARTIALLY_APPROVED','PARTIALLY_DELIVERED'].includes(req.status) ? `<button class="sigos-btn-primary" id="deliverBtn" style="height:32px">Entregar</button>` : ''}
-          ${!['DELIVERED','CANCELLED','REJECTED'].includes(req.status) ? `<button class="sigos-btn-secondary" id="cancelBtn" style="height:32px">Cancelar</button>` : ''}
-        </div>
-      ` : ''}
-      <div style="display:flex;justify-content:flex-end;margin-top:12px">
-        <button class="sigos-btn-secondary" id="closeDetail">Cerrar</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  const close = () => overlay.remove();
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-  $('#closeDetail').addEventListener('click', close);
 
-  const approveBtn = $('#approveBtn');
-  if (approveBtn) approveBtn.addEventListener('click', async () => {
-    const items = (req.items || []).map((it) => ({ item_id: it.id, quantity_approved: it.quantity_requested }));
-    if (!window.confirm('¿Aprobar la solicitud completa?')) return;
-    const r = await api('POST', '/api/v1/material-requests/' + reqId + '/approve', { items });
-    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
-    close(); notify('Solicitud aprobada.', 'success'); renderRequests(content);
-  });
-  const rejectBtn = $('#rejectBtn');
-  if (rejectBtn) rejectBtn.addEventListener('click', async () => {
-    const reason = window.prompt('Motivo de rechazo:');
-    if (reason === null) return;
-    const r = await api('POST', '/api/v1/material-requests/' + reqId + '/reject', { reason });
-    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
-    close(); notify('Solicitud rechazada.', 'success'); renderRequests(content);
-  });
-  const deliverBtn = $('#deliverBtn');
-  if (deliverBtn) deliverBtn.addEventListener('click', async () => {
-    const items = (req.items || []).filter((it) => (it.quantity_approved || 0) - (it.quantity_delivered || 0) > 0)
-      .map((it) => ({ item_id: it.id, quantity_delivered: (it.quantity_approved || 0) - (it.quantity_delivered || 0) }));
-    if (!items.length) { notify('No hay saldo pendiente.', 'info'); return; }
-    if (!window.confirm('¿Registrar entrega completa del saldo pendiente?')) return;
-    const opId = 'del-' + reqId + '-' + Date.now();
-    const r = await api('POST', '/api/v1/material-requests/' + reqId + '/deliver', { items, operation_id: opId });
-    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
-    close(); notify('Entrega registrada.', 'success'); renderRequests(content);
-  });
-  const cancelBtn = $('#cancelBtn');
-  if (cancelBtn) cancelBtn.addEventListener('click', async () => {
-    if (!window.confirm('¿Cancelar la solicitud?')) return;
-    const r = await api('POST', '/api/v1/material-requests/' + reqId + '/cancel', { reason: 'Cancelada por usuario' });
-    if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
-    close(); notify('Solicitud cancelada.', 'success'); renderRequests(content);
-  });
+  const renderOverlay = () => {
+    // remove existing
+    const old = document.getElementById('reqDetailOverlay');
+    if (old) old.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'reqDetailOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000';
+    const canApprove = canManage && (req.status === 'SUBMITTED' || req.status === 'PARTIALLY_APPROVED');
+    const canDeliver = canManage && ['APPROVED','PARTIALLY_APPROVED','PARTIALLY_DELIVERED'].includes(req.status);
+    const canCancel = !['DELIVERED','CANCELLED','REJECTED'].includes(req.status) && (canManage || req.requester_id === state.session?.user?.id);
+    overlay.innerHTML = `
+      <div class="sigos-card" style="width:760px;max-width:95vw;padding:20px;max-height:90vh;overflow:auto">
+        <h3 style="font-family:Outfit;font-weight:700;font-size:18px;color:#163028;margin:0 0 12px">Solicitud #${req.id}</h3>
+        <div style="font-size:13px;color:#96908A;margin-bottom:8px">Estado: <strong>${escapeHtml(req.status)}</strong> · Solicitante: ${escapeHtml(req.requester?.username || '')} · Orden: ${req.work_order_id || '-'}</div>
+        <table class="tbl" style="font-size:12px;margin-bottom:12px">
+          <thead><tr><th>Material</th><th>Solicitado</th><th>Aprobado</th><th>Entregado</th><th>Pendiente</th>${canApprove ? '<th>Aprobar (cant.)</th>' : ''}${canDeliver ? '<th>Entregar (cant.)</th>' : ''}</tr></thead>
+          <tbody>${(req.items || []).map((it) => {
+            const pending = (it.quantity_approved || 0) - (it.quantity_delivered || 0);
+            return `<tr>
+              <td>${escapeHtml(it.material?.name || it.material_id)}</td>
+              <td>${it.quantity_requested}</td>
+              <td>${it.quantity_approved}</td>
+              <td>${it.quantity_delivered}</td>
+              <td>${pending}</td>
+              ${canApprove ? `<td><input type="number" min="0" max="${it.quantity_requested}" value="${it.quantity_approved || 0}" data-appr="${it.id}" style="width:80px;height:28px"></td>` : ''}
+              ${canDeliver ? `<td><input type="number" min="0" max="${pending}" value="${pending > 0 ? pending : 0}" data-deliv="${it.id}" style="width:80px;height:28px"></td>` : ''}
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Historial de eventos</div>
+        <div style="font-size:12px;color:#3A4552;margin-bottom:12px;max-height:160px;overflow:auto">
+          ${(req.events || []).map((e) => `<div style="padding:4px 0;border-bottom:1px solid #F0ECE4">${escapeHtml(e.created_at || '')} — ${escapeHtml(e.action)} ${escapeHtml(e.from_status || '')} → ${escapeHtml(e.to_status || '')} (actor ${e.actor_id})</div>`).join('') || 'Sin eventos'}
+        </div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Entregas</div>
+        <div style="font-size:12px;color:#3A4552;margin-bottom:12px;max-height:120px;overflow:auto">
+          ${(req.deliveries || []).map((d) => `<div style="padding:4px 0;border-bottom:1px solid #F0ECE4">Entrega #${d.id} — ${escapeHtml(d.created_at || '')} por ${d.actor_id}: ${(d.items||[]).map((i)=>i.quantity_delivered).join(', ')}</div>`).join('') || 'Sin entregas'}
+        </div>
+        ${canManage ? `
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+            ${req.status === 'SUBMITTED' || req.status === 'PARTIALLY_APPROVED' ? `<button class="sigos-btn-primary" id="approveBtn" style="height:32px">Aprobar</button>
+            <button class="sigos-btn-secondary" id="rejectBtn" style="height:32px">Rechazar</button>` : ''}
+            ${['APPROVED','PARTIALLY_APPROVED','PARTIALLY_DELIVERED'].includes(req.status) ? `<button class="sigos-btn-primary" id="deliverBtn" style="height:32px">Entregar</button>` : ''}
+            ${!['DELIVERED','CANCELLED','REJECTED'].includes(req.status) ? `<button class="sigos-btn-secondary" id="cancelBtn" style="height:32px">Cancelar</button>` : ''}
+          </div>
+        ` : ''}
+        <div style="display:flex;justify-content:flex-end;margin-top:12px">
+          <button class="sigos-btn-secondary" id="closeDetail">Cerrar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    $('#closeDetail').addEventListener('click', close);
+
+    const approveBtn = $('#approveBtn');
+    if (approveBtn) approveBtn.addEventListener('click', async () => {
+      const approvals = (req.items || []).map((it) => {
+        const inp = overlay.querySelector(`input[data-appr="${it.id}"]`);
+        return { item_id: it.id, quantity_approved: Number(inp ? inp.value : it.quantity_requested) };
+      });
+      if (!window.confirm('¿Aplicar aprobación?')) return;
+      const r = await api('POST', '/api/v1/material-requests/' + reqId + '/approve', { items: approvals });
+      if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+      close(); notify('Solicitud aprobada.', 'success'); renderRequests(content);
+    });
+    const rejectBtn = $('#rejectBtn');
+    if (rejectBtn) rejectBtn.addEventListener('click', async () => {
+      const reason = window.prompt('Motivo de rechazo:');
+      if (reason === null) return;
+      const r = await api('POST', '/api/v1/material-requests/' + reqId + '/reject', { reason });
+      if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+      close(); notify('Solicitud rechazada.', 'success'); renderRequests(content);
+    });
+    const deliverBtn = $('#deliverBtn');
+    if (deliverBtn) deliverBtn.addEventListener('click', async () => {
+      const deliveries = (req.items || []).map((it) => {
+        const inp = overlay.querySelector(`input[data-deliv="${it.id}"]`);
+        const val = inp ? Number(inp.value) : 0;
+        return val > 0 ? { item_id: it.id, quantity_delivered: val } : null;
+      }).filter(Boolean);
+      if (!deliveries.length) { notify('Ingresa cantidades a entregar.', 'error'); return; }
+      if (!window.confirm('¿Registrar entrega?')) return;
+      const opId = 'del-' + reqId + '-' + Date.now();
+      const r = await api('POST', '/api/v1/material-requests/' + reqId + '/deliver', { items: deliveries, operation_id: opId });
+      if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+      close(); notify('Entrega registrada.', 'success'); renderRequests(content);
+    });
+    const cancelBtn = $('#cancelBtn');
+    if (cancelBtn) cancelBtn.addEventListener('click', async () => {
+      if (!window.confirm('¿Cancelar la solicitud?')) return;
+      const r = await api('POST', '/api/v1/material-requests/' + reqId + '/cancel', { reason: 'Cancelada por usuario' });
+      if (!r.ok) { notify((r.body && (r.body.message || r.body.error)) || 'Error', 'error'); return; }
+      close(); notify('Solicitud cancelada.', 'success'); renderRequests(content);
+    });
+  };
+  renderOverlay();
 }
 
 
