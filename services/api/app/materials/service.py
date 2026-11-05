@@ -6,6 +6,8 @@ from app.materials.models import (
     Material, StockMovement, TechnicianProfile, TechnicianStock,
     MOVEMENT_IN, MOVEMENT_OUT, MOVEMENT_CONSUMPTION, MOVEMENT_ADJUSTMENT, MOVEMENT_RETURN,
     MOVEMENT_TRANSFER_OUT, ALL_MOVEMENTS,
+    MaterialRequest, MaterialRequestItem, MaterialRequestEvent, MaterialRequestDelivery,
+    MaterialRequestDeliveryItem, MaterialRequestOperation,
 )
 from app.settings.models import OperationalSettings
 from app.settings import service as settings_service
@@ -497,3 +499,328 @@ def list_requests(status=None):
     if status:
         q = q.filter_by(status=status)
     return q.order_by(MaterialRequest.created_at.desc()).all()
+
+
+# ---- Material request workflow (Fase 6.2) ----
+
+VALID_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "PARTIALLY_APPROVED", "REJECTED",
+                  "PARTIALLY_DELIVERED", "DELIVERED", "CANCELLED"]
+TERMINAL = {"REJECTED", "CANCELLED", "DELIVERED"}
+
+
+def _transition(req, new_status, actor_id, action, payload=None):
+    old = req.status
+    req.status = new_status
+    req.updated_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+    ev = MaterialRequestEvent(request_id=req.id, actor_id=actor_id, action=action,
+                             from_status=old, to_status=new_status,
+                             payload=__import__("json").dumps(payload) if payload is not None else None)
+    db.session.add(ev)
+
+
+def _get_request(req_id):
+    return MaterialRequest.query.filter_by(id=req_id).with_for_update() if False else MaterialRequest.query.get(req_id)
+
+
+def create_request(data, user_id, operation_id=None):
+    if operation_id:
+        op = MaterialRequestOperation.query.filter_by(operation_id=operation_id).first()
+        if op:
+            if op.result:
+                import json
+                try:
+                    return json.loads(op.result), None
+                except Exception:
+                    pass
+            # same key different payload -> conflict handled by caller; here treat as conflict
+            return None, "duplicate_operation"
+    items = data.get("items") or []
+    if not items:
+        return None, "no_items"
+    # validate materials
+    from app.materials.models import Material
+    for it in items:
+        m = db.session.get(Material, it.get("material_id"))
+        if not m or not m.is_active:
+            return None, "invalid_material"
+        q = float(it.get("quantity", 0))
+        if q <= 0:
+            return None, "invalid_quantity"
+    draft = bool(data.get("draft", False))
+    req = MaterialRequest(
+        requester_id=user_id,
+        technician_id=data.get("technician_id"),
+        work_order_id=data.get("work_order_id"),
+        reason=data.get("reason"),
+        status="DRAFT" if draft else "SUBMITTED",
+        client_operation_id=operation_id,
+    )
+    db.session.add(req)
+    db.session.flush()
+    for it in items:
+        db.session.add(MaterialRequestItem(
+            request_id=req.id,
+            material_id=it["material_id"],
+            quantity=float(it["quantity"]),
+            quantity_requested=float(it["quantity"]),
+        ))
+    if not draft:
+        _transition(req, "SUBMITTED", user_id, "submit", {"items": items})
+    # idempotency record
+    if operation_id:
+        import json
+        oprec = MaterialRequestOperation(operation_id=operation_id, operation_type="create",
+                                        actor_id=user_id, request_id=req.id,
+                                        result=json.dumps({"id": req.id}))
+        db.session.add(oprec)
+    db.session.commit()
+    return req, None
+
+
+def update_request(req_id, data, user_id, roles):
+    req = db.session.get(MaterialRequest, req_id)
+    if not req:
+        return None, "not_found"
+    if req.status != "DRAFT":
+        return None, "invalid_state"
+    if "admin" not in roles and "dispatcher" not in roles and req.requester_id != user_id:
+        return None, "forbidden"
+    if "reason" in data:
+        req.reason = data.get("reason")
+    if "technician_id" in data:
+        req.technician_id = data.get("technician_id")
+    if "work_order_id" in data:
+        req.work_order_id = data.get("work_order_id")
+    if "items" in data:
+        # replace items
+        MaterialRequestItem.query.filter_by(request_id=req.id).delete()
+        for it in (data.get("items") or []):
+            from app.materials.models import Material
+            m = db.session.get(Material, it.get("material_id"))
+            if not m or not m.is_active:
+                return None, "invalid_material"
+            q = float(it.get("quantity", 0))
+            if q <= 0:
+                return None, "invalid_quantity"
+            db.session.add(MaterialRequestItem(request_id=req.id, material_id=it["material_id"],
+                                             quantity=q, quantity_requested=q))
+    db.session.commit()
+    return req, None
+
+
+def submit_request(req_id, user_id, roles, operation_id=None):
+    req = MaterialRequest.query.filter_by(id=req_id).with_for_update() if False else db.session.get(MaterialRequest, req_id)
+    # lock
+    _lock_row("material_requests", "id", req_id)
+    req = db.session.get(MaterialRequest, req_id)
+    if not req:
+        return None, "not_found"
+    if req.status != "DRAFT":
+        return None, "invalid_state"
+    if "admin" not in roles and "dispatcher" not in roles and req.requester_id != user_id:
+        return None, "forbidden"
+    if not req.items:
+        return None, "no_items"
+    _transition(req, "SUBMITTED", user_id, "submit")
+    db.session.commit()
+    return req, None
+
+
+def approve_request(req_id, user_id, roles, approvals=None, reason=None, operation_id=None):
+    if "admin" not in roles and "dispatcher" not in roles:
+        return None, "forbidden"
+    _lock_row("material_requests", "id", req_id)
+    req = db.session.get(MaterialRequest, req_id)
+    if not req:
+        return None, "not_found"
+    if req.status not in ("SUBMITTED", "APPROVED", "PARTIALLY_APPROVED"):
+        return None, "invalid_state"
+    approvals = approvals or []
+    amap = {a.get("item_id"): a for a in approvals}
+    for it in req.items:
+        a = amap.get(it.id, {})
+        qa = a.get("quantity_approved", it.quantity_requested)
+        try:
+            qa = float(qa)
+        except (TypeError, ValueError):
+            return None, "invalid_quantity"
+        if qa < 0 or qa > it.quantity_requested:
+            return None, "invalid_approved_quantity"
+        it.quantity_approved = qa
+    # determine status
+    total_req = sum(i.quantity_requested for i in req.items)
+    total_app = sum(i.quantity_approved for i in req.items)
+    if total_app == 0:
+        new_status = "REJECTED"
+    elif total_app >= total_req:
+        new_status = "APPROVED"
+    else:
+        new_status = "PARTIALLY_APPROVED"
+    if reason:
+        req.approval_reason = reason
+    req.approved_by_id = user_id
+    _transition(req, new_status, user_id, "approve", {"approvals": approvals})
+    db.session.commit()
+    return req, None
+
+
+def reject_request(req_id, user_id, roles, reason=None):
+    if "admin" not in roles and "dispatcher" not in roles:
+        return None, "forbidden"
+    _lock_row("material_requests", "id", req_id)
+    req = db.session.get(MaterialRequest, req_id)
+    if not req:
+        return None, "not_found"
+    if req.status in TERMINAL:
+        return None, "invalid_state"
+    req.approved_by_id = user_id
+    req.approval_reason = reason
+    _transition(req, "REJECTED", user_id, "reject", {"reason": reason})
+    db.session.commit()
+    return req, None
+
+
+def _idempotency_check(operation_id, operation_type, actor_id, payload):
+    if not operation_id:
+        return None
+    from app.materials.models import MaterialRequestOperation
+    oprec = MaterialRequestOperation.query.filter_by(operation_id=operation_id).first()
+    if oprec:
+        if oprec.operation_type != operation_type or oprec.actor_id != actor_id:
+            return "conflict"
+        # same key: return stored result (caller should return)
+        return "replay"
+    return None
+
+
+def deliver_request(req_id, user_id, roles, deliveries=None, operation_id=None):
+    if "admin" not in roles and "dispatcher" not in roles:
+        return None, "forbidden"
+    # idempotency
+    idem = _idempotency_check(operation_id, "deliver", user_id, deliveries)
+    if idem == "conflict":
+        return None, "idempotency_conflict"
+    if idem == "replay":
+        # return existing request without reprocessing
+        req = db.session.get(MaterialRequest, req_id)
+        return req, None
+
+    _lock_row("material_requests", "id", req_id)
+    req = db.session.get(MaterialRequest, req_id)
+    if not req:
+        return None, "not_found"
+    if req.status not in ("APPROVED", "PARTIALLY_APPROVED", "PARTIALLY_DELIVERED"):
+        return None, "invalid_state"
+    deliveries = deliveries or []
+    # map item_id -> qty
+    dmap = {}
+    for d in deliveries:
+        dmap.setdefault(d.get("item_id"), 0)
+        dmap[d.get("item_id")] += float(d.get("quantity_delivered", 0))
+
+    # validate and lock materials
+    for it in req.items:
+        if it.id not in dmap:
+            continue
+        qty = dmap[it.id]
+        if qty <= 0:
+            continue
+        pending = (it.quantity_approved or 0) - (it.quantity_delivered or 0)
+        if qty > pending + 1e-9:
+            return None, "exceeds_approved"
+        _lock_row("materials", "id", it.material_id)
+        m = db.session.get(Material, it.material_id)
+        if not m or float(m.current_stock or 0) < qty:
+            return None, "insufficient_stock"
+    # apply
+    delivery = MaterialRequestDelivery(request_id=req.id, actor_id=user_id, operation_id=operation_id)
+    db.session.add(delivery)
+    db.session.flush()
+    for it in req.items:
+        if it.id not in dmap:
+            continue
+        qty = dmap[it.id]
+        if qty <= 0:
+            continue
+        _lock_row("materials", "id", it.material_id)
+        m = db.session.get(Material, it.material_id)
+        m.current_stock = float(m.current_stock or 0) - qty
+        # technician stock
+        if req.technician_id:
+            _lock_row("technician_stock", None, None, extra="technician_id = :t AND material_id = :m", params={"t": req.technician_id, "m": it.material_id})
+            ts = TechnicianStock.query.filter_by(technician_id=req.technician_id, material_id=it.material_id).first()
+            if not ts:
+                ts = TechnicianStock(technician_id=req.technician_id, material_id=it.material_id, quantity=0)
+                db.session.add(ts)
+                db.session.flush()
+            ts.quantity = float(ts.quantity or 0) + qty
+        mv = StockMovement(material_id=it.material_id, quantity=qty, movement_type="TRANSFER_OUT",
+                           work_order_id=req.work_order_id, user_id=user_id,
+                           notes=f"Entrega solicitud {req.id}")
+        db.session.add(mv)
+        db.session.flush()
+        db.session.add(MaterialRequestDeliveryItem(delivery_id=delivery.id, request_item_id=it.id,
+                                                  quantity_delivered=qty, movement_id=mv.id))
+        it.quantity_delivered = float(it.quantity_delivered or 0) + qty
+    # update status
+    total_app = sum(i.quantity_approved for i in req.items)
+    total_del = sum(i.quantity_delivered for i in req.items)
+    if total_del >= total_app - 1e-9 and total_app > 0:
+        new_status = "DELIVERED"
+    elif total_del > 0:
+        new_status = "PARTIALLY_DELIVERED"
+    else:
+        new_status = req.status
+    if new_status != req.status:
+        _transition(req, new_status, user_id, "deliver")
+    req.delivered_by_id = user_id
+    if operation_id:
+        import json
+        oprec = MaterialRequestOperation(operation_id=operation_id, operation_type="deliver",
+                                        actor_id=user_id, request_id=req.id,
+                                        result=json.dumps({"id": req.id, "status": req.status}))
+        db.session.add(oprec)
+    db.session.commit()
+    return req, None
+
+
+def cancel_request(req_id, user_id, roles, reason=None):
+    _lock_row("material_requests", "id", req_id)
+    req = db.session.get(MaterialRequest, req_id)
+    if not req:
+        return None, "not_found"
+    if req.status in ("DELIVERED", "CANCELLED", "REJECTED"):
+        return None, "invalid_state"
+    if "admin" not in roles and "dispatcher" not in roles and req.requester_id != user_id:
+        return None, "forbidden"
+    # if already delivered partially, cancel only pending; keep delivered
+    _transition(req, "CANCELLED", user_id, "cancel", {"reason": reason})
+    db.session.commit()
+    return req, None
+
+
+def get_request(req_id, user_id, roles):
+    req = db.session.get(MaterialRequest, req_id)
+    if not req:
+        return None
+    if "admin" not in roles and "dispatcher" not in roles and req.requester_id != user_id:
+        return None
+    return req
+
+
+def list_requests_filtered(status=None, work_order_id=None, mine=False, user_id=None, roles=None, page=1, page_size=20):
+    q = MaterialRequest.query
+    if status:
+        q = q.filter_by(status=status)
+    if work_order_id:
+        q = q.filter_by(work_order_id=work_order_id)
+    if mine and user_id and "admin" not in (roles or []) and "dispatcher" not in (roles or []):
+        q = q.filter_by(requester_id=user_id)
+    q = q.order_by(MaterialRequest.created_at.desc())
+    total = q.count()
+    items = q.offset((page-1)*page_size).limit(page_size).all()
+    return items, total
+
+
+def list_request_events(req_id):
+    return MaterialRequestEvent.query.filter_by(request_id=req_id).order_by(MaterialRequestEvent.created_at).all()

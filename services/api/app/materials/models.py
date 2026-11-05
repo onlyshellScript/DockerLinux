@@ -165,6 +165,9 @@ class MaterialRequestItem(db.Model):
             "material_id": self.material_id,
             "material": self.material.to_dict() if self.material else None,
             "quantity": self.quantity,
+            "quantity_requested": self.quantity_requested,
+            "quantity_approved": self.quantity_approved,
+            "quantity_delivered": self.quantity_delivered,
         }
 
 

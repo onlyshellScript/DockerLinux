@@ -60,3 +60,65 @@ def test_request_operation_unique(client, app):
             assert False, "expected unique violation"
         except Exception:
             db.session.rollback()
+
+
+def _login(client, username, password):
+    resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    return resp.get_json()["access_token"]
+
+
+def test_create_and_submit(client, app):
+    admin_id, tech_id, mat_id = _seed(app)
+    token = _login(client, "tech", "Tech123!")
+    # create draft
+    r = client.post("/api/v1/material-requests", headers={"Authorization": f"Bearer {token}"}, json={"items": [{"material_id": mat_id, "quantity": 2}], "draft": True})
+    assert r.status_code == 201
+    rid = r.get_json()["id"]
+    assert r.get_json()["status"] == "DRAFT"
+    # submit
+    r2 = client.post(f"/api/v1/material-requests/{rid}/submit", headers={"Authorization": f"Bearer {token}"})
+    assert r2.status_code == 200
+    assert r2.get_json()["status"] == "SUBMITTED"
+
+
+def test_approve_and_deliver_partial(client, app):
+    admin_id, tech_id, mat_id = _seed(app)
+    tech_token = _login(client, "tech", "Tech123!")
+    admin_token = _login(client, "admin", "Admin123!")
+    # create+submit
+    r = client.post("/api/v1/material-requests", headers={"Authorization": f"Bearer {tech_token}"}, json={"items": [{"material_id": mat_id, "quantity": 4}]})
+    rid = r.get_json()["id"]
+    iid = r.get_json()["items"][0]["id"]
+    # approve partial 2
+    ra = client.post(f"/api/v1/material-requests/{rid}/approve", headers={"Authorization": f"Bearer {admin_token}"}, json={"items": [{"item_id": iid, "quantity_approved": 2}]})
+    assert ra.status_code == 200
+    assert ra.get_json()["status"] == "PARTIALLY_APPROVED"
+    # deliver 1
+    rd = client.post(f"/api/v1/material-requests/{rid}/deliver", headers={"Authorization": f"Bearer {admin_token}"}, json={"items": [{"item_id": iid, "quantity_delivered": 1}], "operation_id": "op-1"})
+    assert rd.status_code == 200
+    assert rd.get_json()["status"] == "PARTIALLY_DELIVERED"
+    # idempotent replay
+    rd2 = client.post(f"/api/v1/material-requests/{rid}/deliver", headers={"Authorization": f"Bearer {admin_token}"}, json={"items": [{"item_id": iid, "quantity_delivered": 1}], "operation_id": "op-1"})
+    assert rd2.status_code == 200
+    # delivered total should still be 1
+    assert rd2.get_json()["items"][0]["quantity_delivered"] == 1
+
+
+def test_reject_and_cancel(client, app):
+    admin_id, tech_id, mat_id = _seed(app)
+    tech_token = _login(client, "tech", "Tech123!")
+    admin_token = _login(client, "admin", "Admin123!")
+    r = client.post("/api/v1/material-requests", headers={"Authorization": f"Bearer {tech_token}"}, json={"items": [{"material_id": mat_id, "quantity": 1}], "draft": True})
+    rid = r.get_json()["id"]
+    rc = client.post(f"/api/v1/material-requests/{rid}/cancel", headers={"Authorization": f"Bearer {tech_token}"}, json={"reason": "no longer needed"})
+    assert rc.status_code == 200
+    assert rc.get_json()["status"] == "CANCELLED"
+
+
+def test_forbidden_technician_approve(client, app):
+    admin_id, tech_id, mat_id = _seed(app)
+    tech_token = _login(client, "tech", "Tech123!")
+    r = client.post("/api/v1/material-requests", headers={"Authorization": f"Bearer {tech_token}"}, json={"items": [{"material_id": mat_id, "quantity": 1}]})
+    rid = r.get_json()["id"]
+    ra = client.post(f"/api/v1/material-requests/{rid}/approve", headers={"Authorization": f"Bearer {tech_token}"}, json={})
+    assert ra.status_code == 403

@@ -24,11 +24,16 @@ from app.materials.service import (
     transfer_stock,
     consume_for_order,
     get_technician_stock,
-    create_material_request,
+    create_request,
+    update_request,
+    submit_request,
     approve_request,
     reject_request,
     deliver_request,
-    list_requests,
+    cancel_request,
+    get_request,
+    list_requests_filtered,
+    list_request_events,
 )
 
 blueprint = Blueprint("materials", __name__)
@@ -474,9 +479,18 @@ def technician_stock_list():
 @blueprint.get("/material-requests")
 @require_auth
 def material_requests_list():
+    roles = getattr(request, "user_roles", [])
     status = request.args.get("status")
-    reqs = list_requests(status=status)
-    return jsonify([r.to_dict() for r in reqs]), 200
+    wo_id = request.args.get("work_order_id", type=int)
+    mine = request.args.get("mine", "").lower() == "true"
+    page = request.args.get("page", 1, type=int)
+    page_size = request.args.get("page_size", 20, type=int)
+    items, total = list_requests_filtered(status=status, work_order_id=wo_id, mine=mine,
+                                         user_id=request.user_id, roles=roles, page=page, page_size=page_size)
+    # technicians only see own
+    if "admin" not in roles and "dispatcher" not in roles:
+        items = [r for r in items if r.requester_id == request.user_id]
+    return jsonify({"items": [r.to_dict() for r in items], "total": total, "page": page, "page_size": page_size}), 200
 
 
 @blueprint.post("/material-requests")
@@ -484,20 +498,86 @@ def material_requests_list():
 def material_requests_create():
     data = request.get_json() or {}
     if not data.get("items"):
-        return jsonify({"error": "items required"}), 400
-    req = create_material_request(data, request.user_id)
+        return jsonify({"error": "items required", "message": "items required", "code": "NO_ITEMS"}), 422
+    roles = getattr(request, "user_roles", [])
+    op_id = data.get("operation_id")
+    req, err = create_request(data, request.user_id, operation_id=op_id)
+    if err == "no_items":
+        return jsonify({"error": "items required", "message": "items required", "code": "NO_ITEMS"}), 422
+    if err == "invalid_material":
+        return jsonify({"error": "invalid material", "message": "invalid material", "code": "INVALID_MATERIAL"}), 422
+    if err == "invalid_quantity":
+        return jsonify({"error": "invalid quantity", "message": "invalid quantity", "code": "INVALID_QUANTITY"}), 422
+    if err == "duplicate_operation":
+        return jsonify({"error": "duplicate operation", "message": "duplicate operation", "code": "DUPLICATE_OPERATION"}), 409
+    if not req:
+        return jsonify({"error": "could not create", "message": "could not create"}), 400
     return jsonify(req.to_dict()), 201
+
+
+@blueprint.get("/material-requests/<int:req_id>")
+@require_auth
+def material_requests_get(req_id):
+    roles = getattr(request, "user_roles", [])
+    req = get_request(req_id, request.user_id, roles)
+    if not req:
+        return jsonify({"error": "not found", "message": "not found"}), 404
+    return jsonify(req.to_dict()), 200
+
+
+@blueprint.patch("/material-requests/<int:req_id>")
+@require_auth
+def material_requests_update(req_id):
+    data = request.get_json() or {}
+    roles = getattr(request, "user_roles", [])
+    req, err = update_request(req_id, data, request.user_id, roles)
+    if err == "not_found":
+        return jsonify({"error": "not found", "message": "not found"}), 404
+    if err == "invalid_state":
+        return jsonify({"error": "invalid state", "message": "invalid state", "code": "INVALID_STATE"}), 409
+    if err == "forbidden":
+        return jsonify({"error": "forbidden", "message": "forbidden"}), 403
+    if err in ("invalid_material", "invalid_quantity"):
+        return jsonify({"error": err, "message": err, "code": err.upper()}), 422
+    if not req:
+        return jsonify({"error": "could not update", "message": "could not update"}), 400
+    return jsonify(req.to_dict()), 200
+
+
+@blueprint.post("/material-requests/<int:req_id>/submit")
+@require_auth
+def material_requests_submit(req_id):
+    roles = getattr(request, "user_roles", [])
+    req, err = submit_request(req_id, request.user_id, roles)
+    if err == "not_found":
+        return jsonify({"error": "not found", "message": "not found"}), 404
+    if err == "invalid_state":
+        return jsonify({"error": "invalid state", "message": "invalid state", "code": "INVALID_STATE"}), 409
+    if err == "forbidden":
+        return jsonify({"error": "forbidden", "message": "forbidden"}), 403
+    if err == "no_items":
+        return jsonify({"error": "items required", "message": "items required", "code": "NO_ITEMS"}), 422
+    if not req:
+        return jsonify({"error": "could not submit", "message": "could not submit"}), 400
+    return jsonify(req.to_dict()), 200
 
 
 @blueprint.post("/material-requests/<int:req_id>/approve")
 @require_role("admin", "dispatcher")
 def material_requests_approve(req_id):
     data = request.get_json() or {}
-    req, err = approve_request(req_id, request.user_id, data.get("reason"))
+    roles = getattr(request, "user_roles", [])
+    req, err = approve_request(req_id, request.user_id, roles, approvals=data.get("items"), reason=data.get("reason"))
+    if err == "not_found":
+        return jsonify({"error": "not found", "message": "not found"}), 404
     if err == "invalid_state":
-        return jsonify({"error": "invalid state"}), 409
+        return jsonify({"error": "invalid state", "message": "invalid state", "code": "INVALID_STATE"}), 409
+    if err == "forbidden":
+        return jsonify({"error": "forbidden", "message": "forbidden"}), 403
+    if err in ("invalid_approved_quantity", "invalid_quantity"):
+        return jsonify({"error": err, "message": err, "code": err.upper()}), 422
     if not req:
-        return jsonify({"error": "not found"}), 404
+        return jsonify({"error": "could not approve", "message": "could not approve"}), 400
     return jsonify(req.to_dict()), 200
 
 
@@ -505,25 +585,77 @@ def material_requests_approve(req_id):
 @require_role("admin", "dispatcher")
 def material_requests_reject(req_id):
     data = request.get_json() or {}
-    req, err = reject_request(req_id, request.user_id, data.get("reason"))
+    roles = getattr(request, "user_roles", [])
+    req, err = reject_request(req_id, request.user_id, roles, reason=data.get("reason"))
+    if err == "not_found":
+        return jsonify({"error": "not found", "message": "not found"}), 404
     if err == "invalid_state":
-        return jsonify({"error": "invalid state"}), 409
+        return jsonify({"error": "invalid state", "message": "invalid state", "code": "INVALID_STATE"}), 409
+    if err == "forbidden":
+        return jsonify({"error": "forbidden", "message": "forbidden"}), 403
     if not req:
-        return jsonify({"error": "not found"}), 404
+        return jsonify({"error": "could not reject", "message": "could not reject"}), 400
     return jsonify(req.to_dict()), 200
 
 
 @blueprint.post("/material-requests/<int:req_id>/deliver")
 @require_role("admin", "dispatcher")
 def material_requests_deliver(req_id):
-    req, err = deliver_request(req_id, request.user_id)
+    data = request.get_json() or {}
+    roles = getattr(request, "user_roles", [])
+    req, err = deliver_request(req_id, request.user_id, roles, deliveries=data.get("items"), operation_id=data.get("operation_id"))
+    if err == "not_found":
+        return jsonify({"error": "not found", "message": "not found"}), 404
     if err == "invalid_state":
-        return jsonify({"error": "invalid state"}), 409
+        return jsonify({"error": "invalid state", "message": "invalid state", "code": "INVALID_STATE"}), 409
+    if err == "forbidden":
+        return jsonify({"error": "forbidden", "message": "forbidden"}), 403
     if err == "insufficient_stock":
-        return jsonify({"error": "insufficient stock"}), 400
+        return jsonify({"error": "insufficient stock", "message": "insufficient stock", "code": "INSUFFICIENT_STOCK"}), 409
+    if err in ("exceeds_approved", "idempotency_conflict"):
+        return jsonify({"error": err, "message": err, "code": err.upper()}), 409
     if not req:
-        return jsonify({"error": "not found"}), 404
+        return jsonify({"error": "could not deliver", "message": "could not deliver"}), 400
     return jsonify(req.to_dict()), 200
+
+
+@blueprint.post("/material-requests/<int:req_id>/cancel")
+@require_auth
+def material_requests_cancel(req_id):
+    data = request.get_json() or {}
+    roles = getattr(request, "user_roles", [])
+    req, err = cancel_request(req_id, request.user_id, roles, reason=data.get("reason"))
+    if err == "not_found":
+        return jsonify({"error": "not found", "message": "not found"}), 404
+    if err == "invalid_state":
+        return jsonify({"error": "invalid state", "message": "invalid state", "code": "INVALID_STATE"}), 409
+    if err == "forbidden":
+        return jsonify({"error": "forbidden", "message": "forbidden"}), 403
+    if not req:
+        return jsonify({"error": "could not cancel", "message": "could not cancel"}), 400
+    return jsonify(req.to_dict()), 200
+
+
+@blueprint.get("/material-requests/<int:req_id>/events")
+@require_auth
+def material_requests_events(req_id):
+    roles = getattr(request, "user_roles", [])
+    req = get_request(req_id, request.user_id, roles)
+    if not req:
+        return jsonify({"error": "not found", "message": "not found"}), 404
+    return jsonify([e.to_dict() for e in list_request_events(req_id)]), 200
+
+
+@blueprint.get("/work-orders/<int:wo_id>/material-requests")
+@require_auth
+def work_order_material_requests(wo_id):
+    roles = getattr(request, "user_roles", [])
+    items, total = list_requests_filtered(work_order_id=wo_id, mine=("admin" not in roles and "dispatcher" not in roles),
+                                          user_id=request.user_id, roles=roles, page=1, page_size=100)
+    # technicians only own
+    if "admin" not in roles and "dispatcher" not in roles:
+        items = [r for r in items if r.requester_id == request.user_id]
+    return jsonify({"items": [r.to_dict() for r in items], "total": total}), 200
 
 
 @blueprint.post("/work-orders/<int:wo_id>/materials")
