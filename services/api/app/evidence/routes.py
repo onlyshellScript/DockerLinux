@@ -34,6 +34,12 @@ from app.evidence.service import (
     validate_submission,
     resubmit_expediente,
     get_expediente_status,
+    list_admin_inbox,
+    get_admin_detail,
+    start_review_admin,
+    request_correction_admin,
+    approve_expediente,
+    reject_expediente,
 )
 from app.evidence.storage import get_storage
 from app.evidence.permissions import (
@@ -408,3 +414,135 @@ def evidence_reviews_list(ev_id):
     if not _access(wo, roles) and "admin" not in roles and "dispatcher" not in roles:
         return jsonify({"error": "insufficient permissions"}), 403
     return jsonify([r.to_dict() for r in list_reviews(ev_id)]), 200
+
+
+# --- Admin inbox & review (E3) ---
+
+@blueprint.get("/evidences/inbox")
+@require_role("admin", "dispatcher")
+def evidence_inbox():
+    roles = request.user_roles
+    data = list_admin_inbox(
+        status=request.args.get("status"),
+        technician_id=request.args.get("technician_id", type=int),
+        client=request.args.get("client"),
+        work_order_id=request.args.get("work_order_id", type=int),
+        date_from=request.args.get("date_from"),
+        date_to=request.args.get("date_to"),
+        visit_date_from=request.args.get("visit_date_from"),
+        visit_date_to=request.args.get("visit_date_to"),
+        evidence_type=request.args.get("evidence_type") or request.args.get("type"),
+        q=request.args.get("q"),
+        page=request.args.get("page", 1, type=int),
+        page_size=request.args.get("page_size", 20, type=int),
+        sort=request.args.get("sort", "received_at"),
+        order=request.args.get("order", "desc"),
+        roles=roles,
+    )
+    return jsonify(data), 200
+
+
+@blueprint.get("/work-orders/<int:wo_id>/evidence-detail")
+@require_auth
+def evidence_admin_detail(wo_id):
+    wo, err = _wo_or_404(wo_id)
+    if err:
+        return err
+    roles = request.user_roles
+    if not _access(wo, roles) and "admin" not in roles and "dispatcher" not in roles:
+        return jsonify({"error": "insufficient permissions"}), 403
+    detail = get_admin_detail(wo_id)
+    if not detail:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(detail), 200
+
+
+@blueprint.post("/work-orders/<int:wo_id>/evidences/start-review")
+@require_role("admin", "dispatcher")
+def evidence_start_review(wo_id):
+    wo, err = _wo_or_404(wo_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    res, error = start_review_admin(wo_id, request.user_id, roles=request.user_roles, operation_id=data.get("operation_id"))
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"status": "UNDER_REVIEW"}), 200
+
+
+@blueprint.post("/work-orders/<int:wo_id>/evidences/request-correction")
+@require_role("admin")
+def evidence_request_correction(wo_id):
+    wo, err = _wo_or_404(wo_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    notes = data.get("notes") or data.get("reason") or data.get("motivo")
+    res, error = request_correction_admin(wo_id, request.user_id, notes=notes, items=data.get("items"), roles=request.user_roles, operation_id=data.get("operation_id"))
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"status": "CORRECTION_REQUIRED"}), 200
+
+
+@blueprint.post("/work-orders/<int:wo_id>/evidences/approve")
+@require_role("admin")
+def evidence_approve(wo_id):
+    wo, err = _wo_or_404(wo_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    res, error = approve_expediente(wo_id, request.user_id, roles=request.user_roles, operation_id=data.get("operation_id"))
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"status": "APPROVED"}), 200
+
+
+@blueprint.post("/work-orders/<int:wo_id>/evidences/reject")
+@require_role("admin")
+def evidence_reject(wo_id):
+    wo, err = _wo_or_404(wo_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    reason = data.get("reason") or data.get("notes") or data.get("motivo")
+    res, error = reject_expediente(wo_id, request.user_id, reason=reason, roles=request.user_roles, operation_id=data.get("operation_id"))
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"status": "REJECTED"}), 200
+
+
+# Per-evidence aliases (delegate to work order)
+@blueprint.post("/evidences/<int:ev_id>/start-review")
+@require_role("admin", "dispatcher")
+def evidence_start_review_single(ev_id):
+    ev = get_evidence(ev_id)
+    if not ev:
+        return jsonify({"error": "evidence not found"}), 404
+    return evidence_start_review(ev.work_order_id)
+
+
+@blueprint.post("/evidences/<int:ev_id>/request-correction")
+@require_role("admin")
+def evidence_request_correction_single(ev_id):
+    ev = get_evidence(ev_id)
+    if not ev:
+        return jsonify({"error": "evidence not found"}), 404
+    return evidence_request_correction(ev.work_order_id)
+
+
+@blueprint.post("/evidences/<int:ev_id>/approve")
+@require_role("admin")
+def evidence_approve_single(ev_id):
+    ev = get_evidence(ev_id)
+    if not ev:
+        return jsonify({"error": "evidence not found"}), 404
+    return evidence_approve(ev.work_order_id)
+
+
+@blueprint.post("/evidences/<int:ev_id>/reject")
+@require_role("admin")
+def evidence_reject_single(ev_id):
+    ev = get_evidence(ev_id)
+    if not ev:
+        return jsonify({"error": "evidence not found"}), 404
+    return evidence_reject(ev.work_order_id)

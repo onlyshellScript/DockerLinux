@@ -31,6 +31,7 @@ from app.evidence.permissions import (
 )
 from app.workorders.service import get_work_order
 from app.identity.models import User
+from app.materials.service import _lock_row
 
 
 def _now():
@@ -584,6 +585,241 @@ def get_expediente_status(work_order_id):
         "checklist": checklist,
         "events": events,
     }
+
+
+def list_admin_inbox(
+    *,
+    status=None,
+    technician_id=None,
+    client=None,
+    work_order_id=None,
+    date_from=None,
+    date_to=None,
+    visit_date_from=None,
+    visit_date_to=None,
+    evidence_type=None,
+    q=None,
+    page=1,
+    page_size=20,
+    sort="received_at",
+    order="desc",
+    roles=None,
+):
+    from app.workorders.models import WorkOrder
+    from datetime import datetime
+
+    veq = VisitEvidence.query
+    if status:
+        veq = veq.filter(VisitEvidence.status == status)
+    if evidence_type:
+        veq = veq.filter(VisitEvidence.category == evidence_type)
+    if work_order_id:
+        veq = veq.filter(VisitEvidence.work_order_id == int(work_order_id))
+    # technician filter via work order
+    if technician_id:
+        wo_ids = [w.id for w in WorkOrder.query.filter_by(assigned_to_id=int(technician_id)).all()]
+        veq = veq.filter(VisitEvidence.work_order_id.in_(wo_ids if wo_ids else [-1]))
+    if date_from:
+        try:
+            df = datetime.fromisoformat(str(date_from).replace("Z", "+00:00"))
+            veq = veq.filter(VisitEvidence.received_at >= df)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt = datetime.fromisoformat(str(date_to).replace("Z", "+00:00"))
+            veq = veq.filter(VisitEvidence.received_at <= dt)
+        except ValueError:
+            pass
+
+    candidate_wo_ids = {v.work_order_id for v in veq.all()}
+
+    wq = WorkOrder.query
+    if candidate_wo_ids:
+        wq = wq.filter(WorkOrder.id.in_(candidate_wo_ids))
+    else:
+        wq = wq.filter(WorkOrder.id == -1)
+    if client:
+        like = f"%{client}%"
+        wq = wq.filter(WorkOrder.customer_name.ilike(like))
+    if q:
+        like = f"%{q}%"
+        wq = wq.filter(
+            db.or_(
+                WorkOrder.title.ilike(like),
+                WorkOrder.customer_name.ilike(like),
+                db.cast(WorkOrder.id, db.String).ilike(like),
+            )
+        )
+    if visit_date_from:
+        try:
+            df = datetime.fromisoformat(str(visit_date_from).replace("Z", "+00:00"))
+            wq = wq.filter(WorkOrder.scheduled_at >= df)
+        except ValueError:
+            pass
+    if visit_date_to:
+        try:
+            dt = datetime.fromisoformat(str(visit_date_to).replace("Z", "+00:00"))
+            wq = wq.filter(WorkOrder.scheduled_at <= dt)
+        except ValueError:
+            pass
+
+    total = wq.count()
+    page = max(1, int(page or 1))
+    page_size = max(1, min(100, int(page_size or 20)))
+    items = wq.order_by(WorkOrder.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    # counts by status across candidate set
+    counts = {}
+    for st in EVIDENCE_STATES:
+        q2 = VisitEvidence.query.filter(VisitEvidence.status == st)
+        if technician_id:
+            wo_ids = [w.id for w in WorkOrder.query.filter_by(assigned_to_id=int(technician_id)).all()]
+            q2 = q2.filter(VisitEvidence.work_order_id.in_(wo_ids if wo_ids else [-1]))
+        counts[st] = q2.with_entities(VisitEvidence.work_order_id).distinct().count()
+
+    result_items = []
+    for wo in items:
+        evs = VisitEvidence.query.filter_by(work_order_id=wo.id).all()
+        statuses = {e.status for e in evs}
+        overall = "DRAFT"
+        if statuses:
+            if "CORRECTION_REQUIRED" in statuses:
+                overall = "CORRECTION_REQUIRED"
+            elif "REJECTED" in statuses:
+                overall = "REJECTED"
+            elif "SUBMITTED" in statuses or "UNDER_REVIEW" in statuses or "RESUBMITTED" in statuses:
+                overall = "SUBMITTED"
+            elif statuses == {"APPROVED"}:
+                overall = "APPROVED"
+        result_items.append({
+            "work_order": wo.to_dict(),
+            "validation_status": overall,
+            "evidence_count": len(evs),
+            "statuses": sorted(statuses),
+        })
+
+    return {
+        "items": result_items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "counts": counts,
+    }
+
+
+def get_admin_detail(work_order_id):
+    from app.workorders.models import WorkOrder
+    wo = get_work_order(work_order_id)
+    if not wo:
+        return None
+    status = get_expediente_status(work_order_id)
+    # strip sensitive keys
+    def _clean(ev):
+        ev = dict(ev)
+        ev.pop("storage_key", None)
+        ev.pop("stored_name", None)
+        return ev
+    status["evidences"] = [_clean(e) for e in status["evidences"]]
+    reviews = []
+    for ev in list_evidences(work_order_id):
+        reviews.extend([r.to_dict() for r in list_reviews(ev.id)])
+    status["reviews"] = reviews
+    status["work_order"] = wo.to_dict()
+    return status
+
+
+def start_review_admin(work_order_id, actor_id, roles=None, operation_id=None):
+    if roles is not None and not can_review_evidence(roles):
+        return None, "forbidden"
+    _lock_row("visit_evidences", extra="work_order_id = :wo", params={"wo": work_order_id})
+    evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
+    if not evs:
+        return None, "not_found"
+    # idempotent
+    if all(e.status in (EVIDENCE_UNDER_REVIEW, EVIDENCE_APPROVED, EVIDENCE_REJECTED) for e in evs):
+        return evs, None
+    out = []
+    for ev in evs:
+        if ev.status in (EVIDENCE_SUBMITTED, EVIDENCE_RESUBMITTED):
+            r, err = start_review(ev.id, actor_id, roles=roles)
+            if r:
+                out.append(r)
+    if out:
+        _record_event(work_order_id, None, actor_id, "ADMIN_REVIEW_STARTED", None, EVIDENCE_UNDER_REVIEW, f"operation={operation_id}")
+        db.session.commit()
+    return (out or evs), None
+
+
+def request_correction_admin(work_order_id, actor_id, *, notes=None, items=None, roles=None, operation_id=None):
+    if roles is not None and "admin" not in set(roles or []):
+        return None, "forbidden"
+    if not notes:
+        return None, "notes_required"
+    _lock_row("visit_evidences", extra="work_order_id = :wo", params={"wo": work_order_id})
+    evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
+    if not evs:
+        return None, "not_found"
+    # mark all submitted/under review as correction required
+    out = []
+    for ev in evs:
+        if ev.status in (EVIDENCE_SUBMITTED, EVIDENCE_UNDER_REVIEW, EVIDENCE_RESUBMITTED):
+            r, err = request_correction(ev.id, actor_id, notes=notes, roles=["admin"])
+            if r:
+                out.append(r)
+    if not out:
+        return None, "invalid_state"
+    _record_event(work_order_id, None, actor_id, "CORRECTION_REQUESTED", None, EVIDENCE_CORRECTION_REQUIRED, notes)
+    db.session.commit()
+    return out, None
+
+
+def approve_expediente(work_order_id, actor_id, roles=None, operation_id=None):
+    if roles is not None and "admin" not in set(roles or []):
+        return None, "forbidden"
+    _lock_row("visit_evidences", extra="work_order_id = :wo", params={"wo": work_order_id})
+    evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
+    if not evs:
+        return None, "not_found"
+    # idempotent
+    if all(e.status == EVIDENCE_APPROVED for e in evs):
+        return evs, None
+    if not all(e.status in (EVIDENCE_UNDER_REVIEW, EVIDENCE_SUBMITTED, EVIDENCE_RESUBMITTED) for e in evs):
+        return None, "invalid_state"
+    out = []
+    for ev in evs:
+        r, err = approve_evidence(ev.id, actor_id, roles=["admin"])
+        if r:
+            out.append(r)
+    if not out:
+        return None, "invalid_state"
+    _record_event(work_order_id, None, actor_id, "APPROVED", None, EVIDENCE_APPROVED, f"operation={operation_id}")
+    db.session.commit()
+    return out, None
+
+
+def reject_expediente(work_order_id, actor_id, *, reason=None, roles=None, operation_id=None):
+    if roles is not None and "admin" not in set(roles or []):
+        return None, "forbidden"
+    if not reason:
+        return None, "reason_required"
+    _lock_row("visit_evidences", extra="work_order_id = :wo", params={"wo": work_order_id})
+    evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
+    if not evs:
+        return None, "not_found"
+    if all(e.status == EVIDENCE_REJECTED for e in evs):
+        return evs, None
+    out = []
+    for ev in evs:
+        if ev.status in (EVIDENCE_SUBMITTED, EVIDENCE_UNDER_REVIEW, EVIDENCE_RESUBMITTED, EVIDENCE_CORRECTION_REQUIRED):
+            r, err = reject_evidence(ev.id, actor_id, notes=reason, roles=["admin"])
+            if r:
+                out.append(r)
+    if not out:
+        return None, "invalid_state"
+    _record_event(work_order_id, None, actor_id, "REJECTED", None, EVIDENCE_REJECTED, reason)
+    db.session.commit()
+    return out, None
 
 
 # Backwards-compatible aliases
