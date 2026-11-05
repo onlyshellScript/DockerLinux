@@ -72,6 +72,28 @@ class StockMovement(db.Model):
         }
 
 
+class TechnicianStock(db.Model):
+    __tablename__ = "technician_stock"
+
+    id = db.Column(db.Integer, primary_key=True)
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    material_id = db.Column(db.Integer, db.ForeignKey("materials.id", ondelete="CASCADE"), nullable=False, index=True)
+    quantity = db.Column(db.Float, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    technician = db.relationship("TechnicianProfile")
+    material = db.relationship("Material")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "technician_id": self.technician_id,
+            "material_id": self.material_id,
+            "material": self.material.to_dict() if self.material else None,
+            "quantity": self.quantity,
+        }
+
+
 class TechnicianProfile(db.Model):
     __tablename__ = "technician_profiles"
 

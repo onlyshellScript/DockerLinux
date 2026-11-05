@@ -1574,11 +1574,19 @@ async function renderMaterials(content) {
   const res = await api('GET', '/api/v1/materials');
   if (!res.ok) { content.innerHTML = `<div style="color:#991B1B">${escapeHtml(res.body?.error || 'Error')}</div>`; return; }
   const mats = res.body || [];
+  const totalValue = mats.reduce((a,m) => a + (m.current_stock||0)*(m.unit_price||0), 0);
   content.innerHTML = `
+    <div style="margin-bottom:8px;font-size:13px;color:#3A4552">Valor inmovilizado: <strong>${totalValue.toFixed(2)}</strong></div>
     <div class="sigos-card" style="overflow:hidden">
       <table class="tbl">
-        <thead><tr><th>Nombre</th><th>Unidad</th><th>Stock</th><th>MÃ­nimo</th><th>Precio</th></tr></thead>
-        <tbody>${mats.map((m) => `<tr class="tbl-row"><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.unit)}</td><td>${m.current_stock ?? m.stock ?? ''}</td><td>${m.min_stock ?? m.minStock ?? ''}</td><td>${m.unit_price ?? ''}</td></tr>`).join('') || '<tr><td colspan="5" class="empty-state__text">Sin materiales</td></tr>'}</tbody>
+        <thead><tr><th>Nombre</th><th>Unidad</th><th>Stock</th><th>Mínimo</th><th>Precio</th><th>Estado</th></tr></thead>
+        <tbody>${mats.map((m) => {
+          const stock = m.current_stock ?? m.stock ?? 0;
+          const min = m.min_stock ?? m.minStock ?? 0;
+          const badge = stock <= min ? 'badge-cancelled' : (stock <= min*1.25 ? 'badge-pending' : 'badge-completed');
+          const label = stock <= min ? 'Crítico' : (stock <= min*1.25 ? 'Advertencia' : 'Óptimo');
+          return `<tr class="tbl-row"><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.unit)}</td><td>${stock}</td><td>${min}</td><td>${m.unit_price ?? ''}</td><td><span class="${badge}">${label}</span></td></tr>`;
+        }).join('') || '<tr><td colspan="6" class="empty-state__text">Sin materiales</td></tr>'}</tbody>
       </table>
     </div>`;
 }

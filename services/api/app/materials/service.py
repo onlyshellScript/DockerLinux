@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 from app.extensions import db
-from app.materials.models import Material, StockMovement, TechnicianProfile, MOVEMENT_IN, MOVEMENT_OUT
+from app.materials.models import Material, StockMovement, TechnicianProfile, TechnicianStock, MOVEMENT_IN, MOVEMENT_OUT
 
 
 def create_material(data):
@@ -108,3 +108,50 @@ def update_profile(profile_id, data):
     db.session.commit()
     return p
 
+
+
+
+def get_technician_stock(technician_id):
+    return TechnicianStock.query.filter_by(technician_id=technician_id).all()
+
+
+def transfer_stock(material_id, technician_id, quantity, user_id, notes=None):
+    if quantity <= 0:
+        return None, "invalid_quantity"
+    m = db.session.get(Material, material_id)
+    if not m:
+        return None, "material_not_found"
+    from app.materials.models import TechnicianProfile
+    prof = db.session.get(TechnicianProfile, technician_id)
+    if not prof:
+        return None, "technician_not_found"
+    # lock rows
+    m = Material.query.filter_by(id=material_id).with_for_update().first()
+    ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).with_for_update().first()
+    if m.current_stock < quantity:
+        return None, "insufficient_stock"
+    m.current_stock -= quantity
+    if not ts:
+        ts = TechnicianStock(technician_id=technician_id, material_id=material_id, quantity=0)
+        db.session.add(ts)
+        db.session.flush()
+    ts.quantity += quantity
+    mv = StockMovement(material_id=material_id, quantity=quantity, movement_type="TRANSFER_OUT",
+                       user_id=user_id, notes=notes or f"Transferencia a tecnico {technician_id}")
+    db.session.add(mv)
+    db.session.commit()
+    return {"material": m, "technician_stock": ts}, None
+
+
+def consume_for_order(material_id, technician_id, quantity, work_order_id, user_id, notes=None):
+    if quantity <= 0:
+        return None, "invalid_quantity"
+    ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).with_for_update().first()
+    if not ts or ts.quantity < quantity:
+        return None, "insufficient_stock"
+    ts.quantity -= quantity
+    mv = StockMovement(material_id=material_id, quantity=quantity, movement_type=MOVEMENT_CONSUMPTION,
+                       work_order_id=work_order_id, user_id=user_id, notes=notes)
+    db.session.add(mv)
+    db.session.commit()
+    return mv, None

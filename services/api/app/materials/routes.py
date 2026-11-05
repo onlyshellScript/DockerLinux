@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 from flask import Blueprint, request, jsonify
 
 from app.extensions import db
@@ -16,6 +16,9 @@ from app.materials.service import (
     list_profiles,
     get_profile,
     update_profile,
+    transfer_stock,
+    consume_for_order,
+    get_technician_stock,
 )
 
 blueprint = Blueprint("materials", __name__)
@@ -141,3 +144,55 @@ def profiles_update(profile_id):
         return jsonify({"error": "profile not found"}), 404
     return jsonify(p.to_dict()), 200
 
+
+# ---- Transfers / technician stock ----
+
+@blueprint.post("/materials/transfer")
+@require_role("admin", "dispatcher")
+def materials_transfer():
+    data = request.get_json() or {}
+    mat_id = data.get("material_id")
+    tech_id = data.get("technician_id")
+    qty = data.get("quantity")
+    if not mat_id or not tech_id or not qty:
+        return jsonify({"error": "material_id, technician_id, quantity required"}), 400
+    res, err = transfer_stock(
+        int(mat_id), int(tech_id), float(qty), request.user_id, data.get("notes"))
+    if err == "material_not_found":
+        return jsonify({"error": "material not found"}), 404
+    if err == "technician_not_found":
+        return jsonify({"error": "technician not found"}), 404
+    if err == "insufficient_stock":
+        return jsonify({"error": "insufficient stock"}), 400
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify({"ok": True}), 201
+
+
+@blueprint.post("/materials/consume")
+@require_role("admin", "dispatcher", "technician")
+def materials_consume():
+    data = request.get_json() or {}
+    mat_id = data.get("material_id")
+    tech_id = data.get("technician_id")
+    qty = data.get("quantity")
+    wo_id = data.get("work_order_id")
+    if not mat_id or not tech_id or not qty or not wo_id:
+        return jsonify({"error": "material_id, technician_id, quantity, work_order_id required"}), 400
+    mv, err = consume_for_order(
+        int(mat_id), int(tech_id), float(qty), int(wo_id), request.user_id, data.get("notes"))
+    if err == "insufficient_stock":
+        return jsonify({"error": "insufficient stock"}), 400
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify(mv.to_dict()), 201
+
+
+@blueprint.get("/technician-stock")
+@require_auth
+def technician_stock_list():
+    tech_id = request.args.get("technician_id", type=int)
+    if not tech_id:
+        return jsonify({"error": "technician_id required"}), 400
+    items = get_technician_stock(tech_id)
+    return jsonify([i.to_dict() for i in items]), 200
