@@ -375,7 +375,8 @@ async function renderCalendar(content) {
    } catch (e) {}
    const tz = state.calendarTz || CAL_TZ;
    const pub = state._calPublic || {};
-  const anchor = new Date(cs.anchor + 'T00:00:00');
+   const anchorStr = (cs.view === 'day' && cs.selectedDay) ? cs.selectedDay : cs.anchor;
+   const anchor = new Date(anchorStr + 'T00:00:00');
   let from, to, days = [];
   if (cs.view === 'day') {
     from = new Date(anchor); from.setHours(0,0,0,0);
@@ -515,27 +516,6 @@ async function renderCalendar(content) {
        html += '</div>';
      });
      html += '</div>';
-     if (cs.expanded && cs.selectedDay) {
-       const selDate = new Date(cs.selectedDay + "T00:00:00");
-       const weekStart = calStartOfWeek(selDate);
-       const weekDays = [];
-       for (let i = 0; i < 7; i++) weekDays.push(calAddDays(weekStart, i));
-       html += '<div class="cal-expand open" style="margin-top:12px">';
-       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
-       html += '<div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028">Semana del ' + escapeHtml(cs.selectedDay) + '</div>';
-       html += '<button class="sigos-btn-secondary" style="height:32px" id="calCollapseMonth">Volver a mensual</button>';
-       html += '</div>';
-       html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">';
-       weekDays.forEach((d) => {
-         const key = d.toISOString().slice(0, 10);
-         const isSel = key === cs.selectedDay;
-         const isToday = key === todayStr;
-         html += '<div data-day="' + key + '" style="padding:6px;text-align:center;border:1px solid ' + (isSel ? '#2E7A50' : '#DDD9D3') + ';border-radius:4px;cursor:pointer;background:' + (isSel ? '#EAF4EE' : (isToday ? '#F3F8F5' : '#fff')) + '">' + calShortDay(d) + ' ' + d.getDate() + '</div>';
-       });
-       html += '</div>';
-       html += dayAgendaHtml(cs.selectedDay, byDay, pub, cs, todayStr);
-       html += '</div>';
-     }
    } else {
     // week/day grid
     const viewDays = cs.view === 'day' ? 1 : 7;
@@ -545,10 +525,12 @@ async function renderCalendar(content) {
     html += '<div style="position:sticky;top:0;background:#fff;z-index:2;border-bottom:1px solid #DDD9D3"></div>';
     gDays.forEach(d => {
       const key = d.toISOString().slice(0,10);
-      const isToday = key === todayStr;
-      const isWeekend = d.getDay()===0 || d.getDay()===6;
-      let bg = isToday ? '#F3F8F5' : (isWeekend ? '#F7F4EE' : '#fff');
-      html += '<div data-day="' + key + '" style="position:sticky;top:0;background:' + bg + ';z-index:2;border-bottom:1px solid #DDD9D3;padding:6px;text-align:center;font-size:12px;font-weight:600;color:' + (isToday?'#2A5C45':'#3A4552') + ';cursor:pointer">' + calShortDay(d) + ' ' + d.getDate() + (isToday?' <span style="background:#2A5C45;color:#fff;border-radius:50%;padding:1px 5px;font-size:10px">HOY</span>':'') + '</div>';
+       const isToday = key === todayStr;
+       const isSelected = key === cs.selectedDay;
+       const isWeekend = d.getDay()===0 || d.getDay()===6;
+       let bg = isSelected ? '#EAF4EE' : isToday ? '#F3F8F5' : (isWeekend ? '#F7F4EE' : '#fff');
+       const border = isSelected ? 'border-bottom:2px solid #2E7A50;' : 'border-bottom:1px solid #DDD9D3;';
+       html += '<div data-day="' + key + '" style="position:sticky;top:0;background:' + bg + ';z-index:2;' + border + 'padding:6px;text-align:center;font-size:12px;font-weight:600;color:' + (isSelected?'#2E7A50':isToday?'#2A5C45':'#3A4552') + ';cursor:pointer">' + calShortDay(d) + ' ' + d.getDate() + (isToday?' <span style="background:#2A5C45;color:#fff;border-radius:50%;padding:1px 5px;font-size:10px">HOY</span>':'') + '</div>';
     });
     // hour rows
      const startHour = parseInt((pub.work_start || '07:00').split(':')[0], 10);
@@ -729,9 +711,9 @@ async function renderCalendar(content) {
   const prev = document.getElementById('calPrev');
   const next = document.getElementById('calNext');
   const todayBtn = document.getElementById('calToday');
-   if (prev) prev.addEventListener('click', () => { cs.anchor = calAddDays(anchor, cs.view==='month'?-30:cs.view==='day'?-1:-7).toISOString().slice(0,10); if (cs.view === 'month') cs.expanded = false; render(); });
-   if (next) next.addEventListener('click', () => { cs.anchor = calAddDays(anchor, cs.view==='month'?30:cs.view==='day'?1:7).toISOString().slice(0,10); if (cs.view === 'month') cs.expanded = false; render(); });
-  if (todayBtn) todayBtn.addEventListener('click', () => { cs.anchor = calTodayStr(); render(); });
+   if (prev) prev.addEventListener('click', () => { const n = calAddDays(anchor, cs.view==='month'?-30:cs.view==='day'?-1:-7).toISOString().slice(0,10); cs.anchor = n; if (cs.view === 'day') cs.selectedDay = n; if (cs.view === 'month') cs.expanded = false; render(); });
+   if (next) next.addEventListener('click', () => { const n = calAddDays(anchor, cs.view==='month'?30:cs.view==='day'?1:7).toISOString().slice(0,10); cs.anchor = n; if (cs.view === 'day') cs.selectedDay = n; if (cs.view === 'month') cs.expanded = false; render(); });
+   if (todayBtn) todayBtn.addEventListener('click', () => { cs.view = 'month'; cs.anchor = calTodayStr(); cs.selectedDay = calTodayStr(); render(); });
   document.querySelectorAll('[data-calview]').forEach(b => b.addEventListener('click', () => { cs.view = b.dataset.calview; render(); }));
    // event selection
    content.querySelectorAll('.cal-event').forEach(el => {
@@ -823,7 +805,7 @@ async function renderCalendar(content) {
    if (chipProg2) chipProg2.addEventListener('click', () => { cs.filters.status = (cs.filters.status === 'in_progress' ? '' : 'in_progress'); render(); });
   const retry = document.getElementById('calRetry');
   if (retry) retry.addEventListener('click', () => render());
-   document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => { cs.selectedDay = el.dataset.day; if (cs.view === 'month') cs.expanded = true; render(); }));
+   document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => { cs.selectedDay = el.dataset.day; if (cs.view === 'month') { cs.view = 'week'; cs.anchor = el.dataset.day; } render(); }));
    const collapseBtn = document.getElementById('calCollapseMonth');
    if (collapseBtn) collapseBtn.addEventListener('click', () => { cs.expanded = false; render(); });
    document.querySelectorAll('.cal-collapse-header').forEach(h => h.addEventListener('click', () => { cs.collapsed[h.dataset.panel] = !cs.collapsed[h.dataset.panel]; render(); }));
@@ -2635,4 +2617,5 @@ function dayAgendaHtml(dayKey, byDay, pub, cs, todayStr) {
   html += '</div>';
   return html;
 }
+
 
