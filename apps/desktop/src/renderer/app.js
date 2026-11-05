@@ -361,13 +361,15 @@ async function renderCalendar(content) {
      try { restored = JSON.parse(localStorage.getItem('sigos.calendar') || 'null'); } catch (e) {}
      const validDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
      if (restored && !validDate(restored.anchor)) restored = null;
-     state.calendarState = restored || { view: 'week', anchor: calTodayStr(), selectedDay: calTodayStr(), filters: { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false } };
+     state.calendarState = restored || { view: 'month', anchor: calTodayStr(), selectedDay: calTodayStr(), filters: { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false } };
+     state.calendarState.view = 'month';
      if (!state.calendarState.filters) state.calendarState.filters = { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false };
      if (!validDate(state.calendarState.selectedDay)) state.calendarState.selectedDay = state.calendarState.anchor || calTodayStr();
      if (!validDate(state.calendarState.anchor)) state.calendarState.anchor = calTodayStr();
    }
-  const cs = state.calendarState;
-  if (!cs.collapsed) cs.collapsed = { pending: false, detail: false };
+   const cs = state.calendarState;
+   cs.view = 'month';
+   if (!cs.collapsed) cs.collapsed = { pending: false, detail: false };
   // load tz from settings public
    try {
      const s = await api('GET', '/api/v1/settings/public');
@@ -446,15 +448,11 @@ async function renderCalendar(content) {
    html += '<button class="sigos-btn-secondary" style="height:36px" id="calToday">Hoy</button>';
    html += '<button class="sigos-btn-secondary" style="width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calNext" aria-label="Siguiente"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>';
    html += '<span style="font-family:Outfit;font-weight:600;font-size:16px;color:#163028;margin-left:8px">' + escapeHtml(label) + '</span>';
-   html += '<div style="margin-left:12px;display:flex;gap:4px">';
-   ['day','week','month'].forEach(v => {
-     const lbl = v==='day'?'DÃ­a':v==='week'?'Semana':'Mes';
-     html += '<button class="sigos-btn-secondary" data-calview="' + v + '" style="height:36px' + (cs.view===v?';background:#163028;color:#fff':'') + '">' + lbl + '</button>';
-   });
-   html += '</div>';
+   // view selector removed: only month view
    html += '<span style="margin-left:auto;font-size:11px;color:#96908A">Actualizado ' + escapeHtml(lu) + '</span>';
    html += '<button class="sigos-btn-secondary" style="width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calRefresh" title="Refrescar" aria-label="Refrescar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>';
    html += '<button class="sigos-btn-primary" ' + (canSchedule?'':'disabled title="Sin permisos"') + ' style="height:36px" id="calSchedule">+ Programar visita</button>';
+   html += '<button class="sigos-btn-secondary" style="height:36px" id="calPendingBtn">Pendientes (' + unassigned.length + ')</button>';
    html += '</div>';
    // row 2: chips + filters
    const hasActiveFilters = !!(cs.filters.technician_id || cs.filters.status || cs.filters.type || cs.filters.priority || cs.filters.city_id || cs.filters.zone_id || cs.filters.include_cancelled);
@@ -495,8 +493,8 @@ async function renderCalendar(content) {
   } else if (!error && !items.length && !unassigned.length) {
     html += '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">ðŸ“… Sin visitas programadas</div><div class="empty-state__text">No hay visitas en este rango. Programa una nueva desde Ã“rdenes.</div><button class="sigos-btn-secondary" id="calGoOrders">Ir a Ã“rdenes</button></div></div>';
   }
-   // main layout: grid + panel
-   html += '<div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px">';
+   // main layout: full width grid
+   html += '<div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:16px">';
    // calendar grid
    html += '<div class="cal-grid-scroll" style="min-height:0;overflow:auto;border:1px solid #DDD9D3;border-radius:8px;background:#fff">';
   if (cs.view === 'month') {
@@ -512,7 +510,7 @@ async function renderCalendar(content) {
          html += '<div style="margin-top:2px;display:flex;flex-direction:column;gap:2px">';
          evs.slice(0,2).forEach(e => {
            const color = e.status==='in_progress'?'#C9892A':e.status==='completed'?'#2A5C45':e.schedule_status==='unassigned'?'#C9892A':'#8A847C';
-           html += '<div style="font-size:9px;padding:1px 3px;border-radius:3px;background:' + color + '22;color:' + color + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(orderCode(e)) + ' ' + escapeHtml((e.title||'').slice(0,12)) + '</div>';
+           html += '<div class="cal-month-badge" data-order-id="' + e.order_id + '" style="font-size:9px;padding:1px 3px;border-radius:3px;background:' + color + '22;color:' + color + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer">' + escapeHtml(orderCode(e)) + ' ' + escapeHtml((e.title||'').slice(0,12)) + '</div>';
          });
          if (evs.length > 2) html += '<div style="font-size:9px;color:#96908A">+' + (evs.length-2) + '</div>';
          html += '</div>';
@@ -594,103 +592,6 @@ async function renderCalendar(content) {
      html += '</div>';
    }
   html += '</div>';
-   // right panel
-   html += '<div style="min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px">';
-   if (!cs.rightTab) cs.rightTab = "detail";
-   html += '<div style="display:flex;gap:4px;margin-bottom:8px">';
-   html += '<button class="sigos-btn-secondary" data-righttab="detail" style="height:32px;' + (cs.rightTab==="detail"? 'background:#163028;color:#fff' : '') + '">Detalle</button>';
-   html += '<button class="sigos-btn-secondary" data-righttab="pending" style="height:32px;' + (cs.rightTab==="pending"? 'background:#163028;color:#fff' : '') + '">Pendientes</button>';
-   html += '</div>';
-   if (cs.rightTab === "pending") {
-     const pendingCollapsed = cs.collapsed.pending;
-     html += '<div class="sigos-card" style="padding:12px 14px">';
-     html += '<div class="cal-collapse-header" data-panel="pending" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:' + (pendingCollapsed?'0':'6') + 'px">Pendientes <span>' + (pendingCollapsed ? '?' : '?') + '</span></div>';
-     if (!pendingCollapsed) {
-       const porProgramar = unassigned.filter(o => !o.scheduled_at);
-       const porAsignar = unassigned.filter(o => o.scheduled_at && !o.assigned_to_id);
-       if (unassignedError) {
-         html += '<div style="font-size:11px;color:#D63B3B">No se pudieron cargar los pendientes</div>';
-       } else {
-         html += '<div style="font-size:12px;font-weight:600;color:#96908A">Por programar (' + porProgramar.length + ')</div>';
-         if (!porProgramar.length && !unassignedError) html += '<div style="font-size:11px;color:#96908A">Todo programado ?</div>';
-       }
-       const pendingLine = (o) => {
-         const code = orderCode(o);
-         const main = o.title || o.customer_name || '';
-         const pr = (typeof priorityOf === 'function' && o.priority) ? priorityOf(o.priority).label : (o.priority || '');
-         const parts = [main, pr].filter(Boolean);
-         return escapeHtml(code) + (parts.length ? ' ï¿½ ' + parts.map(escapeHtml).join(' ï¿½ ') : '');
-       };
-       porProgramar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
-       html += '<div style="font-size:12px;font-weight:600;color:#96908A;margin-top:6px">Por asignar (' + porAsignar.length + ')</div>';
-       if (!porAsignar.length) html += '<div style="font-size:11px;color:#96908A">Sin pendientes</div>';
-       porAsignar.slice(0,8).forEach(o => { html += '<div class="cal-tray-item" data-order-id="' + o.id + '" style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4;cursor:grab">' + pendingLine(o) + '</div>'; });
-     }
-     html += '</div>';
-   } else {
-     const selectedEvent = (items || []).find(e => e.order_id === cs.selectedEventId) || null;
-     if (cs.selectedEventId && !selectedEvent) cs.selectedEventId = null;
-     const detailCollapsed = cs.collapsed.detail;
-     html += '<div class="sigos-card" style="padding:12px 14px">';
-     html += '<div class="cal-collapse-header" data-panel="detail" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:' + (detailCollapsed?'0':'6') + 'px">Detalle de la visita <span>' + (detailCollapsed ? '?' : '?') + '</span></div>';
-     if (!detailCollapsed) {
-       if (selectedEvent) {
-         const e = selectedEvent;
-         const techs = (e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar';
-         html += '<div style="font-family:JetBrains Mono,monospace;font-size:11px;margin-bottom:2px">' + escapeHtml(orderCode(e)) + '</div>';
-         html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px">' + escapeHtml(e.title) + '</div>';
-         const rawFields = [
-           ['Cliente', e.customer_name],
-           ['Direcciï¿½n', e.address || e.city],
-           ['Tipo', e.installation_type || e.type],
-           ['Estado', (typeof statusOf === 'function' ? statusOf(e.status).label : e.status)],
-           ['Prioridad', (typeof priorityOf === 'function' ? priorityOf(e.priority).label : e.priority)],
-           ['Horario', e.start.slice(11,16) + 'ï¿½' + e.end.slice(11,16)],
-           ['Tï¿½cnico', techs],
-           ['Observaciones', e.schedule_notes || e.notes],
-         ];
-         const shown = rawFields.filter(([k,v]) => (k === 'Estado' || k === 'Prioridad' || k === 'Horario' || k === 'Tï¿½cnico') ? true : (v && String(v).trim() && v !== 'ï¿½'));
-         if (shown.length <= 4 && !e.customer_name && !(e.address||e.city) && !(e.installation_type||e.type) && !(e.schedule_notes||e.notes)) {
-           html += '<div style="font-size:11px;color:#96908A;margin-bottom:6px">Sin datos de cliente registrados</div>';
-         } else {
-           shown.forEach(([k,v]) => {
-             if (k === 'Estado') {
-               const badge = (typeof statusOf === 'function') ? statusOf(e.status) : { label: v, color: '#3A4552', bg: '#F1F5F9' };
-               html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> <span style="padding:1px 6px;border-radius:999px;font-size:10px;background:' + escapeHtml(badge.bg) + ';color:' + escapeHtml(badge.color) + '">' + escapeHtml(badge.label) + '</span></div>';
-             } else if (k === 'Prioridad') {
-               const badge = (typeof priorityOf === 'function') ? priorityOf(e.priority) : { label: v, color: '#3A4552' };
-               html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> <span style="color:' + escapeHtml(badge.color) + ';font-weight:600">' + escapeHtml(badge.label) + '</span></div>';
-             } else {
-               html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">' + escapeHtml(k) + ':</span> ' + escapeHtml(v) + '</div>';
-             }
-           });
-         }
-         const canSchedule = hasRole('admin') || hasRole('dispatcher');
-         const st = e.status;
-         const canProgram = canSchedule && ['pending','assigned'].includes(st);
-         const canReprogram = canSchedule && ['pending','assigned','in_progress'].includes(st);
-         const canAssign = canSchedule && ['pending','assigned'].includes(st);
-         const canCancel = canSchedule && ['pending','assigned','in_progress'].includes(st);
-         const transitions = { pending: ['assigned','cancelled'], assigned: ['in_progress','cancelled'], in_progress: ['completed'], completed: ['closed'], closed: [], cancelled: [] };
-         const validNext = (transitions[st] || []).filter(s => !(s==='cancelled' && !canCancel));
-         html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">';
-         html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="open">Abrir orden</button>';
-         if (canProgram || canReprogram) html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="schedule">' + (e.scheduled_at?'Reprogramar':'Programar') + '</button>';
-         else html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" disabled title="No permitido en este estado">Programar</button>';
-         if (canAssign) html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="assign">Asignar/Reasignar</button>';
-         validNext.forEach(ns => {
-           const label = ns === 'cancelled' ? 'Cancelar' : ('Cambiar a ' + ns);
-           html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="transition" data-next="' + ns + '">' + escapeHtml(label) + '</button>';
-         });
-         html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" data-cal-action="history">Ver historial</button>';
-         html += '</div>';
-       } else {
-         html += '<div style="font-size:12px;color:#96908A">Selecciona una visita para ver su detalle y acciones.</div>';
-       }
-     }
-     html += '</div>';
-   }
-    if (!cs.selectedDay) cs.selectedDay = todayStr;
    const selDay = cs.selectedDay;
    html += '<div class="sigos-card" style="padding:10px;flex:1;overflow:auto"><div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028;margin-bottom:6px">Ã“rdenes del dÃ­a seleccionado</div>';
    const selEvs = byDay[selDay] || [];
@@ -780,6 +681,8 @@ async function renderCalendar(content) {
    if (clear) clear.addEventListener('click', () => { cs.filters = { technician_id: '', status: '', type: '', priority: '', city_id: '', zone_id: '', include_cancelled: false }; render(); });
    const refreshBtn = document.getElementById('calRefresh');
    if (refreshBtn) refreshBtn.addEventListener('click', () => render());
+   const pendingBtn = document.getElementById('calPendingBtn');
+   if (pendingBtn) pendingBtn.addEventListener('click', () => openPendingModal());
    const filtersBtn = document.getElementById('calFiltersBtn');
    if (filtersBtn) filtersBtn.addEventListener('click', () => { cs.filtersPopoverOpen = !cs.filtersPopoverOpen; render(); });
    const popApply = document.getElementById('popApply');
@@ -807,7 +710,8 @@ async function renderCalendar(content) {
    if (chipProg2) chipProg2.addEventListener('click', () => { cs.filters.status = (cs.filters.status === 'in_progress' ? '' : 'in_progress'); render(); });
   const retry = document.getElementById('calRetry');
   if (retry) retry.addEventListener('click', () => render());
-   document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => { cs.selectedDay = el.dataset.day; if (cs.view === 'month') { cs.view = 'week'; cs.anchor = el.dataset.day; } render(); }));
+   document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => { openDayModal(el.dataset.day); }));
+   document.querySelectorAll('.cal-month-badge').forEach(el => el.addEventListener('click', (ev) => { ev.stopPropagation(); openOrderModal(Number(el.dataset.orderId)); }));
    document.querySelectorAll('[data-righttab]').forEach(b => b.addEventListener('click', () => { cs.rightTab = b.dataset.righttab; render(); }));
    const collapseBtn = document.getElementById('calCollapseMonth');
    if (collapseBtn) collapseBtn.addEventListener('click', () => { cs.expanded = false; render(); });
@@ -2621,4 +2525,65 @@ function dayAgendaHtml(dayKey, byDay, pub, cs, todayStr) {
   return html;
 }
 
+
+
+function openModal(html) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'width:520px;max-width:95vw;max-height:85vh;overflow:auto;background:#fff;border-radius:8px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.2);';
+  modal.innerHTML = html;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  const closeBtn = modal.querySelector('[data-close]');
+  if (closeBtn) closeBtn.addEventListener('click', () => overlay.remove());
+  return { overlay, modal };
+}
+
+function openDayModal(dayKey) {
+  const byDay = {};
+  (state._calItems || []).forEach(e => { const d = e.start.slice(0,10); (byDay[d]=byDay[d]||[]).push(e); });
+  const pub = state._calPublic || {};
+  const html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Agenda del día</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>' + dayAgendaHtml(dayKey, byDay, pub, state.calendarState, calTodayStr());
+  openModal(html);
+}
+
+function openPendingModal() {
+  const unassigned = state._calUnassigned || [];
+  const porProgramar = unassigned.filter(o => !o.scheduled_at);
+  const porAsignar = unassigned.filter(o => o.scheduled_at && !o.assigned_to_id);
+  const pendingLine = (o) => {
+    const code = orderCode(o);
+    const main = o.title || o.customer_name || '';
+    const pr = (typeof priorityOf === 'function' && o.priority) ? priorityOf(o.priority).label : (o.priority || '');
+    const parts = [main, pr].filter(Boolean);
+    return escapeHtml(code) + (parts.length ? ' · ' + parts.map(escapeHtml).join(' · ') : '');
+  };
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Pendientes</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>';
+  html += '<div style="font-size:12px;font-weight:600;color:#96908A">Por programar (' + porProgramar.length + ')</div>';
+  porProgramar.slice(0,20).forEach(o => { html += '<div style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4">' + pendingLine(o) + '</div>'; });
+  html += '<div style="font-size:12px;font-weight:600;color:#96908A;margin-top:6px">Por asignar (' + porAsignar.length + ')</div>';
+  porAsignar.slice(0,20).forEach(o => { html += '<div style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4">' + pendingLine(o) + '</div>'; });
+  openModal(html);
+}
+
+function openOrderModal(orderId) {
+  const ev = (state._calItems || []).find(e => e.order_id === orderId);
+  const ord = (state._calUnassigned || []).find(o => o.id === orderId);
+  const o = ev || ord;
+  if (!o) { notify('Orden no encontrada.', 'error'); return; }
+  const code = orderCode(o);
+  const title = o.title || 'Orden';
+  const techs = (o.technicians || []).map(t => t.name).join(', ') || 'Por asignar';
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">' + escapeHtml(code) + '</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>';
+  html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px">' + escapeHtml(title) + '</div>';
+  html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Técnico:</span> ' + escapeHtml(techs) + '</div>';
+  if (o.start) html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Horario:</span> ' + escapeHtml(o.start.slice(11,16)) + '–' + escapeHtml(o.end.slice(11,16)) + '</div>';
+  html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Estado:</span> ' + escapeHtml((typeof statusOf === 'function' ? statusOf(o.status).label : o.status)) + '</div>';
+  html += '<div style="display:flex;gap:6px;margin-top:10px">';
+  html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" onclick="state.selectedOrderId=' + orderId + ';state.view=\'order-detail\';render();document.querySelector(\'div[style*=\"z-index:10000\"]\')?.remove()">Abrir orden</button>';
+  html += '</div>';
+  openModal(html);
+}
 
