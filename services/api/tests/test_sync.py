@@ -1,4 +1,4 @@
-﻿import json
+import json
 import uuid
 
 from app.extensions import db

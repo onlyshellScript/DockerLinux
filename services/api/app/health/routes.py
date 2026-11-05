@@ -1,4 +1,4 @@
-﻿from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify
 
 from app.extensions import db
 from app.health.service import check_health

@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 
 import sqlalchemy as sa
 
@@ -43,10 +43,10 @@ class WorkOrder(db.Model):
     address = db.Column(db.String(250))
     zone = db.Column(db.String(60), index=True)
     legacy_zone = db.Column(db.String(60), index=True)
-    city_id = db.Column(db.Integer, db.ForeignKey("cities.id", ondelete="RESTRICT"), index=True)
-    zone_id = db.Column(db.Integer, db.ForeignKey("zones.id", ondelete="RESTRICT"), index=True)
+    city_id = db.Column(db.Integer, db.ForeignKey("cities.id", ondelete="NO ACTION"), index=True)
+    zone_id = db.Column(db.Integer, db.ForeignKey("zones.id", ondelete="NO ACTION"), index=True)
     installation_type = db.Column(db.String(80))
-    installation_type_code = db.Column(db.String(60), db.ForeignKey("installation_types.code", ondelete="RESTRICT"))
+    installation_type_code = db.Column(db.String(60), db.ForeignKey("installation_types.code", ondelete="NO ACTION"))
     scheduled_at = db.Column(db.DateTime(timezone=True), index=True)
     scheduled_end = db.Column(db.DateTime(timezone=True))
     schedule_notes = db.Column(db.Text)

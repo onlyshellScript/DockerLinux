@@ -1,4 +1,4 @@
-﻿import io
+import io
 
 from app.extensions import db
 from app.identity.models import User, Role

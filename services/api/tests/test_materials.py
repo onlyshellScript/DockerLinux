@@ -1,4 +1,4 @@
-﻿from app.extensions import db
+from app.extensions import db
 from app.identity.models import User, Role
 from app.materials.models import Material
 

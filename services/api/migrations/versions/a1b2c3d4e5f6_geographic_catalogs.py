@@ -49,7 +49,7 @@ def upgrade():
     op.create_table(
         'cities',
         sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('country_id', sa.Integer(), sa.ForeignKey('countries.id', ondelete='RESTRICT'), nullable=False),
+        sa.Column('country_id', sa.Integer(), sa.ForeignKey('countries.id', ondelete='NO ACTION'), nullable=False),
         sa.Column('department_name', sa.String(length=120), nullable=True),
         sa.Column('dane_code', sa.String(length=5), nullable=False),
         sa.Column('name', sa.String(length=120), nullable=False),
@@ -63,7 +63,7 @@ def upgrade():
     op.create_table(
         'zones',
         sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('city_id', sa.Integer(), sa.ForeignKey('cities.id', ondelete='RESTRICT'), nullable=False),
+        sa.Column('city_id', sa.Integer(), sa.ForeignKey('cities.id', ondelete='NO ACTION'), nullable=False),
         sa.Column('kind', sa.String(length=30), nullable=False),
         sa.Column('name', sa.String(length=120), nullable=False),
         sa.Column('name_norm', sa.String(length=120), nullable=False),
@@ -239,9 +239,9 @@ def upgrade():
         op.create_table(
             'technician_zones_new',
             sa.Column('id', sa.Integer(), primary_key=True),
-            sa.Column('technician_id', sa.Integer(), sa.ForeignKey('technician_profiles.id', ondelete='RESTRICT'), nullable=False),
-            sa.Column('city_id', sa.Integer(), sa.ForeignKey('cities.id', ondelete='RESTRICT'), nullable=False),
-            sa.Column('zone_id', sa.Integer(), sa.ForeignKey('zones.id', ondelete='RESTRICT'), nullable=True),
+            sa.Column('technician_id', sa.Integer(), sa.ForeignKey('technician_profiles.id', ondelete='NO ACTION'), nullable=False),
+            sa.Column('city_id', sa.Integer(), sa.ForeignKey('cities.id', ondelete='NO ACTION'), nullable=False),
+            sa.Column('zone_id', sa.Integer(), sa.ForeignKey('zones.id', ondelete='NO ACTION'), nullable=True),
             sa.Column('is_primary', sa.Boolean(), nullable=False, server_default=sa.text("0")),
         )
         # migrate
@@ -276,11 +276,11 @@ def upgrade():
         else:
             op.add_column('work_orders', sa.Column('legacy_zone', sa.String(length=60), nullable=True))
     if 'city_id' not in wo_cols:
-        op.add_column('work_orders', sa.Column('city_id', sa.Integer(), sa.ForeignKey('cities.id', ondelete='RESTRICT'), nullable=True))
+        op.add_column('work_orders', sa.Column('city_id', sa.Integer(), sa.ForeignKey('cities.id', ondelete='NO ACTION'), nullable=True))
     if 'zone_id' not in wo_cols:
-        op.add_column('work_orders', sa.Column('zone_id', sa.Integer(), sa.ForeignKey('zones.id', ondelete='RESTRICT'), nullable=True))
+        op.add_column('work_orders', sa.Column('zone_id', sa.Integer(), sa.ForeignKey('zones.id', ondelete='NO ACTION'), nullable=True))
     if 'installation_type_code' not in wo_cols:
-        op.add_column('work_orders', sa.Column('installation_type_code', sa.String(length=60), sa.ForeignKey('installation_types.code', ondelete='RESTRICT'), nullable=True))
+        op.add_column('work_orders', sa.Column('installation_type_code', sa.String(length=60), sa.ForeignKey('installation_types.code', ondelete='NO ACTION'), nullable=True))
 
     # --- departments/municipalities/sectors: add name_norm (compat) ---
     for tbl in ('departments', 'municipalities', 'sectors'):

@@ -26,11 +26,7 @@ def upgrade():
         op.add_column('work_orders', sa.Column('schedule_notes', sa.Text(), nullable=True))
     if 'version' not in cols:
         op.add_column('work_orders', sa.Column('version', sa.Integer(), nullable=False, server_default=sa.text("0")))
-    # index for range queries
-    try:
-        op.create_index('ix_work_orders_scheduled_at', 'work_orders', ['scheduled_at'])
-    except Exception:
-        pass
+    # index for range queries (ix_work_orders_scheduled_at already exists from a081)
     try:
         op.create_index('ix_work_orders_assigned_scheduled', 'work_orders', ['assigned_to_id', 'scheduled_at'])
     except Exception:
@@ -38,8 +34,19 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_index('ix_work_orders_assigned_scheduled', table_name='work_orders')
-    op.drop_index('ix_work_orders_scheduled_at', table_name='work_orders')
-    op.drop_column('work_orders', 'version')
-    op.drop_column('work_orders', 'schedule_notes')
-    op.drop_column('work_orders', 'scheduled_end')
+    try:
+        op.drop_index('ix_work_orders_assigned_scheduled', table_name='work_orders')
+    except Exception:
+        pass
+    try:
+        op.drop_column('work_orders', 'version')
+    except Exception:
+        pass
+    try:
+        op.drop_column('work_orders', 'schedule_notes')
+    except Exception:
+        pass
+    try:
+        op.drop_column('work_orders', 'scheduled_end')
+    except Exception:
+        pass

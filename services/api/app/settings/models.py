@@ -14,7 +14,7 @@ class OrganizationSettings(db.Model):
     admin_email = db.Column(db.String(120), nullable=False, default="admin@sigos.local")
     contact_phone = db.Column(db.String(30))
     address = db.Column(db.String(250))
-    city_id = db.Column(db.Integer, db.ForeignKey("cities.id", ondelete="RESTRICT"))
+    city_id = db.Column(db.Integer, db.ForeignKey("cities.id", ondelete="NO ACTION"))
     timezone = db.Column(db.String(60), nullable=False, default="America/Bogota")
     version = db.Column(db.Integer, nullable=False, default=0, server_default=sa.text("0"))
     updated_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
@@ -75,7 +75,7 @@ class UserNotificationPreference(db.Model):
     __tablename__ = "user_notification_preferences"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, unique=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="NO ACTION"), nullable=False, unique=True)
     preferences = db.Column(db.Text, nullable=False, default="{}")
     version = db.Column(db.Integer, nullable=False, default=0, server_default=sa.text("0"))
     updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

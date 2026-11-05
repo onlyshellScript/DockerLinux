@@ -1,13 +1,13 @@
 # SIGOS 2.0
 
-Software empresarial multiplataforma para la gestión de órdenes de servicio. Monorepositorio completo H0-H7: fundación, identidad, órdenes, materiales, evidencias, sync offline, notificaciones y producción.
+Software empresarial multiplataforma para la gestiÃ³n de Ã³rdenes de servicio. Monorepositorio completo H0-H7: fundaciÃ³n, identidad, Ã³rdenes, materiales, evidencias, sync offline, notificaciones y producciÃ³n.
 
 ## Stack
 
-- Backend: Python 3.12+ · Flask · SQLAlchemy · Alembic
+- Backend: Python 3.12+ Â· Flask Â· SQLAlchemy Â· Alembic
 - Base de datos: Microsoft SQL Server
-- Escritorio: Electron · JavaScript · HTML5 · CSS3
-- Móvil: Flutter · Dart (Android)
+- Escritorio: Electron Â· JavaScript Â· HTML5 Â· CSS3
+- MÃ³vil: Flutter Â· Dart (Android)
 
 ## Requisitos
 
@@ -62,7 +62,7 @@ $env:FLASK_APP = "wsgi.py"
 .venv\Scripts\flask run --port 5000
 ```
 
-Verificación:
+VerificaciÃ³n:
 
 ```powershell
 Invoke-RestMethod http://localhost:5000/api/v1/health
@@ -80,7 +80,7 @@ npm start
 
 Variable opcional: `SIGOS_API_BASE_URL`.
 
-## Móvil (Flutter)
+## MÃ³vil (Flutter)
 
 ```powershell
 cd apps/mobile
@@ -114,7 +114,7 @@ sigos/
 +-- .env.example        Variables de entorno de ejemplo
 ```
 
-## Producción
+## ProducciÃ³n
 
 ### Docker
 
@@ -143,19 +143,19 @@ docker compose -f docker-compose.prod.yaml up -d
 cd apps/desktop
 npm run dist
 
-# Móvil (Android APK)
+# MÃ³vil (Android APK)
 cd apps/mobile
 flutter build apk --release
 ```
 
-### Variables de entorno de producción
+### Variables de entorno de producciÃ³n
 
-| Variable | Descripción |
+| Variable | DescripciÃ³n |
 |----------|-------------|
-| DB_URL | Cadena de conexión SQL Server |
+| DB_URL | Cadena de conexiÃ³n SQL Server |
 | JWT_SECRET_KEY | Secreto para firmar tokens |
-| SMTP_HOST/PORT/USER/PASS | Configuración email |
-| WHATSAPP_API_URL/TOKEN | Configuración WhatsApp |
+| SMTP_HOST/PORT/USER/PASS | ConfiguraciÃ³n email |
+| WHATSAPP_API_URL/TOKEN | ConfiguraciÃ³n WhatsApp |
 | UPLOAD_DIR | Directorio de evidencias |
 | ENABLE_NOTIFICATION_WORKER | "true" para activar worker |
 | LOG_LEVEL | DEBUG, INFO, WARNING, ERROR |
@@ -164,7 +164,7 @@ flutter build apk --release
 ## CI/CD
 
 GitHub Actions en `.github/workflows/ci.yml`:
-- Tests automáticos en cada push/PR
+- Tests automÃ¡ticos en cada push/PR
 - Build de instalador Windows en main
-- Build de APK Android en main
-
+- Build de APK Android en main
+

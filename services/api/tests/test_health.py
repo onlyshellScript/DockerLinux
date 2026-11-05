@@ -1,4 +1,4 @@
-﻿from app.health.service import check_health
+from app.health.service import check_health
 
 
 def test_health_service_up():

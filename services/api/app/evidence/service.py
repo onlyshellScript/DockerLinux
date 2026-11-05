@@ -1,4 +1,4 @@
-﻿from app.extensions import db
+from app.extensions import db
 from app.evidence.models import Evidence
 from app.evidence.storage import get_storage
 

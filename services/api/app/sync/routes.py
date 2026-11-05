@@ -1,4 +1,4 @@
-﻿from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify
 
 from app.identity.decorators import require_auth
 from app.sync.service import push_operations, pull_changes

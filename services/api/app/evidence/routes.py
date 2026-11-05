@@ -1,4 +1,4 @@
-﻿from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file
 
 from app.extensions import db
 from app.identity.decorators import require_auth, require_role

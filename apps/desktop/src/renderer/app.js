@@ -37,6 +37,7 @@ function orderCode(o) {
 
 async function api(method, path, body = null, form = null, canRetry = true) {
   const res = await window.sigos.apiRequest({ method, path, body, form, token: state.session?.access_token });
+  if (res && typeof classifyError === 'function') res.errorInfo = classifyError(res);
   if (res.status !== 401 || !canRetry || !state.session?.refresh_token) return res;
   const refreshed = await window.sigos.apiRequest({
     method: 'POST',
@@ -51,7 +52,7 @@ async function api(method, path, body = null, form = null, canRetry = true) {
   }
   await clearSession();
   render();
-  notify('La sesiÃ³n expirÃ³. Inicia sesiÃ³n de nuevo.', 'error');
+  notify('La sesión expiró. Inicia sesión de nuevo.', 'error');
   return res;
 }
 
@@ -164,8 +165,8 @@ function icon(name, size = 18) {
 
 const NAV = [
   { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', roles: null },
-  { key: 'orders', label: 'Ã“rdenes', icon: 'orders', roles: null },
-  { key: 'technicians', label: 'TÃ©cnicos', icon: 'tech', roles: ['admin', 'dispatcher'] },
+  { key: 'orders', label: 'Órdenes', icon: 'orders', roles: null },
+  { key: 'technicians', label: 'Técnicos', icon: 'tech', roles: ['admin', 'dispatcher'] },
   { key: 'calendar', label: 'Calendario', icon: 'calendar', roles: null },
   { key: 'materials', label: 'Materiales', icon: 'materials', roles: ['admin', 'dispatcher'] },
   { key: 'evidence', label: 'Evidencias', icon: 'evidence', roles: null },
@@ -175,8 +176,8 @@ const NAV = [
 
 const NAV_BOTTOM = [
   { key: 'notifications', label: 'Notificaciones', icon: 'bell', roles: null },
-  { key: 'settings', label: 'ConfiguraciÃ³n', icon: 'settings', roles: ['admin', 'dispatcher'] },
-  { key: 'mobile', label: 'Vista TÃ©cnico', icon: 'mobile', roles: null },
+  { key: 'settings', label: 'Configuración', icon: 'settings', roles: ['admin', 'dispatcher'] },
+  { key: 'mobile', label: 'Vista Técnico', icon: 'mobile', roles: null },
 ];
 
 function navAllowed(item) {
@@ -204,10 +205,10 @@ function loginTemplate() {
         <div class="sb-logo-mark">${icon('orders', 18)}</div>
         <div class="tb-title" style="font-size:20px">SIGOS</div>
       </div>
-      <h2 style="font-family:Outfit;font-size:20px;color:#163028;margin-bottom:16px">Iniciar sesiÃ³n</h2>
+      <h2 style="font-family:Outfit;font-size:20px;color:#163028;margin-bottom:16px">Iniciar sesión</h2>
       <div id="alerts"></div>
       <div class="fld"><label>Usuario</label><input id="username" class="sigos-input" autocomplete="username"></div>
-      <div class="fld"><label>ContraseÃ±a</label><input id="password" type="password" class="sigos-input" autocomplete="current-password"></div>
+      <div class="fld"><label>Contraseña</label><input id="password" type="password" class="sigos-input" autocomplete="current-password"></div>
       <button id="loginBtn" class="sigos-btn-primary" style="width:100%;justify-content:center;padding:10px">Ingresar</button>
       <div class="section-label" style="margin:20px 0 8px">Credenciales de desarrollo</div>
       <div class="muted">admin / Admin123!</div>
@@ -220,14 +221,14 @@ function bindLogin() {
   btn.addEventListener('click', async () => {
     const username = $('#username').value.trim();
     const password = $('#password').value;
-    if (!username || !password) { notify('Usuario y contraseÃ±a requeridos', 'error'); return; }
+    if (!username || !password) { notify('Usuario y contraseña requeridos', 'error'); return; }
     btn.disabled = true; btn.textContent = 'Ingresando...';
     const res = await api('POST', '/api/v1/auth/login', { username, password });
     btn.disabled = false; btn.textContent = 'Ingresar';
-    if (!res.ok) { notify(res.body?.error || 'Credenciales invÃ¡lidas', 'error'); return; }
+    if (!res.ok) { notify(res.body?.error || 'Credenciales inválidas', 'error'); return; }
     state.session = res.body;
     await saveSession();
-    notify('SesiÃ³n iniciada', 'success');
+    notify('Sesión iniciada', 'success');
     render();
   });
   $('#password').addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
@@ -245,7 +246,7 @@ function shellTemplate() {
     <aside class="sidebar">
       <div class="sb-logo">
         <div class="sb-logo-mark">${icon('orders', 18)}</div>
-        <div><div class="sb-name">SIGOS</div><div class="sb-ver">v2.4.1 â€” Gas Natural</div></div>
+        <div><div class="sb-name">SIGOS</div><div class="sb-ver">v2.4.1 — Gas Natural</div></div>
       </div>
       <div class="sb-label">Principal</div>
       <nav class="sb-nav">
@@ -260,17 +261,17 @@ function shellTemplate() {
           <div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.username || user.name || '')}</div>
           <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:1px">${escapeHtml(roles)}</div>
         </div>
-        <a href="#" id="logoutBtn" title="Cerrar sesiÃ³n" aria-label="Cerrar sesiÃ³n" style="color:rgba(255,255,255,.4);padding:4px;display:flex">${icon('logout', 16)}</a>
+        <a href="#" id="logoutBtn" title="Cerrar sesión" aria-label="Cerrar sesión" style="color:rgba(255,255,255,.4);padding:4px;display:flex">${icon('logout', 16)}</a>
       </div>
     </aside>
     <div class="main">
       <header class="topbar">
         <div style="flex:1"><div class="tb-title" id="viewTitle">SIGOS</div><div class="tb-sub" id="viewSub"></div></div>
-        <div style="width:300px">${searchField({ placeholder: 'Buscar Ã³rdenes, tÃ©cnicos, clientes...', id: 'globalSearch' })}</div>
+        <div style="width:300px">${searchField({ placeholder: 'Buscar órdenes, técnicos, clientes...', id: 'globalSearch' })}</div>
         <div id="topbarActions" style="display:flex;gap:8px;align-items:center"></div>
         <button class="tb-btn" aria-label="Ayuda">Ayuda</button>
         <a class="bell" href="#" id="bellBtn" aria-label="Notificaciones">${icon('bell', 18)}<span id="bellBadge" style="display:none">0</span></a>
-        <a class="tb-btn" href="#" id="fieldBtn" aria-label="Vista tÃ©cnico">${icon('mobile', 16)}<span>Campo</span></a>
+        <a class="tb-btn" href="#" id="fieldBtn" aria-label="Vista técnico">${icon('mobile', 16)}<span>Campo</span></a>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="avatar-sm">${escapeHtml(user.initials || (user.username || '').slice(0, 2).toUpperCase())}</div>
           <div><div style="font-size:12px;font-weight:600;color:#1A1F27;line-height:1.2">${escapeHtml(user.username || user.name || '')}</div><div style="font-size:10px;color:#96908A">${escapeHtml(roles)}</div></div>
@@ -291,17 +292,17 @@ function bindShell() {
 
 const VIEW_META = {
   dashboard: ['Dashboard', 'Resumen general del sistema'],
-  orders: ['Ã“rdenes de servicio', 'GestiÃ³n de Ã³rdenes'],
+  orders: ['Órdenes de servicio', 'Gestión de órdenes'],
   'order-detail': ['Detalle de orden', ''],
-  technicians: ['TÃ©cnicos', 'Perfiles y disponibilidad'],
+  technicians: ['Técnicos', 'Perfiles y disponibilidad'],
   calendar: ['Calendario', 'Visitas programadas'],
   materials: ['Materiales', 'Inventario y stock'],
   evidence: ['Evidencias', 'Archivos y observaciones'],
-  reports: ['Reportes', 'Indicadores y exportaciÃ³n'],
-  users: ['Usuarios', 'GestiÃ³n de accesos'],
+  reports: ['Reportes', 'Indicadores y exportación'],
+  users: ['Usuarios', 'Gestión de accesos'],
   notifications: ['Notificaciones', 'Avisos del sistema'],
-  settings: ['ConfiguraciÃ³n', 'Preferencias'],
-  mobile: ['Vista TÃ©cnico', 'Modo campo'],
+  settings: ['Configuración', 'Preferencias'],
+  mobile: ['Vista Técnico', 'Modo campo'],
 };
 
 function renderView() {
@@ -419,12 +420,12 @@ async function renderCalendar(content) {
   let label = '';
   if (cs.view === 'day') label = anchor.toLocaleDateString('es-CO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   else if (cs.view === 'month') label = anchor.toLocaleDateString('es-CO', { month:'long', year:'numeric' });
-  else label = 'Semana ' + isoWeekNumber(anchor) + ' Â· ' + calFmtDate(days[0], { day:'numeric', month:'short' }) + ' â€“ ' + calFmtDate(days[6], { day:'numeric', month:'short', year:'numeric' });
+  else label = 'Semana ' + isoWeekNumber(anchor) + ' Â· ' + calFmtDate(days[0], { day:'numeric', month:'short' }) + ' – ' + calFmtDate(days[6], { day:'numeric', month:'short', year:'numeric' });
   // summary counts
   const hasEventsError = !!error;
-  const programmed = hasEventsError ? 'â€”' : items.length;
-  const unassignedCount = hasEventsError ? 'â€”' : unassigned.length;
-  const inProgress = hasEventsError ? 'â€”' : items.filter(e => e.status === 'in_progress').length;
+  const programmed = hasEventsError ? '—' : items.length;
+  const unassignedCount = hasEventsError ? '—' : unassigned.length;
+  const inProgress = hasEventsError ? '—' : items.filter(e => e.status === 'in_progress').length;
   const byDay = {};
   items.forEach(e => { const d = e.start.slice(0,10); (byDay[d]=byDay[d]||[]).push(e); });
   const todayStr = calTodayStr();
@@ -451,10 +452,10 @@ async function renderCalendar(content) {
    html += '<div class="cal-toolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
    html += '<span class="cal-chip" style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;height:28px;cursor:pointer" id="chipProg">Programadas <span style="font-family:Outfit;font-weight:800;font-size:15px;color:#2A5C45">' + programmed + '</span></span>';
    html += '<span class="cal-chip" style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;height:28px;cursor:pointer" id="chipUnas">Sin asignar <span style="font-family:Outfit;font-weight:800;font-size:15px;color:#C9892A">' + unassignedCount + '</span></span>';
-   html += '<span class="cal-chip" style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;height:28px;cursor:pointer" id="chipProg2">En ejecuciÃ³n <span style="font-family:Outfit;font-weight:800;font-size:15px;color:#2A5C45">' + inProgress + '</span></span>';
-   const techOptions = techOpts.map(t => '<option value="' + (t.user_id||t.id) + '"' + (String(cs.filters.technician_id)===String(t.user_id||t.id)?' selected':'') + '>' + escapeHtml(t.full_name||t.username||('TÃ©cnico '+(t.user_id||t.id))) + '</option>').join('');
+   html += '<span class="cal-chip" style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;height:28px;cursor:pointer" id="chipProg2">En ejecución <span style="font-family:Outfit;font-weight:800;font-size:15px;color:#2A5C45">' + inProgress + '</span></span>';
+   const techOptions = techOpts.map(t => '<option value="' + (t.user_id||t.id) + '"' + (String(cs.filters.technician_id)===String(t.user_id||t.id)?' selected':'') + '>' + escapeHtml(t.full_name||t.username||('Técnico '+(t.user_id||t.id))) + '</option>').join('');
    const statusOpts = ['pending','assigned','in_progress','completed','closed','cancelled'].map(s => '<option value="' + s + '"' + (cs.filters.status===s?' selected':'') + '>' + escapeHtml((typeof statusOf==='function'?statusOf(s).label:s)) + '</option>').join('');
-   html += '<select class="sigos-input" id="calFiltTech"><option value="">Todos los tÃ©cnicos</option>' + techOptions + '</select>';
+   html += '<select class="sigos-input" id="calFiltTech"><option value="">Todos los técnicos</option>' + techOptions + '</select>';
    html += '<select class="sigos-input" id="calFiltStatus"><option value="">Todos los estados</option>' + statusOpts + '</select>';
    html += '<button class="sigos-btn-secondary" style="height:36px" id="calFiltersBtn">Filtros' + (activeFilterCount ? ' ' + activeFilterCount : '') + '</button>';
    if (hasActiveFilters) html += '<button class="sigos-btn-secondary" style="height:36px;font-size:12px" id="calClear">Limpiar</button>';
@@ -477,12 +478,12 @@ async function renderCalendar(content) {
      html += '</div></div>';
    }
   if (offline) {
-    html += '<div style="background:#FDECEA;color:#D63B3B;padding:8px;border-radius:6px;font-size:12px">Sin conexiÃ³n Â· datos de las ' + new Date().toLocaleTimeString('es-CO') + '</div>';
+    html += '<div style="background:#FDECEA;color:#D63B3B;padding:8px;border-radius:6px;font-size:12px">Sin conexión Â· datos de las ' + new Date().toLocaleTimeString('es-CO') + '</div>';
   } else if (error) {
     const d = eventsErrorDetail || {};
-    html += '<div class="sigos-card" style="margin:12px"><div class="empty-state"><div style="font-size:24px">âš </div><div class="empty-state__title">No se pudo cargar la agenda</div><div class="empty-state__text">' + escapeHtml(error) + '</div><button class="sigos-btn-secondary" id="calRetry">Reintentar</button><details style="margin-top:8px;font-size:11px;color:#96908A"><summary>Detalle tÃ©cnico</summary><div>status: ' + escapeHtml(d.status||'') + '</div><div>code: ' + escapeHtml(d.code||'') + '</div><div>url: ' + escapeHtml(d.url||'') + '</div><div>request_id: ' + escapeHtml((d.body && d.body.request_id)||'') + '</div></details></div></div>';
+    html += '<div class="sigos-card" style="margin:12px"><div class="empty-state"><div style="font-size:24px">⚠</div><div class="empty-state__title">No se pudo cargar la agenda</div><div class="empty-state__text">' + escapeHtml(error) + '</div><button class="sigos-btn-secondary" id="calRetry">Reintentar</button><details style="margin-top:8px;font-size:11px;color:#96908A"><summary>Detalle técnico</summary><div>status: ' + escapeHtml(d.status||'') + '</div><div>code: ' + escapeHtml(d.code||'') + '</div><div>url: ' + escapeHtml(d.url||'') + '</div><div>request_id: ' + escapeHtml((d.body && d.body.request_id)||'') + '</div></details></div></div>';
   } else if (!error && !items.length && !unassigned.length) {
-    html += '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">ðŸ“… Sin visitas programadas</div><div class="empty-state__text">No hay visitas en este rango. Programa una nueva desde Ã“rdenes.</div><button class="sigos-btn-secondary" id="calGoOrders">Ir a Ã“rdenes</button></div></div>';
+    html += '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">ðŸ“… Sin visitas programadas</div><div class="empty-state__text">No hay visitas en este rango. Programa una nueva desde Órdenes.</div><button class="sigos-btn-secondary" id="calGoOrders">Ir a Órdenes</button></div></div>';
   }
    // main layout: full width grid
    html += '<div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:16px">';
@@ -490,7 +491,7 @@ async function renderCalendar(content) {
    html += '<div class="cal-grid-scroll" style="min-height:0;overflow:auto;border:1px solid #DDD9D3;border-radius:8px;background:#fff">';
   if (cs.view === 'month') {
     html += '<div style="display:grid;grid-template-columns:repeat(7,1fr)">';
-    ['Lun','Mar','MiÃ©','Jue','Vie','SÃ¡b','Dom'].forEach(d => { html += '<div style="padding:6px;font-size:11px;font-weight:600;color:#96908A;border-bottom:1px solid #DDD9D3;text-align:center">' + d + '</div>'; });
+    ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(d => { html += '<div style="padding:6px;font-size:11px;font-weight:600;color:#96908A;border-bottom:1px solid #DDD9D3;text-align:center">' + d + '</div>'; });
      days.forEach(d => {
        const key = d.toISOString().slice(0,10);
        const evs = byDay[key] || [];
@@ -565,7 +566,7 @@ async function renderCalendar(content) {
            const selStyle = highlighted ? 'border:2px solid #2E7A50;box-shadow:0 0 0 4px rgba(46,122,80,.25);background:#EAF4EE;' : selected ? 'border:2px solid #2E7A50;box-shadow:0 4px 12px rgba(46,122,80,.25);' : ('border:1px solid ' + color + ';');
            html += '<div class="cal-event" data-event-id="' + e.order_id + '" tabindex="0" title="' + escapeHtml(orderCode(e) + ' ' + e.title) + '" style="position:absolute;top:' + top + 'px;left:' + left + ';width:' + width + ';height:' + height + 'px;background:#F3F8F5;' + selStyle + dash + ';border-radius:4px;padding:2px 4px;font-size:11px;overflow:hidden;pointer-events:auto;cursor:pointer">';
            const review = needsReview(e, pub);
-           html += '<div style="font-family:JetBrains Mono,monospace;font-size:10px">' + escapeHtml(orderCode(e)) + (review ? ' âš ' : '') + '</div>';
+           html += '<div style="font-family:JetBrains Mono,monospace;font-size:10px">' + escapeHtml(orderCode(e)) + (review ? ' ⚠' : '') + '</div>';
            html += '<div style="font-weight:600;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">' + escapeHtml(e.title) + '</div>';
            html += '<div style="color:#64748B">' + escapeHtml((e.technicians||[]).map(t=>t.name).join(', ') || 'Por asignar') + '</div>';
            html += '<div class="cal-resize-handle" data-event-id="' + e.order_id + '" style="position:absolute;bottom:0;left:0;right:0;height:6px;cursor:ns-resize"></div>';
@@ -584,16 +585,16 @@ async function renderCalendar(content) {
    }
   html += '</div>';
    const selDay = cs.selectedDay;
-   html += '<div class="sigos-card" style="padding:10px;flex:1;overflow:auto"><div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028;margin-bottom:6px">Ã“rdenes del dÃ­a seleccionado</div>';
+   html += '<div class="sigos-card" style="padding:10px;flex:1;overflow:auto"><div style="font-family:Outfit;font-weight:600;font-size:13px;color:#163028;margin-bottom:6px">Órdenes del día seleccionado</div>';
    const selEvs = byDay[selDay] || [];
-   if (!selEvs.length) html += '<div style="font-size:12px;color:#96908A">Selecciona un dÃ­a para ver sus visitas.</div>';
+   if (!selEvs.length) html += '<div style="font-size:12px;color:#96908A">Selecciona un día para ver sus visitas.</div>';
    selEvs.forEach(e => {
      html += '<div style="padding:8px;border:1px solid #E8E2D8;border-radius:6px;margin-bottom:6px">';
      html += '<div style="font-family:JetBrains Mono,monospace;font-size:11px">' + escapeHtml(orderCode(e)) + '</div>';
      html += '<div style="font-weight:600;font-size:12px">' + escapeHtml(e.title) + '</div>';
      const parts = [e.city, e.zone].filter(Boolean);
-     html += '<div style="font-size:11px;color:#64748B">' + escapeHtml(parts.join(' Â· ') || 'â€”') + '</div>';
-     html += '<div style="font-size:11px;color:#64748B">' + escapeHtml(e.start.slice(11,16)) + 'â€“' + escapeHtml(e.end.slice(11,16)) + ' Â· ' + escapeHtml((e.technicians||[]).map(t=>t.name).join(', ')||'Por asignar') + '</div>';
+     html += '<div style="font-size:11px;color:#64748B">' + escapeHtml(parts.join(' Â· ') || '—') + '</div>';
+     html += '<div style="font-size:11px;color:#64748B">' + escapeHtml(e.start.slice(11,16)) + '–' + escapeHtml(e.end.slice(11,16)) + ' Â· ' + escapeHtml((e.technicians||[]).map(t=>t.name).join(', ')||'Por asignar') + '</div>';
      html += '<div style="display:flex;gap:4px;margin-top:6px"><button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" onclick="state.selectedOrderId=' + e.order_id + ';state.view=\'order-detail\';render()">Abrir orden</button></div>';
      html += '</div>';
    });
@@ -640,13 +641,13 @@ async function renderCalendar(content) {
        const eid = cs.selectedEventId;
        if (!eid) return;
        if (action === 'open') { state.selectedOrderId = eid; state.view = 'order-detail'; render(); return; }
-       if (action === 'schedule') { notify('ProgramaciÃ³n disponible en la Fase 2.', 'info'); return; }
-       if (action === 'assign') { notify('AsignaciÃ³n disponible en la Fase 2.', 'info'); return; }
+       if (action === 'schedule') { notify('Programación disponible en la Fase 2.', 'info'); return; }
+       if (action === 'assign') { notify('Asignación disponible en la Fase 2.', 'info'); return; }
        if (action === 'history') { openHistoryDrawer(eid); return; }
        if (action === 'transition') {
          let reason = null;
          if (next === 'cancelled') {
-           reason = window.prompt('Motivo de cancelaciÃ³n (obligatorio):');
+           reason = window.prompt('Motivo de cancelación (obligatorio):');
            if (!reason) { notify('Motivo obligatorio.', 'error'); return; }
          }
          const actionName = next === 'assigned' ? 'assign' : next === 'in_progress' ? 'start' : next === 'completed' ? 'complete' : next === 'closed' ? 'close' : next === 'cancelled' ? 'cancel' : next;
@@ -766,11 +767,11 @@ function layoutOverlaps(evs) {
 }
 
 async function renderSettings(content) {
-  content.innerHTML = '<div class="empty-state"><div class="empty-state__title">Cargando configuraciÃ³n...</div></div>';
+  content.innerHTML = '<div class="empty-state"><div class="empty-state__title">Cargando configuración...</div></div>';
   try {
     const res = await api('GET', '/api/v1/settings/public');
     const p = (res.body) || {};
-    content.innerHTML = '<div class="sigos-card" style="padding:16px"><h3 style="font-family:Outfit;font-size:15px;color:#163028;margin:0 0 8px">ConfiguraciÃ³n</h3><div style="font-size:13px;color:#3A4552">Zona horaria: ' + escapeHtml(p.timezone || '') + '</div><div style="font-size:13px;color:#3A4552">Horario: ' + escapeHtml(p.work_start || '') + ' â€“ ' + escapeHtml(p.work_end || '') + '</div><div style="font-size:13px;color:#3A4552">DuraciÃ³n visita: ' + escapeHtml(p.default_visit_duration || '') + ' min</div><div style="font-size:12px;color:#96908A;margin-top:8px">AdministraciÃ³n completa disponible para roles autorizados.</div></div>';
+    content.innerHTML = '<div class="sigos-card" style="padding:16px"><h3 style="font-family:Outfit;font-size:15px;color:#163028;margin:0 0 8px">Configuración</h3><div style="font-size:13px;color:#3A4552">Zona horaria: ' + escapeHtml(p.timezone || '') + '</div><div style="font-size:13px;color:#3A4552">Horario: ' + escapeHtml(p.work_start || '') + ' – ' + escapeHtml(p.work_end || '') + '</div><div style="font-size:13px;color:#3A4552">Duración visita: ' + escapeHtml(p.default_visit_duration || '') + ' min</div><div style="font-size:12px;color:#96908A;margin-top:8px">Administración completa disponible para roles autorizados.</div></div>';
   } catch (e) {
     content.innerHTML = '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">Error</div><div class="empty-state__text">' + escapeHtml(String(e)) + '</div></div></div>';
   }
@@ -806,7 +807,7 @@ async function renderDashboard(content) {
   }
   const d = res.body;
 
-  const labelMap = { active: 'Ã“rdenes activas', completed: 'Completadas', sla: 'Cumplimiento SLA', mean_time: 'Tiempo medio', techs: 'TÃ©cnicos disp.', stock: 'Alertas stock' };
+  const labelMap = { active: 'Órdenes activas', completed: 'Completadas', sla: 'Cumplimiento SLA', mean_time: 'Tiempo medio', techs: 'Técnicos disp.', stock: 'Alertas stock' };
   const colorMap = { active: '#E8A520', completed: '#22C55E', sla: '#22C55E', mean_time: '#0EA5E9', techs: '#3B82F6', stock: '#D63B3B' };
   const iconMap = { active: 'schedule', completed: 'check_circle', sla: 'check_circle', mean_time: 'sync', techs: 'engineering', stock: 'warning' };
   const kpiHtml = (d.kpis || []).map((k) => {
@@ -835,13 +836,13 @@ async function renderDashboard(content) {
   const recentOrders = (d.recent_orders || []).map((o) => {
     const st = statusOf(o.status);
     const pr = priorityOf(o.priority);
-    const tech = o.assigned_to?.username || 'â€”';
-    const initials = tech === 'â€”' ? 'â€”' : tech.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+    const tech = o.assigned_to?.username || '—';
+    const initials = tech === '—' ? '—' : tech.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
     return `<tr class="tbl-row" data-detail="${o.id}">
       <td><span class="mono" style="font-size:12px;font-weight:600;color:#163028">${o.id}</span></td>
-      <td style="font-size:13px">${escapeHtml(o.customer_name || 'â€”')}</td>
+      <td style="font-size:13px">${escapeHtml(o.customer_name || '—')}</td>
       <td><div style="display:flex;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:50%;background:#D1FAE5;color:#166534;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">${escapeHtml(initials)}</div><span style="font-size:13px">${escapeHtml(tech)}</span></div></td>
-      <td style="font-size:12px;color:#64748B">${escapeHtml(o.created_at ? new Date(o.created_at).toLocaleString('es-ES') : 'â€”')}</td>
+      <td style="font-size:12px;color:#64748B">${escapeHtml(o.created_at ? new Date(o.created_at).toLocaleString('es-ES') : '—')}</td>
       <td><span class="${st.badge}">${escapeHtml(st.label)}</span></td>
       <td><span class="${pr.badge}">${escapeHtml(pr.label)}</span></td>
     </tr>`;
@@ -859,7 +860,7 @@ async function renderDashboard(content) {
       <div style="flex:1"><div style="font-size:13px;font-weight:500;color:#1A1F27">${escapeHtml(name)}</div><div style="font-size:11px;color:#96908A">${escapeHtml(t.specialty || '')}</div></div>
       <span class="${ts.badge}">${escapeHtml(ts.label)}</span>
     </div>`;
-  }).join('') || '<div style="color:#96908A;font-size:13px">Sin tÃ©cnicos</div>';
+  }).join('') || '<div style="color:#96908A;font-size:13px">Sin técnicos</div>';
 
   const notifsHtml = (d.notifications || []).slice(0, 5).map((n) => {
     const kind = n.subject?.toLowerCase().includes('stock') ? 'warn' : 'info';
@@ -897,13 +898,13 @@ async function renderDashboard(content) {
   content.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <div>
-        <h1 style="font-family:Outfit;font-weight:700;font-size:16px;color:#163028;margin:0">Buenos dÃ­as, ${escapeHtml(state.session.user.username || '')}</h1>
-        <div style="font-size:11px;color:#96908A;margin-top:2px">${escapeHtml((d.kpis?.[0]?.value || 0) + ' Ã³rdenes activas Â· ' + (d.kpis?.[4]?.value || '') + ' tÃ©cnicos disponibles ahora')}</div>
+        <h1 style="font-family:Outfit;font-weight:700;font-size:16px;color:#163028;margin:0">Buenos días, ${escapeHtml(state.session.user.username || '')}</h1>
+        <div style="font-size:11px;color:#96908A;margin-top:2px">${escapeHtml((d.kpis?.[0]?.value || 0) + ' órdenes activas Â· ' + (d.kpis?.[4]?.value || '') + ' técnicos disponibles ahora')}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="dashRange" class="sigos-select"><option value="7" ${range==7?'selected':''}>7 dÃ­as</option><option value="14" ${range==14?'selected':''}>14 dÃ­as</option><option value="30" ${range==30?'selected':''}>30 dÃ­as</option></select>
+        <select id="dashRange" class="sigos-select"><option value="7" ${range==7?'selected':''}>7 días</option><option value="14" ${range==14?'selected':''}>14 días</option><option value="30" ${range==30?'selected':''}>30 días</option></select>
         <select id="dashZone" class="sigos-select"><option value="">Todas las zonas</option></select>
-        <select id="dashTech" class="sigos-select"><option value="">Todos los tÃ©cnicos</option>${(d.technicians||[]).map((t)=>`<option value="${t.user?.id}" ${String(tech)===String(t.user?.id)?'selected':''}>${escapeHtml(t.user?.username||'')}</option>`).join('')}</select>
+        <select id="dashTech" class="sigos-select"><option value="">Todos los técnicos</option>${(d.technicians||[]).map((t)=>`<option value="${t.user?.id}" ${String(tech)===String(t.user?.id)?'selected':''}>${escapeHtml(t.user?.username||'')}</option>`).join('')}</select>
         <button class="sigos-btn-secondary" id="dashClear">Limpiar</button>
         <button class="sigos-btn-secondary" id="dashExport">Exportar</button>
       </div>
@@ -912,7 +913,7 @@ async function renderDashboard(content) {
     <div class="kpi-grid" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;margin-bottom:20px">${kpiHtml}</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;align-items:start">
-      <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Ã“rdenes por estado</h3><div class="cv"><canvas id="chartStack"></canvas></div></div>
+      <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Órdenes por estado</h3><div class="cv"><canvas id="chartStack"></canvas></div></div>
       <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Creadas vs completadas</h3><div class="cv"><canvas id="chartCreated"></canvas></div></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;align-items:start">
@@ -920,27 +921,27 @@ async function renderDashboard(content) {
       <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Por prioridad</h3><div class="cv sm"><canvas id="chartPriority"></canvas></div></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;align-items:start">
-      <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Por zona</h3>${zoneEmpty ? '<div style="height:90px;display:flex;align-items:center;justify-content:center;color:#96908A;font-size:13px;text-align:center">AÃºn no hay datos de zona. Asigna zona a las Ã³rdenes.</div>' : '<div class="cv sm"><canvas id="chartZone"></canvas></div>'}</div>
-      <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Carga por tÃ©cnico</h3><div class="cv sm"><canvas id="chartLoad"></canvas></div></div>
+      <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Por zona</h3>${zoneEmpty ? '<div style="height:90px;display:flex;align-items:center;justify-content:center;color:#96908A;font-size:13px;text-align:center">Aún no hay datos de zona. Asigna zona a las órdenes.</div>' : '<div class="cv sm"><canvas id="chartZone"></canvas></div>'}</div>
+      <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Carga por técnico</h3><div class="cv sm"><canvas id="chartLoad"></canvas></div></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:14px;align-items:start">
-      <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Por tipo de instalaciÃ³n</h3>${typeEmpty ? '<div style="height:90px;display:flex;align-items:center;justify-content:center;color:#96908A;font-size:13px;text-align:center">AÃºn no hay datos de tipo de instalaciÃ³n. Asigna tipo a las Ã³rdenes.</div>' : '<div class="cv sm"><canvas id="chartType"></canvas></div>'}</div>
+      <div class="sigos-card" style="padding:14px 16px"><h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Por tipo de instalación</h3>${typeEmpty ? '<div style="height:90px;display:flex;align-items:center;justify-content:center;color:#96908A;font-size:13px;text-align:center">Aún no hay datos de tipo de instalación. Asigna tipo a las órdenes.</div>' : '<div class="cv sm"><canvas id="chartType"></canvas></div>'}</div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 340px;gap:16px">
       <div class="sigos-card" style="padding:16px;overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h3 style="margin:0;font-family:Outfit;font-weight:600;font-size:15px;color:#163028">Ã“rdenes recientes</h3>
+          <h3 style="margin:0;font-family:Outfit;font-weight:600;font-size:15px;color:#163028">Órdenes recientes</h3>
           <button class="sigos-btn-secondary" id="goOrders">${icon('eye',14)} Ver todas</button>
         </div>
         <table class="tbl">
-          <thead><tr><th>ID</th><th>Cliente</th><th>TÃ©cnico</th><th>Fecha</th><th>Estado</th><th>Prioridad</th></tr></thead>
-          <tbody>${recentOrders || '<tr><td colspan="6" style="text-align:center;color:#96908A;padding:20px">Sin Ã³rdenes</td></tr>'}</tbody>
+          <thead><tr><th>ID</th><th>Cliente</th><th>Técnico</th><th>Fecha</th><th>Estado</th><th>Prioridad</th></tr></thead>
+          <tbody>${recentOrders || '<tr><td colspan="6" style="text-align:center;color:#96908A;padding:20px">Sin órdenes</td></tr>'}</tbody>
         </table>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px">
         <div class="sigos-card" style="padding:14px 16px">
-          <h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">AnÃ¡lisis</h3>
+          <h3 style="margin:0 0 6px;font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Análisis</h3>
           ${insightsHtml}
         </div>
         <div class="sigos-card" style="padding:14px 16px">
@@ -1066,7 +1067,7 @@ async function renderDashboard(content) {
 async function renderOrders(content) {
   if (!state.ordersState) state.ordersState = { filters: { q: '', status: '', technician_id: '', zone: '', priority: '', type: '', date_from: '', date_to: '', unassigned: false }, sort: 'created_at', order: 'desc', page: 1, pageSize: 10 };
   const st = state.ordersState;
-  content.innerHTML = '<div class="empty-state"><div class="empty-state__title">Cargando Ã³rdenes...</div></div>';
+  content.innerHTML = '<div class="empty-state"><div class="empty-state__title">Cargando órdenes...</div></div>';
 
   const params = new URLSearchParams();
   if (st.filters.status) params.set('status', st.filters.status);
@@ -1118,12 +1119,12 @@ async function renderOrders(content) {
     const techCell = tech
       ? `<div style="display:flex;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:50%;background:#D1FAE5;color:#166534;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">${escapeHtml(initials)}</div><span style="font-size:12px;color:#3A4552">${escapeHtml(tech)}</span></div>`
       : `<span style="font-size:12px;color:#96908A">Sin asignar</span>`;
-    const dateStr = o.scheduled_at ? new Date(o.scheduled_at).toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'â€”';
+    const dateStr = o.scheduled_at ? new Date(o.scheduled_at).toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
     return `<tr class="tbl-row" data-detail="${o.id}">
       <td><span class="mono" style="font-size:12px;font-weight:600;color:#163028">OS-${String(o.id).padStart(4, '0')}</span></td>
-      <td><div style="font-size:13px;font-weight:500;color:#1A1F27">${escapeHtml(o.customer_name || 'â€”')}</div><div style="font-size:11px;color:#96908A">${escapeHtml(o.title || '')}</div></td>
-      <td><div style="font-size:12px;color:#64748B;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(o.address || '')}">${escapeHtml(o.address || 'â€”')}</div></td>
-      <td style="font-size:12px;color:#3A4552">${escapeHtml(o.installation_type || 'â€”')}</td>
+      <td><div style="font-size:13px;font-weight:500;color:#1A1F27">${escapeHtml(o.customer_name || '—')}</div><div style="font-size:11px;color:#96908A">${escapeHtml(o.title || '')}</div></td>
+      <td><div style="font-size:12px;color:#64748B;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(o.address || '')}">${escapeHtml(o.address || '—')}</div></td>
+      <td style="font-size:12px;color:#3A4552">${escapeHtml(o.installation_type || '—')}</td>
       <td>${techCell}</td>
       <td style="font-size:12px;color:#3A4552">${escapeHtml(dateStr)}</td>
       <td><span class="${stInfo.badge}">${escapeHtml(stInfo.label)}</span></td>
@@ -1137,8 +1138,8 @@ async function renderOrders(content) {
   content.innerHTML = `
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">${tabHtml}</div>
     <div class="sigos-card filters" style="margin-bottom:14px;${filterBorder}">
-      <div style="flex:1 1 220px;min-width:220px">${searchField({ placeholder: 'Buscar por cliente, ID, direcciÃ³n...', id: 'qInput', value: st.filters.q })}</div>
-      <select id="filterTech" class="sigos-select" style="height:36px">${'<option value="">Todos los tÃ©cnicos</option>' + state.profiles.map((p) => `<option value="${p.user?.id}" ${String(st.filters.technician_id) === String(p.user?.id) ? 'selected' : ''}>${escapeHtml(p.user?.username || '')}</option>`).join('')}</select>
+      <div style="flex:1 1 220px;min-width:220px">${searchField({ placeholder: 'Buscar por cliente, ID, dirección...', id: 'qInput', value: st.filters.q })}</div>
+      <select id="filterTech" class="sigos-select" style="height:36px">${'<option value="">Todos los técnicos</option>' + state.profiles.map((p) => `<option value="${p.user?.id}" ${String(st.filters.technician_id) === String(p.user?.id) ? 'selected' : ''}>${escapeHtml(p.user?.username || '')}</option>`).join('')}</select>
       <select id="filterZone" class="sigos-select" style="height:36px">${'<option value="">Todas las zonas</option>' + ['Zona Norte','Zona Sur','Zona Centro','Zona Industrial','Zona Oeste'].map((z) => `<option value="${z}" ${st.filters.zone === z ? 'selected' : ''}>${z}</option>`).join('')}</select>
       <button class="sigos-btn-secondary" id="applyFilters" style="height:36px;padding:0 14px">${icon('filter', 14)} Filtros</button>
       ${hasFilters ? '<button class="sigos-btn-secondary" id="clearFilters" style="height:36px;color:#D63B3B;border-color:#FCA5A5">Limpiar</button>' : ''}
@@ -1146,17 +1147,17 @@ async function renderOrders(content) {
     </div>
     <div class="sigos-card" style="overflow:hidden">
       <table class="tbl">
-        <thead><tr>${['ID Orden','Cliente','DirecciÃ³n','Tipo','TÃ©cnico','Fecha visita','Estado','Prioridad','Acciones'].map((h) => `<th>${h}</th>`).join('')}</tr></thead>
+        <thead><tr>${['ID Orden','Cliente','Dirección','Tipo','Técnico','Fecha visita','Estado','Prioridad','Acciones'].map((h) => `<th>${h}</th>`).join('')}</tr></thead>
         <tbody>${rows || '<tr><td colspan="9" class="empty-state__text">Sin resultados</td></tr>'}</tbody>
       </table>
-      ${!orders.length ? `<div class="empty-state"><div class="empty-state__icon">${icon('orders', 24)}</div><div class="empty-state__title">Sin resultados</div><div class="empty-state__text">No encontramos Ã³rdenes con esos criterios.</div><div class="empty-state__action"><button class="sigos-btn-secondary" id="clearEmpty">Limpiar filtros</button></div></div>` : ''}
+      ${!orders.length ? `<div class="empty-state"><div class="empty-state__icon">${icon('orders', 24)}</div><div class="empty-state__title">Sin resultados</div><div class="empty-state__text">No encontramos órdenes con esos criterios.</div><div class="empty-state__action"><button class="sigos-btn-secondary" id="clearEmpty">Limpiar filtros</button></div></div>` : ''}
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:8px">
-      <div style="font-size:12px;color:#96908A">Mostrando ${orders.length} de ${total} Ã³rdenes</div>
+      <div style="font-size:12px;color:#96908A">Mostrando ${orders.length} de ${total} órdenes</div>
       <div style="display:flex;gap:4px">
-        <button class="sigos-btn-secondary" id="prevPage" ${st.page <= 1 ? 'disabled' : ''}>â€¹</button>
+        <button class="sigos-btn-secondary" id="prevPage" ${st.page <= 1 ? 'disabled' : ''}>‹</button>
         <span style="padding:6px 10px;font-size:12px">${st.page}</span>
-        <button class="sigos-btn-secondary" id="nextPage" ${st.page * st.pageSize >= total ? 'disabled' : ''}>â€º</button>
+        <button class="sigos-btn-secondary" id="nextPage" ${st.page * st.pageSize >= total ? 'disabled' : ''}>›</button>
         <select id="pageSize" class="sigos-select" style="height:32px">${[10,25,50].map((n) => `<option value="${n}" ${st.pageSize === n ? 'selected' : ''}>${n}</option>`).join('')}</select>
       </div>
     </div>`;
@@ -1195,19 +1196,19 @@ async function showOrderForm(content, orderId = null) {
     <form class="sigos-card modal-card" id="orderForm">
       <div class="modal-head"><h3 id="modalTitle">${orderId ? 'Editar orden' : 'Nueva orden de servicio'}</h3><button type="button" id="closeModal" style="background:none;border:none;cursor:pointer;color:#96908A" aria-label="Cerrar">${icon('close', 20)}</button></div>
       <div class="modal-body">
-        <div class="fld"><label for="fTitle">TÃ­tulo *</label><input class="sigos-input" id="fTitle" required placeholder="TÃ­tulo" value="${escapeHtml(existing?.title || '')}"></div>
+        <div class="fld"><label for="fTitle">Título *</label><input class="sigos-input" id="fTitle" required placeholder="Título" value="${escapeHtml(existing?.title || '')}"></div>
         <div class="grid2">
           <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fCustomer">Cliente</label><input class="sigos-input" id="fCustomer" value="${escapeHtml(existing?.customer_name || '')}"></div>
-          <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fPhone">TelÃ©fono</label><input class="sigos-input" id="fPhone" value="${escapeHtml(existing?.customer_phone || '')}"></div>
+          <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fPhone">Teléfono</label><input class="sigos-input" id="fPhone" value="${escapeHtml(existing?.customer_phone || '')}"></div>
         </div>
-        <div class="fld"><label for="fAddress">DirecciÃ³n</label><input class="sigos-input" id="fAddress" value="${escapeHtml(existing?.address || '')}"></div>
+        <div class="fld"><label for="fAddress">Dirección</label><input class="sigos-input" id="fAddress" value="${escapeHtml(existing?.address || '')}"></div>
         <div class="grid2">
-          <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fType">Tipo de instalaciÃ³n</label><input class="sigos-input" id="fType" value="${escapeHtml(existing?.installation_type || '')}"></div>
+          <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fType">Tipo de instalación</label><input class="sigos-input" id="fType" value="${escapeHtml(existing?.installation_type || '')}"></div>
           <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fPriority">Prioridad</label><select class="sigos-select" id="fPriority" style="width:100%"><option value="low" ${existing?.priority==='low'?'selected':''}>Baja</option><option value="medium" ${(existing?.priority||'medium')==='medium'?'selected':''}>Media</option><option value="high" ${existing?.priority==='high'?'selected':''}>Alta</option></select></div>
         </div>
         <div class="grid2">
           <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fZone">Zona</label><input class="sigos-input" id="fZone" value="${escapeHtml(existing?.zone || '')}"></div>
-          <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fAssign">TÃ©cnico</label><select class="sigos-select" id="fAssign" style="width:100%"><option value="">Sin asignar</option>${state.profiles.map((p) => `<option value="${p.user?.id}" ${existing?.assigned_to?.id === p.user?.id ? 'selected' : ''}>${escapeHtml(p.user?.username || '')}</option>`).join('')}</select></div>
+          <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fAssign">Técnico</label><select class="sigos-select" id="fAssign" style="width:100%"><option value="">Sin asignar</option>${state.profiles.map((p) => `<option value="${p.user?.id}" ${existing?.assigned_to?.id === p.user?.id ? 'selected' : ''}>${escapeHtml(p.user?.username || '')}</option>`).join('')}</select></div>
         </div>
         <div class="grid2">
           <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px" for="fDate">Fecha visita</label><input class="sigos-input" type="date" id="fDate" value="${existing?.scheduled_at ? existing.scheduled_at.slice(0,10) : ''}"></div>
@@ -1227,8 +1228,8 @@ async function showOrderForm(content, orderId = null) {
   $('#saveOrder', modal).addEventListener('click', async () => {
     const btn = $('#saveOrder', modal);
     const title = $('#fTitle', modal).value.trim();
-    if (!title) { notify('TÃ­tulo requerido', 'error'); return; }
-    btn.disabled = true; btn.textContent = 'Guardandoâ€¦';
+    if (!title) { notify('Título requerido', 'error'); return; }
+    btn.disabled = true; btn.textContent = 'Guardando…';
     const scheduled = $('#fDate', modal).value ? `${$('#fDate', modal).value}T${$('#fTime', modal).value || '09:00'}:00` : null;
     const body = {
       title,
@@ -1293,18 +1294,18 @@ async function renderOrderDetail(content) {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div><label>Cliente</label><div>${escapeHtml(wo.customer_name)}</div></div>
-        <div><label>TelÃ©fono</label><div>${escapeHtml(wo.customer_phone)}</div></div>
-        <div><label>DirecciÃ³n</label><div>${escapeHtml(wo.address)}</div></div>
+        <div><label>Teléfono</label><div>${escapeHtml(wo.customer_phone)}</div></div>
+        <div><label>Dirección</label><div>${escapeHtml(wo.address)}</div></div>
         <div><label>Prioridad</label><div><span class="badge-${wo.priority || 'medium'}">${escapeHtml(wo.priority)}</span></div></div>
         <div><label>Asignado a</label><div>${escapeHtml(wo.assigned_to?.username)}</div></div>
         <div><label>Creado por</label><div>${escapeHtml(wo.created_by?.username)}</div></div>
       </div>
-      <div style="margin-top:12px"><label>DescripciÃ³n</label><div>${escapeHtml(wo.description)}</div></div>
+      <div style="margin-top:12px"><label>Descripción</label><div>${escapeHtml(wo.description)}</div></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
       <div class="sigos-card" style="padding:16px">
         <h3 style="margin:0 0 8px">Acciones</h3>
-        <div class="fld"><label>Asignar tÃ©cnico</label>
+        <div class="fld"><label>Asignar técnico</label>
           <select id="assignSel" class="sigos-select" style="width:100%">
             <option value="">Sin cambios</option>
             ${profiles.map((p) => `<option value="${p.user?.id}" ${wo.assigned_to?.id === p.user?.id ? 'selected' : ''}>${escapeHtml(p.user?.username || '')}</option>`).join('')}
@@ -1327,8 +1328,8 @@ async function renderOrderDetail(content) {
     <div class="sigos-card" style="padding:16px;margin-top:16px">
       <h3 style="margin:0 0 8px">Evidencias</h3>
       <div id="evList" style="color:#96908A">Cargando...</div>
-      <div class="fld" style="margin-top:8px"><label>Nueva observaciÃ³n</label><textarea id="obsText" class="sigos-input" rows="2"></textarea></div>
-      <button class="sigos-btn-secondary" id="addObs">Agregar observaciÃ³n</button>
+      <div class="fld" style="margin-top:8px"><label>Nueva observación</label><textarea id="obsText" class="sigos-input" rows="2"></textarea></div>
+      <button class="sigos-btn-secondary" id="addObs">Agregar observación</button>
     </div>`;
 
   $('#backBtn').addEventListener('click', () => { state.view = 'orders'; state.selectedOrderId = null; render(); });
@@ -1337,14 +1338,14 @@ async function renderOrderDetail(content) {
     const body = { assigned_to_id: v ? Number(v) : null };
     const res = await api('PUT', `/api/v1/work-orders/${id}`, body);
     if (!res.ok) { notify(res.body?.error || 'Error', 'error'); return; }
-    notify('AsignaciÃ³n actualizada', 'success');
+    notify('Asignación actualizada', 'success');
     renderOrderDetail(content);
   });
   $('#statusBtn').addEventListener('click', async () => {
     const to = $('#statusSel').value;
     if (!to) { notify('Selecciona estado', 'error'); return; }
     const res = await api('POST', `/api/v1/work-orders/${id}/status`, { to_status: to, notes: $('#statusNotes').value.trim() || null });
-    if (!res.ok) { notify(res.body?.error || 'TransiciÃ³n invÃ¡lida', 'error'); return; }
+    if (!res.ok) { notify(res.body?.error || 'Transición inválida', 'error'); return; }
     notify('Estado actualizado', 'success');
     renderOrderDetail(content);
   });
@@ -1358,10 +1359,10 @@ async function renderOrderDetail(content) {
   loadEvidences(id);
   $('#addObs').addEventListener('click', async () => {
     const desc = $('#obsText').value.trim();
-    if (!desc) { notify('ObservaciÃ³n vacÃ­a', 'error'); return; }
+    if (!desc) { notify('Observación vacía', 'error'); return; }
     const res = await api('POST', `/api/v1/work-orders/${id}/evidences`, null, { evidence_type: 'observation', description: desc });
-    if (!res.ok) { notify(res.body?.error || 'Error al agregar observaciÃ³n', 'error'); return; }
-    notify('ObservaciÃ³n agregada', 'success');
+    if (!res.ok) { notify(res.body?.error || 'Error al agregar observación', 'error'); return; }
+    notify('Observación agregada', 'success');
     $('#obsText').value = '';
     loadEvidences(id);
   });
@@ -1384,7 +1385,7 @@ async function renderTechnicians(content) {
     <div class="sigos-card" style="overflow:hidden">
       <table class="tbl">
         <thead><tr><th>Nombre</th><th>Especialidad</th><th>Zona</th><th>Disponibilidad</th></tr></thead>
-        <tbody>${profiles.map((p) => `<tr class="tbl-row"><td>${escapeHtml(p.user?.username || '')}</td><td>${escapeHtml(p.specialty || '')}</td><td>${escapeHtml(p.zone || '')}</td><td><span class="badge-${p.is_available ? 'available' : 'offduty'}">${p.is_available ? 'Disponible' : 'No disponible'}</span></td></tr>`).join('') || '<tr><td colspan="4" class="empty-state__text">Sin tÃ©cnicos</td></tr>'}</tbody>
+        <tbody>${profiles.map((p) => `<tr class="tbl-row"><td>${escapeHtml(p.user?.username || '')}</td><td>${escapeHtml(p.specialty || '')}</td><td>${escapeHtml(p.zone || '')}</td><td><span class="badge-${p.is_available ? 'available' : 'offduty'}">${p.is_available ? 'Disponible' : 'No disponible'}</span></td></tr>`).join('') || '<tr><td colspan="4" class="empty-state__text">Sin técnicos</td></tr>'}</tbody>
       </table>
     </div>`;
 }
@@ -1425,11 +1426,11 @@ async function renderTechnicians(content) {
         <div style="width:48px;height:48px;border-radius:50%;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-weight:700">${escapeHtml(initials)}</div>
         <div style="flex:1">
           <div style="font-size:14px;font-weight:600;color:#1A1F27">${escapeHtml(name)}</div>
-          <div style="font-size:12px;color:#64748B">${escapeHtml(t.specialty || '')} - ${escapeHtml(t.zones || 'â€”')}</div>
+          <div style="font-size:12px;color:#64748B">${escapeHtml(t.specialty || '')} - ${escapeHtml(t.zones || '—')}</div>
         </div>
         <span class="${ts.badge}">${escapeHtml(ts.label)}</span>
       </div>
-      <div style="font-size:12px;color:#64748B;margin-bottom:4px">Tel: ${escapeHtml(t.phone || 'â€”')} - ${load} ordenes abiertas</div>
+      <div style="font-size:12px;color:#64748B;margin-bottom:4px">Tel: ${escapeHtml(t.phone || '—')} - ${load} ordenes abiertas</div>
       <div style="height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px"></div></div>
       <div style="display:flex;gap:6px">
         <button class="sigos-btn-secondary" style="font-size:12px;padding:4px 8px" data-view-orders="${t.user?.id}">Ver ordenes</button>
@@ -1651,7 +1652,7 @@ function showContextMenu(x, y, eventId) {
       if (it.action === 'schedule' || it.action === 'assign') { notify('Disponible en Fase 2.', 'info'); return; }
       if (it.action === 'history') { openHistoryDrawer(eventId); return; }
       if (it.action === 'cancel') {
-        const reason = window.prompt('Motivo de cancelaciï¿½n (obligatorio):');
+        const reason = window.prompt('Motivo de cancelación (obligatorio):');
         if (!reason) { notify('Motivo obligatorio.', 'error'); return; }
         const res = await api('POST', '/api/v1/work-orders/' + eventId + '/transitions', { action: 'cancel', reason });
         if (res.ok) { notify('Cancelado.', 'success'); render(); } else notify((res.body && (res.body.message || res.body.error)) || 'Error', 'error');
@@ -1659,7 +1660,7 @@ function showContextMenu(x, y, eventId) {
       }
       if (it.action === 'transition-next') {
         // advance one step based on current event status if possible
-        notify('Usa los botones del panel para transiciones especï¿½ficas.', 'info');
+        notify('Usa los botones del panel para transiciones específicas.', 'info');
       }
     });
     menu.appendChild(b);
@@ -1689,11 +1690,11 @@ async function openHistoryDrawer(orderId) {
       const when = h.created_at ? new Date(h.created_at).toLocaleString('es-CO') : '';
       const what = (h.from_status || '') + ' ? ' + (h.to_status || '');
       const reason = h.notes ? '<div style="font-size:11px;color:#64748B;margin-top:2px">' + escapeHtml(h.notes) + '</div>' : '';
-      return '<div style="padding:8px;border-bottom:1px solid #F0ECE4"><div style="font-size:12px;font-weight:600">' + escapeHtml(what) + '</div><div style="font-size:11px;color:#96908A">' + escapeHtml(who) + ' ï¿½ ' + escapeHtml(when) + '</div>' + reason + '</div>';
+      return '<div style="padding:8px;border-bottom:1px solid #F0ECE4"><div style="font-size:12px;font-weight:600">' + escapeHtml(what) + '</div><div style="font-size:11px;color:#96908A">' + escapeHtml(who) +  ' · ' + escapeHtml(when) + '</div>' + reason + '</div>';
     }).join('');
   } catch (e) {
     const body = document.getElementById('calHistoryBody');
-    if (body) body.innerHTML = '<div style="color:#991B1B">Error de conexiï¿½n.</div>';
+    if (body) body.innerHTML = '<div style="color:#991B1B">Error de conexión.</div>';
   }
 }
 
@@ -1708,7 +1709,7 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'd' || ev.key === 'D') { cs.view = 'day'; render(); return; }
   if (ev.key === 'w' || ev.key === 'W') { cs.view = 'week'; render(); return; }
   if (ev.key === 'm' || ev.key === 'M') { cs.view = 'month'; render(); return; }
-  if (ev.key === 'n' || ev.key === 'N') { notify('Programaciï¿½n disponible en Fase 2.', 'info'); return; }
+  if (ev.key === 'n' || ev.key === 'N') { notify('Programación disponible en Fase 2.', 'info'); return; }
   if (ev.key === 'ArrowLeft') { cs.anchor = calAddDays(new Date(cs.anchor + 'T00:00:00'), cs.view === 'month' ? -30 : cs.view === 'day' ? -1 : -7).toISOString().slice(0,10); render(); return; }
   if (ev.key === 'ArrowRight') { cs.anchor = calAddDays(new Date(cs.anchor + 'T00:00:00'), cs.view === 'month' ? 30 : cs.view === 'day' ? 1 : 7).toISOString().slice(0,10); render(); return; }
   if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
@@ -1772,7 +1773,7 @@ async function openScheduleModal(opts) {
         <input type="time" id="schEnd" class="sigos-input" style="height:36px;width:100%" step="900">
       </div>
       <div style="grid-column:1/-1">
-        <label style="font-size:12px;color:#96908A">Tï¿½cnico</label>
+        <label style="font-size:12px;color:#96908A">Técnico</label>
         <select id="schTech" class="sigos-input" style="height:36px;width:100%"></select>
         <div id="schTechWarn" style="font-size:11px;color:#C9892A;margin-top:2px"></div>
       </div>
@@ -1784,8 +1785,8 @@ async function openScheduleModal(opts) {
         <label style="font-size:12px;color:#96908A">Motivo del cambio *</label>
         <select id="schReason" class="sigos-input" style="height:36px;width:100%;margin-bottom:4px">
           <option value="">Selecciona motivo</option>
-          <option value="Cliente reprogramÃ³">Cliente reprogramÃ³</option>
-          <option value="TÃ©cnico no disponible">TÃ©cnico no disponible</option>
+          <option value="Cliente reprogramó">Cliente reprogramó</option>
+          <option value="Técnico no disponible">Técnico no disponible</option>
           <option value="Clima">Clima</option>
           <option value="Falta de material">Falta de material</option>
           <option value="Otro">Otro</option>
@@ -1814,7 +1815,7 @@ async function openScheduleModal(opts) {
   const porAsignar = unassigned.filter(o => o.scheduled_at && !o.assigned_to_id);
   const makeOpt = (o) => {
     const code = orderCode(o);
-    const label = code + ' ï¿½ ' + (o.customer_name || 'ï¿½') + ' ï¿½ ' + (o.installation_type_code || o.installation_type || 'ï¿½');
+    const label = code +  ' · ' + (o.customer_name || '—') +  ' · ' + (o.installation_type_code || o.installation_type || '—');
     return '<option value="' + o.id + '" data-version="' + (o.version || 0) + '" data-scheduled="' + (o.scheduled_at || '') + '">' + escapeHtml(label) + '</option>';
   };
   orderSel.innerHTML = '<optgroup label="Por programar">' + porProgramar.map(makeOpt).join('') + '</optgroup>' +
@@ -1846,7 +1847,7 @@ async function openScheduleModal(opts) {
     const date = dateInput.value;
     const st = startInput.value;
     const en = endInput.value;
-    let html = '<option value="">Dejar pendiente de asignaciï¿½n</option>';
+    let html = '<option value="">Dejar pendiente de asignación</option>';
     techs.forEach(t => {
       const prof = t; // t is profile
       const uid = t.user_id || t.id;
@@ -1893,7 +1894,7 @@ async function openScheduleModal(opts) {
     if (o.city_id || o.zone_id) {
       covered = (coverages || []).some(c => c.city_id === o.city_id && (o.zone_id == null || c.zone_id === o.zone_id || c.zone_id == null));
     }
-    if (!covered) techWarn.textContent = 'Advertencia: el tï¿½cnico no cubre la zona/ciudad de la orden.';
+    if (!covered) techWarn.textContent = 'Advertencia: el técnico no cubre la zona/ciudad de la orden.';
     else techWarn.textContent = '';
   }
 
@@ -1914,7 +1915,7 @@ async function openScheduleModal(opts) {
       reason: modal.querySelector('#schReason').value || undefined,
     };
     const res = await api('POST', '/api/v1/calendar/validate', payload);
-    if (!res.ok) { valDiv.innerHTML = '<span style="color:#991B1B">Error de validaciï¿½n.</span>'; return; }
+    if (!res.ok) { valDiv.innerHTML = '<span style="color:#991B1B">Error de validación.</span>'; return; }
     const r = res.body || {};
     if (r.ok) {
       valDiv.innerHTML = '<span style="color:#166534">Sin conflictos.</span>';
@@ -1933,7 +1934,7 @@ async function openScheduleModal(opts) {
       const uid = techSel.value;
       if (uid) {
         const b2 = document.createElement('button');
-        b2.className = 'sigos-btn-secondary'; b2.style.height = '28px'; b2.textContent = 'Ver agenda de ' + (techSel.selectedOptions[0] ? techSel.selectedOptions[0].textContent.split(' ï¿½ ')[0] : 'tï¿½cnico');
+        b2.className = 'sigos-btn-secondary'; b2.style.height = '28px'; b2.textContent = 'Ver agenda de ' + (techSel.selectedOptions[0] ? techSel.selectedOptions[0].textContent.split( ' · ')[0] : 'técnico');
         b2.addEventListener('click', () => { closeScheduleModal(); csFilterByTech(uid); });
         conflictActions.appendChild(b2);
       }
@@ -1961,14 +1962,14 @@ async function openScheduleModal(opts) {
     });
   });
   modal.querySelector('#schClose').addEventListener('click', () => {
-    if (dirty && !window.confirm('ï¿½Descartar cambios?')) return;
+    if (dirty && !window.confirm('¿Descartar cambios?')) return;
     closeScheduleModal();
   });
   modal.querySelector('#schCancel').addEventListener('click', () => {
-    if (dirty && !window.confirm('ï¿½Descartar cambios?')) return;
+    if (dirty && !window.confirm('¿Descartar cambios?')) return;
     closeScheduleModal();
   });
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { if (dirty && !window.confirm('ï¿½Descartar cambios?')) return; closeScheduleModal(); } });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { if (dirty && !window.confirm('¿Descartar cambios?')) return; closeScheduleModal(); } });
 
   modal.querySelector('#schSave').addEventListener('click', async () => {
     const oid = orderSel.value;
@@ -1989,7 +1990,7 @@ async function openScheduleModal(opts) {
     };
     if (techSel.value) payload.technician_ids = [Number(techSel.value)];
     else payload.technician_ids = [];
-    if (isReprogram) payload.reason = modal.querySelector('#schReason').value + (modal.querySelector('#schReasonComment').value ? ' ï¿½ ' + modal.querySelector('#schReasonComment').value : '');
+    if (isReprogram) payload.reason = modal.querySelector('#schReason').value + (modal.querySelector('#schReasonComment').value ?  ' · ' + modal.querySelector('#schReasonComment').value : '');
 
     const path = isReprogram ? ('/api/v1/work-orders/' + oid + '/schedule') : ('/api/v1/work-orders/' + oid + '/schedule');
     const method = isReprogram ? 'PATCH' : 'POST';
@@ -2005,7 +2006,7 @@ async function openScheduleModal(opts) {
     } else {
       const code = res.body && res.body.code;
       if (res.status === 409 && res.body && res.body.code === 'STALE_VERSION') {
-        notify('Otro usuario modificÃ³ esta orden.', 'error');
+        notify('Otro usuario modificó esta orden.', 'error');
         const reloadBtn = document.createElement('button');
         reloadBtn.className = 'sigos-btn-secondary'; reloadBtn.style.height = '28px'; reloadBtn.textContent = 'Recargar';
         reloadBtn.addEventListener('click', () => { closeScheduleModal(); render(); });
@@ -2020,13 +2021,13 @@ async function openScheduleModal(opts) {
         const b1 = document.createElement('button'); b1.className='sigos-btn-secondary'; b1.style.height='28px'; b1.textContent='Elegir otro horario';
         b1.addEventListener('click', () => startInput.focus()); conflictActions.appendChild(b1);
         if (techSel.value) {
-          const b2 = document.createElement('button'); b2.className='sigos-btn-secondary'; b2.style.height='28px'; b2.textContent='Ver agenda de ' + (techSel.selectedOptions[0].textContent.split(' ï¿½ ')[0]);
+          const b2 = document.createElement('button'); b2.className='sigos-btn-secondary'; b2.style.height='28px'; b2.textContent='Ver agenda de ' + (techSel.selectedOptions[0].textContent.split( ' · ')[0]);
           b2.addEventListener('click', () => { closeScheduleModal(); csFilterByTech(techSel.value); });
           conflictActions.appendChild(b2);
         }
         notify(msg, 'error');
       } else if (res.status === 422) {
-        notify((res.body && (res.body.message || res.body.error)) || 'Datos invï¿½lidos.', 'error');
+        notify((res.body && (res.body.message || res.body.error)) || 'Datos inválidos.', 'error');
       } else if (res.status === 403) {
         notify('Sin permisos.', 'error');
       } else {
@@ -2066,8 +2067,8 @@ function askReason() {
       <div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:8px">Motivo del cambio</div>
       <select id="reasonSel" class="sigos-input" style="height:36px;width:100%;margin-bottom:6px">
         <option value="">Selecciona motivo</option>
-        <option value="Cliente reprogramï¿½">Cliente reprogramï¿½</option>
-        <option value="Tï¿½cnico no disponible">Tï¿½cnico no disponible</option>
+        <option value="Cliente reprogramó">Cliente reprogramó</option>
+        <option value="Técnico no disponible">Técnico no disponible</option>
         <option value="Clima">Clima</option>
         <option value="Falta de material">Falta de material</option>
         <option value="Otro">Otro</option>
@@ -2086,7 +2087,7 @@ function askReason() {
       if (!v) { notify('Motivo obligatorio.', 'error'); return; }
       const c = modal.querySelector('#reasonComment').value;
       overlay.remove();
-      resolve(v + (c ? ' ï¿½ ' + c : ''));
+      resolve(v + (c ?  ' · ' + c : ''));
     });
   });
 }
@@ -2304,7 +2305,7 @@ async function onDragEnd(e) {
   if (ds.type === 'resize') { _dragState = null; return; }
 
   // event drag
-  if (!target) { _dragState = null; _lastValidateKey = ''; notify('Soltar en una celda vï¿½lida.', 'error'); return; }
+  if (!target) { _dragState = null; _lastValidateKey = ''; notify('Soltar en una celda válida.', 'error'); return; }
   const evObj = ds.evObj;
   const origStart = new Date(evObj.start);
   const origEnd = new Date(evObj.end);
@@ -2425,7 +2426,7 @@ async function onResizeEnd(e) {
   };
   const res = await api('PATCH', '/api/v1/work-orders/' + ds.eventId + '/schedule', payload);
   if (res.ok) {
-    notify('Duraciï¿½n actualizada.', 'success');
+    notify('Duración actualizada.', 'success');
     const cs = state.calendarState;
     cs.highlightId = ds.eventId;
     render();
@@ -2483,7 +2484,7 @@ function dayAgendaHtml(dayKey, byDay, pub, cs, todayStr) {
   let html = '<div class="sigos-card" style="padding:12px 14px;margin-top:8px">';
   html += '<div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028;margin-bottom:6px">' + escapeHtml(d.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" })) + '</div>';
   if (!evs.length) {
-    html += '<div style="font-size:12px;color:#96908A;padding:8px 0">Sin eventos para este dï¿½a.</div>';
+    html += '<div style="font-size:12px;color:#96908A;padding:8px 0">Sin eventos para este día.</div>';
     html += '</div>';
     return html;
   }
@@ -2539,7 +2540,7 @@ function openDayModal(dayKey) {
   const byDay = {};
   (state._calItems || []).forEach(e => { const d = e.start.slice(0,10); (byDay[d]=byDay[d]||[]).push(e); });
   const pub = state._calPublic || {};
-  const html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Agenda del dï¿½a</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>' + dayAgendaHtml(dayKey, byDay, pub, state.calendarState, calTodayStr());
+  const html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Agenda del día</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>' + dayAgendaHtml(dayKey, byDay, pub, state.calendarState, calTodayStr());
   openModal(html);
 }
 
@@ -2572,8 +2573,8 @@ function openOrderModal(orderId) {
   const techs = (o.technicians || []).map(t => t.name).join(', ') || 'Por asignar';
   let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">' + escapeHtml(code) + '</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>';
   html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px">' + escapeHtml(title) + '</div>';
-  html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Tï¿½cnico:</span> ' + escapeHtml(techs) + '</div>';
-  if (o.start) html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Horario:</span> ' + escapeHtml(o.start.slice(11,16)) + 'ï¿½' + escapeHtml(o.end.slice(11,16)) + '</div>';
+  html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Técnico:</span> ' + escapeHtml(techs) + '</div>';
+  if (o.start) html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Horario:</span> ' + escapeHtml(o.start.slice(11,16)) + '–' + escapeHtml(o.end.slice(11,16)) + '</div>';
   html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Estado:</span> ' + escapeHtml((typeof statusOf === 'function' ? statusOf(o.status).label : o.status)) + '</div>';
   html += '<div style="display:flex;gap:6px;margin-top:10px">';
   html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" onclick="state.selectedOrderId=' + orderId + ';state.view=\'order-detail\';render();document.querySelector(\'div[style*=\"z-index:10000\"]\')?.remove()">Abrir orden</button>';

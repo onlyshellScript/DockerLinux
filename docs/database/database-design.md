@@ -1,4 +1,4 @@
-# Diseño de la base de datos — SIGOSV
+# Diseño de la base de datos â SIGOSV
 
 Base de datos: Microsoft SQL Server. Esquema normalizado hasta 4FN. Los identificadores (tablas y columnas) se expresan en español.
 
@@ -100,7 +100,7 @@ Se eliminan dependencias transitivas. Los datos del usuario creador y del técni
 
 ## 6. Cuarta forma normal (4FN)
 
-Se eliminan dependencias multivaluadas independientes. Un usuario puede tener varios roles y un rol varios usuarios → tabla `usuario_roles` (M:N). Los movimientos de stock son hechos independientes por material/orden/usuario. No existen dependencias multivaluadas residuales. Esquema final (11 tablas) del apartado 7.
+Se eliminan dependencias multivaluadas independientes. Un usuario puede tener varios roles y un rol varios usuarios â tabla `usuario_roles` (M:N). Los movimientos de stock son hechos independientes por material/orden/usuario. No existen dependencias multivaluadas residuales. Esquema final (11 tablas) del apartado 7.
 
 ## 7. Modelo entidad-relación
 
@@ -237,17 +237,17 @@ erDiagram
 
 | Tabla | PK | FK principales |
 |---|---|---|
-| usuarios | id | — |
-| roles | id | — |
-| usuario_roles | (usuario_id, rol_id) | usuario_id→usuarios.id, rol_id→roles.id |
-| ordenes_trabajo | id | asignado_a_id→usuarios.id, creado_por_id→usuarios.id |
-| historial_estado_orden | id | orden_trabajo_id→ordenes_trabajo.id, cambiado_por_id→usuarios.id |
-| materiales | id | — |
-| perfiles_tecnico | id | usuario_id→usuarios.id (UK) |
-| movimientos_stock | id | material_id→materiales.id, orden_trabajo_id→ordenes_trabajo.id, usuario_id→usuarios.id |
-| evidencias | id | orden_trabajo_id→ordenes_trabajo.id, subido_por_id→usuarios.id |
-| notificaciones | id | usuario_id→usuarios.id |
-| operaciones_sincronizacion | id | usuario_id→usuarios.id |
+| usuarios | id | â |
+| roles | id | â |
+| usuario_roles | (usuario_id, rol_id) | usuario_idâusuarios.id, rol_idâroles.id |
+| ordenes_trabajo | id | asignado_a_idâusuarios.id, creado_por_idâusuarios.id |
+| historial_estado_orden | id | orden_trabajo_idâordenes_trabajo.id, cambiado_por_idâusuarios.id |
+| materiales | id | â |
+| perfiles_tecnico | id | usuario_idâusuarios.id (UK) |
+| movimientos_stock | id | material_idâmateriales.id, orden_trabajo_idâordenes_trabajo.id, usuario_idâusuarios.id |
+| evidencias | id | orden_trabajo_idâordenes_trabajo.id, subido_por_idâusuarios.id |
+| notificaciones | id | usuario_idâusuarios.id |
+| operaciones_sincronizacion | id | usuario_idâusuarios.id |
 
 ## 8. Diccionarios de datos
 
@@ -255,131 +255,131 @@ erDiagram
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| nombre_usuario | varchar(80) | No | — | UK, índice | Nombre de usuario |
-| correo | varchar(120) | No | — | UK, índice | Correo electrónico |
-| hash_contrasena | varchar(256) | No | — | — | Hash de contraseña |
-| esta_activo | bit | No | 1 | — | Usuario activo |
-| creado_en | datetime (tz) | Sí | now() | — | Fecha de creación |
-| actualizado_en | datetime (tz) | Sí | now() | — | Fecha de actualización |
+| nombre_usuario | varchar(80) | No | â | UK, índice | Nombre de usuario |
+| correo | varchar(120) | No | â | UK, índice | Correo electrónico |
+| hash_contrasena | varchar(256) | No | â | â | Hash de contraseña |
+| esta_activo | bit | No | 1 | â | Usuario activo |
+| creado_en | datetime (tz) | Sí | now() | â | Fecha de creación |
+| actualizado_en | datetime (tz) | Sí | now() | â | Fecha de actualización |
 
 ### roles
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| nombre | varchar(50) | No | — | UK, índice | Nombre del rol |
-| descripcion | varchar(200) | Sí | — | — | Descripción |
+| nombre | varchar(50) | No | â | UK, índice | Nombre del rol |
+| descripcion | varchar(200) | Sí | â | â | Descripción |
 
 ### usuario_roles
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
-| usuario_id | int | No | — | PK, FK→usuarios.id | Usuario |
-| rol_id | int | No | — | PK, FK→roles.id | Rol |
+| usuario_id | int | No | â | PK, FKâusuarios.id | Usuario |
+| rol_id | int | No | â | PK, FKâroles.id | Rol |
 
 ### ordenes_trabajo
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| titulo | varchar(200) | No | — | — | Título |
-| descripcion | text | Sí | — | — | Descripción |
+| titulo | varchar(200) | No | â | â | Título |
+| descripcion | text | Sí | â | â | Descripción |
 | estado | varchar(20) | No | 'pendiente' | índice | Estado del flujo |
-| prioridad | varchar(10) | No | 'media' | — | Prioridad |
-| nombre_cliente | varchar(120) | Sí | — | — | Cliente |
-| telefono_cliente | varchar(30) | Sí | — | — | Teléfono cliente |
-| direccion | varchar(250) | Sí | — | — | Dirección |
-| asignado_a_id | int | Sí | — | FK→usuarios.id | Técnico asignado |
-| creado_por_id | int | No | — | FK→usuarios.id | Creador |
-| creado_en | datetime (tz) | Sí | now() | — | Creación |
-| actualizado_en | datetime (tz) | Sí | now() | — | Actualización |
+| prioridad | varchar(10) | No | 'media' | â | Prioridad |
+| nombre_cliente | varchar(120) | Sí | â | â | Cliente |
+| telefono_cliente | varchar(30) | Sí | â | â | Teléfono cliente |
+| direccion | varchar(250) | Sí | â | â | Dirección |
+| asignado_a_id | int | Sí | â | FKâusuarios.id | Técnico asignado |
+| creado_por_id | int | No | â | FKâusuarios.id | Creador |
+| creado_en | datetime (tz) | Sí | now() | â | Creación |
+| actualizado_en | datetime (tz) | Sí | now() | â | Actualización |
 
 ### historial_estado_orden
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| orden_trabajo_id | int | No | — | FK→ordenes_trabajo.id, índice | Orden |
-| estado_anterior | varchar(20) | No | — | — | Estado origen |
-| estado_nuevo | varchar(20) | No | — | — | Estado destino |
-| cambiado_por_id | int | No | — | FK→usuarios.id | Usuario que cambió |
-| notas | text | Sí | — | — | Notas |
-| creado_en | datetime (tz) | Sí | now() | — | Fecha del cambio |
+| orden_trabajo_id | int | No | â | FKâordenes_trabajo.id, índice | Orden |
+| estado_anterior | varchar(20) | No | â | â | Estado origen |
+| estado_nuevo | varchar(20) | No | â | â | Estado destino |
+| cambiado_por_id | int | No | â | FKâusuarios.id | Usuario que cambió |
+| notas | text | Sí | â | â | Notas |
+| creado_en | datetime (tz) | Sí | now() | â | Fecha del cambio |
 
 ### materiales
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| nombre | varchar(120) | No | — | índice | Nombre |
-| descripcion | varchar(250) | Sí | — | — | Descripción |
-| unidad | varchar(20) | No | — | — | Unidad de medida |
-| stock_actual | float | No | 0 | — | Stock actual |
-| stock_minimo | float | No | 0 | — | Stock mínimo |
-| precio_unitario | float | No | 0 | — | Precio unitario |
-| esta_activo | bit | No | 1 | — | Activo |
-| creado_en | datetime (tz) | Sí | now() | — | Creación |
-| actualizado_en | datetime (tz) | Sí | now() | — | Actualización |
+| nombre | varchar(120) | No | â | índice | Nombre |
+| descripcion | varchar(250) | Sí | â | â | Descripción |
+| unidad | varchar(20) | No | â | â | Unidad de medida |
+| stock_actual | float | No | 0 | â | Stock actual |
+| stock_minimo | float | No | 0 | â | Stock mínimo |
+| precio_unitario | float | No | 0 | â | Precio unitario |
+| esta_activo | bit | No | 1 | â | Activo |
+| creado_en | datetime (tz) | Sí | now() | â | Creación |
+| actualizado_en | datetime (tz) | Sí | now() | â | Actualización |
 
 ### perfiles_tecnico
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| usuario_id | int | No | — | FK→usuarios.id, UK | Usuario técnico |
-| telefono | varchar(30) | Sí | — | — | Teléfono |
-| especialidad | varchar(80) | Sí | — | — | Especialidad |
-| esta_disponible | bit | No | 1 | — | Disponible |
-| creado_en | datetime (tz) | Sí | now() | — | Creación |
-| actualizado_en | datetime (tz) | Sí | now() | — | Actualización |
+| usuario_id | int | No | â | FKâusuarios.id, UK | Usuario técnico |
+| telefono | varchar(30) | Sí | â | â | Teléfono |
+| especialidad | varchar(80) | Sí | â | â | Especialidad |
+| esta_disponible | bit | No | 1 | â | Disponible |
+| creado_en | datetime (tz) | Sí | now() | â | Creación |
+| actualizado_en | datetime (tz) | Sí | now() | â | Actualización |
 
 ### movimientos_stock
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| material_id | int | No | — | FK→materiales.id, índice | Material |
-| cantidad | float | No | — | — | Cantidad |
-| tipo_movimiento | varchar(15) | No | — | — | entrada/salida/consumo |
-| orden_trabajo_id | int | Sí | — | FK→ordenes_trabajo.id | Orden asociada |
-| usuario_id | int | No | — | FK→usuarios.id | Usuario |
-| notas | varchar(250) | Sí | — | — | Notas |
-| creado_en | datetime (tz) | Sí | now() | — | Fecha |
+| material_id | int | No | â | FKâmateriales.id, índice | Material |
+| cantidad | float | No | â | â | Cantidad |
+| tipo_movimiento | varchar(15) | No | â | â | entrada/salida/consumo |
+| orden_trabajo_id | int | Sí | â | FKâordenes_trabajo.id | Orden asociada |
+| usuario_id | int | No | â | FKâusuarios.id | Usuario |
+| notas | varchar(250) | Sí | â | â | Notas |
+| creado_en | datetime (tz) | Sí | now() | â | Fecha |
 
 ### evidencias
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| orden_trabajo_id | int | No | — | FK→ordenes_trabajo.id, índice | Orden |
-| subido_por_id | int | No | — | FK→usuarios.id | Usuario que sube |
-| tipo_evidencia | varchar(20) | No | — | — | foto/documento/observación |
-| nombre_archivo | varchar(250) | Sí | — | — | Nombre original |
-| nombre_almacenado | varchar(250) | Sí | — | — | Nombre en storage |
-| tipo_archivo | varchar(50) | Sí | — | — | MIME type |
-| tamano_archivo | int | Sí | — | — | Tamaño en bytes |
-| descripcion | text | Sí | — | — | Descripción |
-| creado_en | datetime (tz) | Sí | now() | — | Fecha |
+| orden_trabajo_id | int | No | â | FKâordenes_trabajo.id, índice | Orden |
+| subido_por_id | int | No | â | FKâusuarios.id | Usuario que sube |
+| tipo_evidencia | varchar(20) | No | â | â | foto/documento/observación |
+| nombre_archivo | varchar(250) | Sí | â | â | Nombre original |
+| nombre_almacenado | varchar(250) | Sí | â | â | Nombre en storage |
+| tipo_archivo | varchar(50) | Sí | â | â | MIME type |
+| tamano_archivo | int | Sí | â | â | Tamaño en bytes |
+| descripcion | text | Sí | â | â | Descripción |
+| creado_en | datetime (tz) | Sí | now() | â | Fecha |
 
 ### notificaciones
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| usuario_id | int | No | — | FK→usuarios.id, índice | Usuario |
-| canal | varchar(15) | No | — | — | correo/whatsapp |
-| destinatario | varchar(250) | No | — | — | Destinatario |
-| asunto | varchar(200) | Sí | — | — | Asunto |
-| mensaje | text | No | — | — | Mensaje |
+| usuario_id | int | No | â | FKâusuarios.id, índice | Usuario |
+| canal | varchar(15) | No | â | â | correo/whatsapp |
+| destinatario | varchar(250) | No | â | â | Destinatario |
+| asunto | varchar(200) | Sí | â | â | Asunto |
+| mensaje | text | No | â | â | Mensaje |
 | estado | varchar(15) | No | 'pendiente' | índice | Estado |
-| intentos | int | No | 0 | — | Reintentos |
-| mensaje_error | varchar(500) | Sí | — | — | Error |
-| creado_en | datetime (tz) | Sí | now() | — | Creación |
-| enviado_en | datetime (tz) | Sí | — | — | Envío |
+| intentos | int | No | 0 | â | Reintentos |
+| mensaje_error | varchar(500) | Sí | â | â | Error |
+| creado_en | datetime (tz) | Sí | now() | â | Creación |
+| enviado_en | datetime (tz) | Sí | â | â | Envío |
 
 ### operaciones_sincronizacion
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
 | id | int | No | identity | PK | Identificador |
-| id_operacion_cliente | varchar(36) | No | — | UK, índice | Id cliente (UUID) |
-| tipo_operacion | varchar(50) | No | — | — | Tipo |
-| carga | text | No | — | — | Payload JSON |
-| usuario_id | int | No | — | FK→usuarios.id | Usuario |
+| id_operacion_cliente | varchar(36) | No | â | UK, índice | Id cliente (UUID) |
+| tipo_operacion | varchar(50) | No | â | â | Tipo |
+| carga | text | No | â | â | Payload JSON |
+| usuario_id | int | No | â | FKâusuarios.id | Usuario |
 | estado | varchar(15) | No | 'pendiente' | índice | Estado |
-| resultado | text | Sí | — | — | Resultado |
-| creado_en | datetime (tz) | Sí | now() | — | Creación |
-| sincronizado_en | datetime (tz) | Sí | — | — | Sincronización |
+| resultado | text | Sí | â | â | Resultado |
+| creado_en | datetime (tz) | Sí | now() | â | Creación |
+| sincronizado_en | datetime (tz) | Sí | â | â | Sincronización |
 
 ## 9. Índices
 
@@ -556,6 +556,7 @@ CREATE TABLE operaciones_sincronizacion (
 CREATE INDEX ix_operaciones_sincronizacion_estado ON operaciones_sincronizacion(estado);
 ```
 
-## Cat�logos geogr�ficos (pa�s ? ciudad ? zona)
+## Catálogos geográficos (país ? ciudad ? zona)
 
-pa�ses, ciudades (DIVIPOLA), zonas; cobertura t�cnico; integridad normalizada.
+países, ciudades (DIVIPOLA), zonas; cobertura técnico; integridad normalizada.
+

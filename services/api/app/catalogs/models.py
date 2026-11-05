@@ -22,7 +22,7 @@ class City(db.Model):
     __tablename__ = "cities"
 
     id = db.Column(db.Integer, primary_key=True)
-    country_id = db.Column(db.Integer, db.ForeignKey("countries.id", ondelete="RESTRICT"), nullable=False, index=True)
+    country_id = db.Column(db.Integer, db.ForeignKey("countries.id", ondelete="NO ACTION"), nullable=False, index=True)
     department_name = db.Column(db.String(120))
     dane_code = db.Column(db.String(5), nullable=False)
     name = db.Column(db.String(120), nullable=False)
@@ -58,7 +58,7 @@ class Zone(db.Model):
     __tablename__ = "zones"
 
     id = db.Column(db.Integer, primary_key=True)
-    city_id = db.Column(db.Integer, db.ForeignKey("cities.id", ondelete="RESTRICT"), nullable=False, index=True)
+    city_id = db.Column(db.Integer, db.ForeignKey("cities.id", ondelete="NO ACTION"), nullable=False, index=True)
     kind = db.Column(db.String(30), nullable=False)
     name = db.Column(db.String(120), nullable=False)
     name_norm = db.Column(db.String(120), nullable=False)
@@ -114,14 +114,14 @@ class Municipality(db.Model):
     code = db.Column(db.String(5), primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     name_norm = db.Column(db.String(120))
-    department_code = db.Column(db.String(2), db.ForeignKey("departments.code", ondelete="RESTRICT"), index=True)
+    department_code = db.Column(db.String(2), db.ForeignKey("departments.code", ondelete="NO ACTION"), index=True)
 
 
 class Sector(db.Model):
     __tablename__ = "sectors"
 
     id = db.Column(db.Integer, primary_key=True)
-    municipality_code = db.Column(db.String(5), db.ForeignKey("municipalities.code", ondelete="RESTRICT"), index=True)
+    municipality_code = db.Column(db.String(5), db.ForeignKey("municipalities.code", ondelete="NO ACTION"), index=True)
     name = db.Column(db.String(120), nullable=False)
     name_norm = db.Column(db.String(120))
     kind = db.Column(db.String(30), nullable=False, default="sector")
@@ -132,9 +132,9 @@ class TechnicianZone(db.Model):
     __tablename__ = "technician_zones"
 
     id = db.Column(db.Integer, primary_key=True)
-    technician_id = db.Column(db.Integer, db.ForeignKey("technician_profiles.id", ondelete="RESTRICT"), index=True, nullable=False)
-    city_id = db.Column(db.Integer, db.ForeignKey("cities.id", ondelete="RESTRICT"), nullable=False, index=True)
-    zone_id = db.Column(db.Integer, db.ForeignKey("zones.id", ondelete="RESTRICT"), nullable=True, index=True)
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician_profiles.id", ondelete="NO ACTION"), index=True, nullable=False)
+    city_id = db.Column(db.Integer, db.ForeignKey("cities.id", ondelete="NO ACTION"), nullable=False, index=True)
+    zone_id = db.Column(db.Integer, db.ForeignKey("zones.id", ondelete="NO ACTION"), nullable=True, index=True)
     is_primary = db.Column(db.Boolean, default=False, nullable=False)
 
     city = db.relationship("City")

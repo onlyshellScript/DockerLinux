@@ -25,7 +25,7 @@ def upgrade():
         sa.Column('admin_email', sa.String(length=120), nullable=False, server_default='admin@sigos.local'),
         sa.Column('contact_phone', sa.String(length=30), nullable=True),
         sa.Column('address', sa.String(length=250), nullable=True),
-        sa.Column('city_id', sa.Integer(), sa.ForeignKey('cities.id', ondelete='RESTRICT'), nullable=True),
+        sa.Column('city_id', sa.Integer(), sa.ForeignKey('cities.id', ondelete='NO ACTION'), nullable=True),
         sa.Column('timezone', sa.String(length=60), nullable=False, server_default='America/Bogota'),
         sa.Column('version', sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column('updated_by_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True),
@@ -71,7 +71,7 @@ def upgrade():
     op.create_table(
         'user_notification_preferences',
         sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id', ondelete='RESTRICT'), nullable=False, unique=True),
+        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id', ondelete='NO ACTION'), nullable=False, unique=True),
         sa.Column('preferences', sa.Text(), nullable=False, server_default='{}'),
         sa.Column('version', sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
@@ -91,8 +91,8 @@ def upgrade():
     )
     # seed one row each
     op.execute("INSERT INTO organization_settings (company_name, admin_email, timezone) VALUES ('SIGOS','admin@sigos.local','America/Bogota')")
-    op.execute("INSERT INTO operational_settings (id) VALUES (1)")
-    op.execute("INSERT INTO security_settings (id) VALUES (1)")
+    op.execute("SET IDENTITY_INSERT operational_settings ON; INSERT INTO operational_settings (id) VALUES (1); SET IDENTITY_INSERT operational_settings OFF;")
+    op.execute("SET IDENTITY_INSERT security_settings ON; INSERT INTO security_settings (id) VALUES (1); SET IDENTITY_INSERT security_settings OFF;")
     op.execute("INSERT INTO notification_settings (preferences) VALUES ('{}')")
 
 

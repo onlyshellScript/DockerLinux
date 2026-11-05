@@ -1,4 +1,4 @@
-﻿from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify
 
 from app.identity.service import authenticate, refresh_access_token, change_password
 from app.identity.service import create_user, list_users, get_user, update_user
