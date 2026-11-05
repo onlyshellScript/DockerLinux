@@ -1,13 +1,13 @@
-ï»¿# SIGOS 2.0
+# SIGOS 2.0
 
-Software empresarial multiplataforma para la gestiÃ³n de Ã³rdenes de servicio. Monorepositorio completo H0-H7: fundaciÃ³n, identidad, Ã³rdenes, materiales, evidencias, sync offline, notificaciones y producciÃ³n.
+Software empresarial multiplataforma para la gestión de órdenes de servicio. Monorepositorio completo H0-H7: fundación, identidad, órdenes, materiales, evidencias, sync offline, notificaciones y producción.
 
 ## Stack
 
-- Backend: Python 3.12+ Â· Flask Â· SQLAlchemy Â· Alembic
+- Backend: Python 3.12+ · Flask · SQLAlchemy · Alembic
 - Base de datos: Microsoft SQL Server
-- Escritorio: Electron Â· JavaScript Â· HTML5 Â· CSS3
-- MÃ³vil: Flutter Â· Dart (Android)
+- Escritorio: Electron · JavaScript · HTML5 · CSS3
+- Móvil: Flutter · Dart (Android)
 
 ## Requisitos
 
@@ -29,6 +29,25 @@ sqlcmd -S "localhost,1433" -E -C -Q "USE sigos; CREATE USER sigos FOR LOGIN sigo
 
 Alternativamente, usa Docker Compose desde `infra/docker/compose.yaml`.
 
+
+
+## Base de datos de pruebas (SQL Server)
+
+Crea una base dedicada para los tests contra SQL Server:
+
+`powershell
+sqlcmd -S "localhost,1433" -E -C -Q "CREATE DATABASE sigos_test;"
+`
+
+Ejecuta el carril SQL Server con:
+
+`powershell
+ = "mssql+pyodbc://sigos:Sigos_Dev_2026!@localhost:1433/sigos_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+cd services/api
+.venv\Scripts\python -m pytest tests/ -m sqlserver -v
+`
+
+Si TEST_DB_URL no existe, esos tests se omiten.
 ## Backend (Flask)
 
 ```powershell
@@ -43,7 +62,7 @@ $env:FLASK_APP = "wsgi.py"
 .venv\Scripts\flask run --port 5000
 ```
 
-VerificaciÃ³n:
+Verificación:
 
 ```powershell
 Invoke-RestMethod http://localhost:5000/api/v1/health
@@ -61,7 +80,7 @@ npm start
 
 Variable opcional: `SIGOS_API_BASE_URL`.
 
-## MÃ³vil (Flutter)
+## Móvil (Flutter)
 
 ```powershell
 cd apps/mobile
@@ -86,16 +105,16 @@ flutter test
 
 ```text
 sigos/
-â”œâ”€â”€ apps/desktop/       Electron + JavaScript
-â”œâ”€â”€ apps/mobile/        Flutter + Dart
-â”œâ”€â”€ services/api/       Python + Flask
-â”œâ”€â”€ contracts/          OpenAPI
-â”œâ”€â”€ infra/docker/       Docker Compose para SQL Server
-â”œâ”€â”€ docs/               Arquitectura y decisiones
-â””â”€â”€ .env.example        Variables de entorno de ejemplo
++-- apps/desktop/       Electron + JavaScript
++-- apps/mobile/        Flutter + Dart
++-- services/api/       Python + Flask
++-- contracts/          OpenAPI
++-- infra/docker/       Docker Compose para SQL Server
++-- docs/               Arquitectura y decisiones
++-- .env.example        Variables de entorno de ejemplo
 ```
 
-## ProducciÃ³n
+## Producción
 
 ### Docker
 
@@ -124,19 +143,19 @@ docker compose -f docker-compose.prod.yaml up -d
 cd apps/desktop
 npm run dist
 
-# MÃ³vil (Android APK)
+# Móvil (Android APK)
 cd apps/mobile
 flutter build apk --release
 ```
 
-### Variables de entorno de producciÃ³n
+### Variables de entorno de producción
 
-| Variable | DescripciÃ³n |
+| Variable | Descripción |
 |----------|-------------|
-| DB_URL | Cadena de conexiÃ³n SQL Server |
+| DB_URL | Cadena de conexión SQL Server |
 | JWT_SECRET_KEY | Secreto para firmar tokens |
-| SMTP_HOST/PORT/USER/PASS | ConfiguraciÃ³n email |
-| WHATSAPP_API_URL/TOKEN | ConfiguraciÃ³n WhatsApp |
+| SMTP_HOST/PORT/USER/PASS | Configuración email |
+| WHATSAPP_API_URL/TOKEN | Configuración WhatsApp |
 | UPLOAD_DIR | Directorio de evidencias |
 | ENABLE_NOTIFICATION_WORKER | "true" para activar worker |
 | LOG_LEVEL | DEBUG, INFO, WARNING, ERROR |
@@ -145,6 +164,7 @@ flutter build apk --release
 ## CI/CD
 
 GitHub Actions en `.github/workflows/ci.yml`:
-- Tests automÃ¡ticos en cada push/PR
+- Tests automáticos en cada push/PR
 - Build de instalador Windows en main
 - Build de APK Android en main
+
