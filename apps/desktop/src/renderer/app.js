@@ -171,6 +171,7 @@ const NAV = [
   { key: 'materials', label: 'Materiales', icon: 'materials', roles: ['admin', 'dispatcher'] },
   { key: 'requests', label: 'Solicitudes', icon: 'orders', roles: null },
   { key: 'evidence', label: 'Evidencias', icon: 'evidence', roles: null },
+  { key: 'evidence-inbox', label: 'Bandeja Evidencias', icon: 'evidence', roles: ['admin', 'dispatcher'] },
   { key: 'reports', label: 'Reportes', icon: 'reports', roles: ['admin', 'dispatcher'] },
   { key: 'users', label: 'Usuarios', icon: 'users', roles: ['admin'] },
 ];
@@ -324,7 +325,9 @@ function renderView() {
   else if (state.view === 'settings') renderSettings(content);
   else if (state.view === 'materials') renderMaterials(content);
   else if (state.view === 'requests') renderRequests(content);
-  else if (state.view === 'evidence') renderEvidence(content);  else if (state.view === 'users') renderUsers(content);
+  else if (state.view === 'evidence') renderEvidence(content);
+  else if (state.view === 'evidence-inbox') renderEvidenceInbox(content);
+  else if (state.view === 'users') renderUsers(content);
   else if (state.view === 'notifications') renderNotifications(content);
   else pendingView(content, meta[0]);
 }

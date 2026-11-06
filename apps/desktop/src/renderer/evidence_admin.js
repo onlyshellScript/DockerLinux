@@ -1,3 +1,17 @@
+function evidenceStatusBadge(status) {
+  const colors = {
+    APPROVED: ['#DCFCE7', '#166534'],
+    REJECTED: ['#FEE2E2', '#991B1B'],
+    CORRECTION_REQUIRED: ['#FEF3C7', '#92400E'],
+    UNDER_REVIEW: ['#DBEAFE', '#1E40AF'],
+    SUBMITTED: ['#E0F2FE', '#0369A1'],
+    RESUBMITTED: ['#E0F2FE', '#0369A1'],
+    DRAFT: ['#F1F5F9', '#475569'],
+  };
+  const [bg, fg] = colors[status] || ['#F1F5F9', '#475569'];
+  return `<span style="background:${bg};color:${fg};font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px;letter-spacing:0.02em">${escapeHtml(status || '')}</span>`;
+}
+
 async function renderEvidenceInbox(content) {
   if (!state.evidenceInboxFilters) state.evidenceInboxFilters = { status: '', q: '', page: 1 };
   const f = state.evidenceInboxFilters;
@@ -20,11 +34,11 @@ async function renderEvidenceInbox(content) {
     const reviews = detail.reviews || [];
     const wo = detail.work_order || {};
     content.innerHTML = `
-      <div class="card" style="padding:16px">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <div class="card" style="padding:20px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
           <button id="evBackBtn" class="sigos-btn-secondary">Volver</button>
           <h2 style="font-family:Outfit;font-size:20px;color:#163028;margin:0">Expediente ${escapeHtml(orderCode(wo))}</h2>
-          <span class="badge-pending">${escapeHtml(detail.status || '')}</span>
+          ${evidenceStatusBadge(detail.status)}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
           <div>
@@ -96,9 +110,9 @@ async function renderEvidenceInbox(content) {
   }
 
   content.innerHTML = `
-    <div class="card" style="padding:16px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-        <h2 style="font-family:Outfit;font-size:20px;color:#163028;margin:0">Bandeja de Evidencias</h2>
+    <div class="card" style="padding:20px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <h2 style="font-family:Outfit;font-size:22px;color:#163028;margin:0">Bandeja de Evidencias</h2>
         <input id="evInboxQ" class="sigos-input" placeholder="Buscar" value="${escapeHtml(f.q || '')}" style="max-width:240px">
         <select id="evInboxStatus" class="sigos-input">
           <option value="">Todos</option>
@@ -110,7 +124,7 @@ async function renderEvidenceInbox(content) {
       <table class="sigos-table" style="width:100%">
         <thead><tr><th>Orden</th><th>Estado</th><th>Evidencias</th><th>Accion</th></tr></thead>
         <tbody>
-          ${items.map(it => `<tr><td>${escapeHtml(orderCode(it.work_order))}</td><td>${escapeHtml(it.validation_status)}</td><td>${it.evidence_count}</td><td><button class="sigos-btn-secondary ev-open-btn" data-wo="${it.work_order.id}">Abrir</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty-state__text">Sin expedientes</td></tr>'}
+          ${items.map(it => `<tr><td>${escapeHtml(orderCode(it.work_order))}</td><td>${evidenceStatusBadge(it.validation_status)}</td><td>${it.evidence_count}</td><td><button class="sigos-btn-secondary ev-open-btn" data-wo="${it.work_order.id}">Abrir</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty-state__text">Sin expedientes</td></tr>'}
         </tbody>
       </table>
       <div style="display:flex;gap:8px;margin-top:12px">
