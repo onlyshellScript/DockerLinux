@@ -360,15 +360,15 @@ async function renderEvidence(content) {
       <div style="display:block">
         <div>
           <h3 style="font-family:Outfit;font-size:16px;color:#163028">Fotografías</h3>
-          <div style="display:flex;gap:8px;margin-bottom:8px">
-            <select id="evCategory" class="sigos-input">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;align-items:center">
+            <select id="evCategory" class="sigos-input" style="min-width:120px">
               <option value="BEFORE">Antes</option>
               <option value="DURING">Durante</option>
-              <option value="AFTER">Después</option>
+              <option value="AFTER">Despu�s</option>
               <option value="ADDITIONAL">Adicional</option>
             </select>
-            <input type="file" id="evFile" accept="image/*" class="sigos-input" style="flex:1">
-            <button id="evUploadBtn" class="sigos-btn-primary">Subir</button>
+            <input type="file" id="evFile" accept="image/*" class="sigos-input" style="flex:1;min-width:180px">
+            <button id="evUploadBtn" class="sigos-btn-primary" style="flex-shrink:0">Subir</button>
           </div>
           <div id="evGallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
             ${evidences.map(e => `<div class="sigos-card" style="padding:6px"><div style="font-size:11px;color:#96908A">${escapeHtml(e.category || '')}</div><img data-ev-id="${e.id}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;background:#EAE6DE"><div style="font-size:11px;margin-top:4px">${escapeHtml(e.description || '')}</div></div>`).join('') || '<div class="empty-state__text">Sin evidencias</div>'}
@@ -385,9 +385,9 @@ async function renderEvidence(content) {
           </div>
           <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:16px">Checklist</h3>
           <div id="evChecklist">${checklist.map(i => `<div style="font-size:13px">${escapeHtml(i.label)} - ${escapeHtml(i.result || 'PENDING')}</div>`).join('') || 'Sin items'}</div>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <input id="evCheckLabel" class="sigos-input" placeholder="Actividad" style="flex:1">
-            <button id="evCheckAdd" class="sigos-btn-secondary">Agregar</button>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center">
+            <input id="evCheckLabel" class="sigos-input" placeholder="Actividad" style="flex:1;min-width:180px">
+            <button id="evCheckAdd" class="sigos-btn-secondary" style="flex-shrink:0">Agregar</button>
           </div>
           <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:16px">Acciones</h3>
           <div style="display:flex;gap:8px;flex-wrap:wrap">

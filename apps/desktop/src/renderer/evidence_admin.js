@@ -111,9 +111,9 @@ async function renderEvidenceInbox(content) {
 
   content.innerHTML = `
     <div class="card" style="padding:20px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px">
         <h2 style="font-family:Outfit;font-size:22px;color:#163028;margin:0">Bandeja de Evidencias</h2>
-        <input id="evInboxQ" class="sigos-input" placeholder="Buscar" value="${escapeHtml(f.q || '')}" style="max-width:240px">
+        <input id="evInboxQ" class="sigos-input" placeholder="Buscar" value="${escapeHtml(f.q || '')}" style="min-width:180px;max-width:240px">
         <select id="evInboxStatus" class="sigos-input">
           <option value="">Todos</option>
           ${['DRAFT','SUBMITTED','UNDER_REVIEW','CORRECTION_REQUIRED','RESUBMITTED','APPROVED','REJECTED'].map(s => `<option value="${s}" ${f.status === s ? 'selected' : ''}>${s}</option>`).join('')}
