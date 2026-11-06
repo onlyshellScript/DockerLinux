@@ -131,7 +131,43 @@ function createWindow() {
 app.whenReady().then(() => {
   ipcMain.handle('sigos:get-health', async () => getHealth(API_BASE_URL));
   ipcMain.handle('sigos:api-request', async (_event, payload) => apiRequest(payload || {}));
-  ipcMain.handle('sigos:session:load', async () => readSession());
+  ipcMain.handle('sigos:download-file', async (_event, payload) => {
+    const { path: reqPath, token } = payload || {};
+    const url = new URL(reqPath, API_BASE_URL);
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    try {
+      const response = await fetch(url, { headers });
+      if (!response.ok) return { ok: false, status: response.status, data: null };
+      const buf = Buffer.from(await response.arrayBuffer());
+      const ct = response.headers.get('content-type') || 'application/octet-stream';
+      return { ok: true, status: response.status, data: buf.toString('base64'), contentType: ct };
+    } catch (error) {
+      return { ok: false, status: 0, data: null, error: String(error) };
+    }
+  });
+  ipcMain.handle('sigos:upload-file', async (_event, payload) => {
+    const { method, path: reqPath, fields, file, token } = payload || {};
+    const url = new URL(reqPath, API_BASE_URL);
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const fd = new FormData();
+    Object.entries(fields || {}).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, v); });
+    if (file && file.data) {
+      const bytes = Buffer.from(file.data, 'base64');
+      const blob = new Blob([bytes], { type: file.type || 'application/octet-stream' });
+      fd.append(file.field || 'file', blob, file.name || 'upload.bin');
+    }
+    try {
+      const response = await fetch(url, { method: method || 'POST', headers, body: fd });
+      const text = await response.text();
+      let parsed = null;
+      try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
+      return { ok: response.ok, status: response.status, body: parsed };
+    } catch (error) {
+      return { ok: false, status: 0, body: null, error: String(error) };
+    }
+  });  ipcMain.handle('sigos:session:load', async () => readSession());
   ipcMain.handle('sigos:session:save', async (_event, session) => { writeSession(session); return true; });
   ipcMain.handle('sigos:session:clear', async () => { clearSession(); return true; });
   ipcMain.handle('sigos:save-file', async (_event, payload) => saveFile(payload || {}));

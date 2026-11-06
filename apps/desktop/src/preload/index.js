@@ -3,6 +3,8 @@
 contextBridge.exposeInMainWorld('sigos', {
   getHealth: () => ipcRenderer.invoke('sigos:get-health'),
   apiRequest: (payload) => ipcRenderer.invoke('sigos:api-request', payload),
+  uploadFile: (payload) => ipcRenderer.invoke('sigos:upload-file', payload),
+  downloadFile: (payload) => ipcRenderer.invoke('sigos:download-file', payload),
   loadSession: () => ipcRenderer.invoke('sigos:session:load'),
   saveSession: (session) => ipcRenderer.invoke('sigos:session:save', session),
   clearSession: () => ipcRenderer.invoke('sigos:session:clear'),

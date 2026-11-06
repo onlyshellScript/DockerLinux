@@ -324,9 +324,141 @@ function renderView() {
   else if (state.view === 'settings') renderSettings(content);
   else if (state.view === 'materials') renderMaterials(content);
   else if (state.view === 'requests') renderRequests(content);
-  else if (state.view === 'users') renderUsers(content);
+  else if (state.view === 'evidence') renderEvidence(content);  else if (state.view === 'users') renderUsers(content);
   else if (state.view === 'notifications') renderNotifications(content);
   else pendingView(content, meta[0]);
+}
+
+async function renderEvidence(content) {
+  const woRes = await api('GET', '/api/v1/work-orders?page=1&page_size=100');
+  const orders = woRes.body?.items || [];
+  if (!state.evidenceWoId && orders.length) state.evidenceWoId = orders[0].id;
+  const woId = state.evidenceWoId;
+  let detail = {};
+  if (woId) {
+    const r = await api('GET', `/api/v1/work-orders/${woId}/evidence-status`);
+    detail = r.body || {};
+  }
+  const evidences = detail.evidences || [];
+  const signatures = detail.signatures || [];
+  const checklist = detail.checklist || [];
+  const events = detail.events || [];
+  const status = detail.status || 'DRAFT';
+
+  content.innerHTML = `
+    <div class="card" style="padding:16px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <h2 style="font-family:Outfit;font-size:20px;color:#163028;margin:0">Evidencias</h2>
+        <select id="evWoSelect" class="sigos-input" style="max-width:320px">
+          ${orders.map(o => `<option value="${o.id}" ${o.id === woId ? 'selected' : ''}>${escapeHtml(orderCode(o))} - ${escapeHtml(o.customer_name || '')}</option>`).join('')}
+        </select>
+        <span class="badge-${status === 'APPROVED' ? 'completed' : status === 'REJECTED' ? 'cancelled' : 'pending'}">${escapeHtml(status)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <h3 style="font-family:Outfit;font-size:16px;color:#163028">Fotografías</h3>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <select id="evCategory" class="sigos-input">
+              <option value="BEFORE">Antes</option>
+              <option value="DURING">Durante</option>
+              <option value="AFTER">Después</option>
+              <option value="ADDITIONAL">Adicional</option>
+            </select>
+            <input type="file" id="evFile" accept="image/*" class="sigos-input" style="flex:1">
+            <button id="evUploadBtn" class="sigos-btn-primary">Subir</button>
+          </div>
+          <div id="evGallery" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            ${evidences.map(e => `<div class="sigos-card" style="padding:6px"><div style="font-size:11px;color:#96908A">${escapeHtml(e.category || '')}</div><img data-ev-id="${e.id}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;background:#EAE6DE"><div style="font-size:11px;margin-top:4px">${escapeHtml(e.description || '')}</div></div>`).join('') || '<div class="empty-state__text">Sin evidencias</div>'}
+          </div>
+        </div>
+        <div>
+          <h3 style="font-family:Outfit;font-size:16px;color:#163028">Firma</h3>
+          <div id="evSigStatus">${signatures.length ? signatures.map(s => `<div style="font-size:13px">${s.refused ? 'Negativa: ' + escapeHtml(s.refusal_reason || '') : 'Firma registrada'}</div>`).join('') : 'Sin firma registrada'}</div>
+          <button id="evRefuseBtn" class="sigos-btn-secondary" style="margin-top:8px">Registrar negativa</button>
+          <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:16px">Checklist</h3>
+          <div id="evChecklist">${checklist.map(i => `<div style="font-size:13px">${escapeHtml(i.label)} - ${escapeHtml(i.result || 'PENDING')}</div>`).join('') || 'Sin items'}</div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="evCheckLabel" class="sigos-input" placeholder="Actividad" style="flex:1">
+            <button id="evCheckAdd" class="sigos-btn-secondary">Agregar</button>
+          </div>
+          <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:16px">Acciones</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="evSubmitBtn" class="sigos-btn-primary">Enviar</button>
+            <button id="evResubmitBtn" class="sigos-btn-secondary">Reenviar</button>
+          </div>
+          <div id="evEvents" style="margin-top:16px;font-size:12px;color:#96908A">
+            ${events.slice(-5).map(e => `<div>${escapeHtml(e.action)} - ${escapeHtml(e.created_at || '')}</div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const woSelect = $('#evWoSelect');
+  if (woSelect) woSelect.addEventListener('change', () => { state.evidenceWoId = Number(woSelect.value); render(); });
+
+  const uploadBtn = $('#evUploadBtn');
+  if (uploadBtn) uploadBtn.addEventListener('click', async () => {
+    const input = $('#evFile');
+    const file = input && input.files && input.files[0];
+    if (!file || !woId) { notify('Selecciona un archivo', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = String(reader.result).split(',')[1];
+      const res = await window.sigos.uploadFile({
+        method: 'POST',
+        path: `/api/v1/work-orders/${woId}/evidences`,
+        fields: { category: $('#evCategory').value, description: '' },
+        file: { name: file.name, type: file.type, data: base64 },
+        token: state.session?.access_token,
+      });
+      if (res.ok) { notify('Fotografía cargada', 'success'); render(); }
+      else notify((res.body && (res.body.error || res.body.message)) || 'Error al cargar', 'error');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const refuseBtn = $('#evRefuseBtn');
+  if (refuseBtn) refuseBtn.addEventListener('click', async () => {
+    const reason = prompt('Motivo de negativa:');
+    if (!reason) return;
+    const res = await api('POST', `/api/v1/work-orders/${woId}/signatures`, { refused: true, reason });
+    if (res.ok) { notify('Negativa registrada', 'success'); render(); }
+    else notify((res.body && res.body.error) || 'Error', 'error');
+  });
+
+  const checkAdd = $('#evCheckAdd');
+  if (checkAdd) checkAdd.addEventListener('click', async () => {
+    const label = $('#evCheckLabel').value.trim();
+    if (!label) return;
+    const res = await api('POST', `/api/v1/work-orders/${woId}/checklist`, { label, result: 'COMPLETED' });
+    if (res.ok) { $('#evCheckLabel').value = ''; render(); }
+    else notify((res.body && res.body.error) || 'Error', 'error');
+  });
+
+  const submitBtn = $('#evSubmitBtn');
+  if (submitBtn) submitBtn.addEventListener('click', async () => {
+    const res = await api('POST', `/api/v1/work-orders/${woId}/evidences/submit`, {});
+    if (res.ok) { notify('Expediente enviado', 'success'); render(); }
+    else notify((res.body && (res.body.error || (res.body.details || []).join(', '))) || 'Error', 'error');
+  });
+
+  const resubmitBtn = $('#evResubmitBtn');
+  if (resubmitBtn) resubmitBtn.addEventListener('click', async () => {
+    const res = await api('POST', `/api/v1/work-orders/${woId}/evidences/resubmit`, {});
+    if (res.ok) { notify('Expediente reenviado', 'success'); render(); }
+    else notify((res.body && res.body.error) || 'Error', 'error');
+  });
+
+  // load thumbnails
+  for (const e of evidences) {
+    if (!e.id) continue;
+    window.sigos.downloadFile({ path: `/api/v1/evidences/${e.id}/download`, token: state.session?.access_token }).then((res) => {
+      if (res.ok && res.data) {
+        const img = content.querySelector(`img[data-ev-id="${e.id}"]`);
+        if (img) img.src = `data:${res.contentType};base64,${res.data}`;
+      }
+    });
+  }
 }
 
 const CAL_TZ = (state.calendarTz) || 'America/Bogota';
