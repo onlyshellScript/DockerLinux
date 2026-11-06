@@ -377,7 +377,12 @@ async function renderEvidence(content) {
         <div>
           <h3 style="font-family:Outfit;font-size:16px;color:#163028">Firma</h3>
           <div id="evSigStatus">${signatures.length ? signatures.map(s => `<div style="font-size:13px">${s.refused ? 'Negativa: ' + escapeHtml(s.refusal_reason || '') : 'Firma registrada'}</div>`).join('') : 'Sin firma registrada'}</div>
-          <button id="evRefuseBtn" class="sigos-btn-secondary" style="margin-top:8px">Registrar negativa</button>
+          <canvas id="evSigCanvas" width="300" height="120" style="border:1px solid #DDD9D3;border-radius:4px;background:#fff;margin-top:8px"></canvas>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="evSigSaveBtn" class="sigos-btn-primary">Guardar firma</button>
+            <button id="evSigClearBtn" class="sigos-btn-secondary">Limpiar</button>
+            <button id="evRefuseBtn" class="sigos-btn-secondary">Registrar negativa</button>
+          </div>
           <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:16px">Checklist</h3>
           <div id="evChecklist">${checklist.map(i => `<div style="font-size:13px">${escapeHtml(i.label)} - ${escapeHtml(i.result || 'PENDING')}</div>`).join('') || 'Sin items'}</div>
           <div style="display:flex;gap:8px;margin-top:8px">
@@ -428,6 +433,38 @@ async function renderEvidence(content) {
     if (res.ok) { notify('Negativa registrada', 'success'); render(); }
     else notify((res.body && res.body.error) || 'Error', 'error');
   });
+
+  const canvas = $('#evSigCanvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    const pos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    canvas.addEventListener('mousedown', (e) => { drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+    canvas.addEventListener('mousemove', (e) => { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => { drawing = false; });
+    canvas.addEventListener('mouseleave', () => { drawing = false; });
+    const clearBtn = $('#evSigClearBtn');
+    if (clearBtn) clearBtn.addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); });
+    const saveBtn = $('#evSigSaveBtn');
+    if (saveBtn) saveBtn.addEventListener('click', async () => {
+      const signer = prompt('Nombre del firmante:');
+      if (!signer) return;
+      const dataUrl = canvas.toDataURL('image/png');
+      const base64 = dataUrl.split(',')[1];
+      const res = await window.sigos.uploadFile({
+        method: 'POST',
+        path: `/api/v1/work-orders/${woId}/signatures`,
+        fields: { signer_name: signer, acceptance_text: 'Acepto el trabajo realizado', consent_version: 'v1' },
+        file: { name: 'signature.png', type: 'image/png', data: base64, field: 'file' },
+        token: state.session?.access_token,
+      });
+      if (res.ok) { notify('Firma registrada', 'success'); render(); }
+      else notify((res.body && res.body.error) || 'Error', 'error');
+    });
+  }
 
   const checkAdd = $('#evCheckAdd');
   if (checkAdd) checkAdd.addEventListener('click', async () => {
