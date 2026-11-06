@@ -427,7 +427,7 @@ async function renderEvidence(content) {
 
   const refuseBtn = $('#evRefuseBtn');
   if (refuseBtn) refuseBtn.addEventListener('click', async () => {
-    const reason = prompt('Motivo de negativa:');
+    const reason = await askText('Motivo de negativa:');
     if (!reason) return;
     const res = await api('POST', `/api/v1/work-orders/${woId}/signatures`, { refused: true, reason });
     if (res.ok) { notify('Negativa registrada', 'success'); render(); }
@@ -450,7 +450,7 @@ async function renderEvidence(content) {
     if (clearBtn) clearBtn.addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); });
     const saveBtn = $('#evSigSaveBtn');
     if (saveBtn) saveBtn.addEventListener('click', async () => {
-      const signer = prompt('Nombre del firmante:');
+      const signer = await askText('Nombre del firmante:');
       if (!signer) return;
       const dataUrl = canvas.toDataURL('image/png');
       const base64 = dataUrl.split(',')[1];

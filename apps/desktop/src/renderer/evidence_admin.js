@@ -84,7 +84,7 @@ async function renderEvidenceInbox(content) {
     if (sr) sr.addEventListener('click', () => action(`/api/v1/work-orders/${state.evidenceAdminWoId}/evidences/start-review`, {}));
     const corr = $('#evCorrectBtn');
     if (corr) corr.addEventListener('click', async () => {
-      const notes = prompt('Motivo de correccion:');
+      const notes = await askText('Motivo de correccion:');
       if (!notes) return;
       await action(`/api/v1/work-orders/${state.evidenceAdminWoId}/evidences/request-correction`, { notes });
     });
@@ -92,7 +92,7 @@ async function renderEvidenceInbox(content) {
     if (appr) appr.addEventListener('click', () => { if (confirm('Aprobar expediente?')) action(`/api/v1/work-orders/${state.evidenceAdminWoId}/evidences/approve`, {}); });
     const rej = $('#evRejectBtn');
     if (rej) rej.addEventListener('click', async () => {
-      const reason = prompt('Motivo de rechazo:');
+      const reason = await askText('Motivo de rechazo:');
       if (!reason) return;
       await action(`/api/v1/work-orders/${state.evidenceAdminWoId}/evidences/reject`, { reason });
     });
