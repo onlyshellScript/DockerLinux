@@ -1,4 +1,4 @@
-﻿const state = {
+const state = {
 
 }
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -211,7 +211,7 @@ function loginTemplate() {
       <div id="alerts"></div>
       <div class="fld"><label>Usuario</label><input id="username" class="sigos-input" autocomplete="username"></div>
       <div class="fld"><label>Contraseña</label><input id="password" type="password" class="sigos-input" autocomplete="current-password"></div>
-      <button id="loginBtn" class="sigos-btn-primary" style="width:100%;justify-content:center;padding:10px">Ingresar</button>
+      <button type="button" id="loginBtn" class="sigos-btn-primary" style="width:100%;justify-content:center;padding:10px">Ingresar</button>
       <div class="section-label" style="margin:20px 0 8px">Credenciales de desarrollo</div>
       <div class="muted">admin / Admin123!</div>
     </div>
@@ -271,7 +271,7 @@ function shellTemplate() {
         <div style="flex:1"><div class="tb-title" id="viewTitle">SIGOS</div><div class="tb-sub" id="viewSub"></div></div>
         <div style="width:300px">${searchField({ placeholder: 'Buscar órdenes, técnicos, clientes...', id: 'globalSearch' })}</div>
         <div id="topbarActions" style="display:flex;gap:8px;align-items:center"></div>
-        <button class="tb-btn" aria-label="Ayuda">Ayuda</button>
+        <button type="button" class="tb-btn" aria-label="Ayuda">Ayuda</button>
         <a class="bell" href="#" id="bellBtn" aria-label="Notificaciones">${icon('bell', 18)}<span id="bellBadge" style="display:none">0</span></a>
         <a class="tb-btn" href="#" id="fieldBtn" aria-label="Vista técnico">${icon('mobile', 16)}<span>Campo</span></a>
         <div style="display:flex;align-items:center;gap:8px">
@@ -368,7 +368,7 @@ async function renderEvidence(content) {
               <option value="ADDITIONAL">Adicional</option>
             </select>
             <input type="file" id="evFile" accept="image/*" class="sigos-input" style="flex:1;min-width:180px">
-            <button id="evUploadBtn" class="sigos-btn-primary" style="flex-shrink:0">Subir</button>
+            <button type="button" id="evUploadBtn" class="sigos-btn-primary" style="flex-shrink:0">Subir</button>
           </div>
           <div id="evGallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
             ${evidences.map(e => `<div class="sigos-card" style="padding:6px"><div style="font-size:11px;color:#96908A">${escapeHtml(e.category || '')}</div><img data-ev-id="${e.id}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;background:#EAE6DE"><div style="font-size:11px;margin-top:4px">${escapeHtml(e.description || '')}</div></div>`).join('') || '<div class="empty-state__text">Sin evidencias</div>'}
@@ -379,20 +379,20 @@ async function renderEvidence(content) {
           <div id="evSigStatus">${signatures.length ? signatures.map(s => `<div style="font-size:13px">${s.refused ? 'Negativa: ' + escapeHtml(s.refusal_reason || '') : 'Firma registrada'}</div>`).join('') : 'Sin firma registrada'}</div>
           <canvas id="evSigCanvas" width="300" height="120" style="border:1px solid #DDD9D3;border-radius:4px;background:#fff;margin-top:8px"></canvas>
           <div style="display:flex;gap:8px;margin-top:8px">
-            <button id="evSigSaveBtn" class="sigos-btn-primary">Guardar firma</button>
-            <button id="evSigClearBtn" class="sigos-btn-secondary">Limpiar</button>
-            <button id="evRefuseBtn" class="sigos-btn-secondary">Registrar negativa</button>
+            <button type="button" id="evSigSaveBtn" class="sigos-btn-primary">Guardar firma</button>
+            <button type="button" id="evSigClearBtn" class="sigos-btn-secondary">Limpiar</button>
+            <button type="button" id="evRefuseBtn" class="sigos-btn-secondary">Registrar negativa</button>
           </div>
           <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:16px">Checklist</h3>
           <div id="evChecklist">${checklist.map(i => `<div style="font-size:13px">${escapeHtml(i.label)} - ${escapeHtml(i.result || 'PENDING')}</div>`).join('') || 'Sin items'}</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center">
             <input id="evCheckLabel" class="sigos-input" placeholder="Actividad" style="flex:1;min-width:180px">
-            <button id="evCheckAdd" class="sigos-btn-secondary" style="flex-shrink:0">Agregar</button>
+            <button type="button" id="evCheckAdd" class="sigos-btn-secondary" style="flex-shrink:0">Agregar</button>
           </div>
           <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:16px">Acciones</h3>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button id="evSubmitBtn" class="sigos-btn-primary">Enviar</button>
-            <button id="evResubmitBtn" class="sigos-btn-secondary">Reenviar</button>
+            <button type="button" id="evSubmitBtn" class="sigos-btn-primary">Enviar</button>
+            <button type="button" id="evResubmitBtn" class="sigos-btn-secondary">Reenviar</button>
           </div>
           <div id="evEvents" style="margin-top:16px;font-size:12px;color:#96908A">
             ${events.slice(-5).map(e => `<div>${escapeHtml(e.action)} - ${escapeHtml(e.created_at || '')}</div>`).join('')}
@@ -613,15 +613,15 @@ async function renderCalendar(content) {
    // row 1
    const lu = cs.lastUpdated ? new Date(cs.lastUpdated).toLocaleTimeString('es-CO') : '';
    html += '<div class="cal-toolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
-   html += '<button class="sigos-btn-secondary" style="width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calPrev" aria-label="Anterior"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>';
-   html += '<button class="sigos-btn-secondary" style="height:36px" id="calToday">Hoy</button>';
-   html += '<button class="sigos-btn-secondary" style="width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calNext" aria-label="Siguiente"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>';
+   html += '<button type="button" class="sigos-btn-secondary" style="width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calPrev" aria-label="Anterior"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>';
+   html += '<button type="button" class="sigos-btn-secondary" style="height:36px" id="calToday">Hoy</button>';
+   html += '<button type="button" class="sigos-btn-secondary" style="width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calNext" aria-label="Siguiente"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>';
    html += '<span style="font-family:Outfit;font-weight:600;font-size:16px;color:#163028;margin-left:8px">' + escapeHtml(label) + '</span>';
    // view selector removed: only month view
    html += '<span style="margin-left:auto;font-size:11px;color:#96908A">Actualizado ' + escapeHtml(lu) + '</span>';
-   html += '<button class="sigos-btn-secondary" style="width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calRefresh" title="Refrescar" aria-label="Refrescar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>';
-   html += '<button class="sigos-btn-primary" ' + (canSchedule?'':'disabled title="Sin permisos"') + ' style="height:36px" id="calSchedule">+ Programar visita</button>';
-   html += '<button class="sigos-btn-secondary" style="height:36px" id="calPendingBtn">Pendientes (' + unassigned.length + ')</button>';
+   html += '<button type="button" class="sigos-btn-secondary" style="width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center" id="calRefresh" title="Refrescar" aria-label="Refrescar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>';
+   html += '<button type="button" class="sigos-btn-primary" ' + (canSchedule?'':'disabled title="Sin permisos"') + ' style="height:36px" id="calSchedule">+ Programar visita</button>';
+   html += '<button type="button" class="sigos-btn-secondary" style="height:36px" id="calPendingBtn">Pendientes (' + unassigned.length + ')</button>';
    html += '</div>';
    // row 2: chips + filters
    const hasActiveFilters = !!(cs.filters.technician_id || cs.filters.status || cs.filters.type || cs.filters.priority || cs.filters.city_id || cs.filters.zone_id || cs.filters.include_cancelled);
@@ -634,8 +634,8 @@ async function renderCalendar(content) {
    const statusOpts = ['pending','assigned','in_progress','completed','closed','cancelled'].map(s => '<option value="' + s + '"' + (cs.filters.status===s?' selected':'') + '>' + escapeHtml((typeof statusOf==='function'?statusOf(s).label:s)) + '</option>').join('');
    html += '<select class="sigos-input" id="calFiltTech"><option value="">Todos los técnicos</option>' + techOptions + '</select>';
    html += '<select class="sigos-input" id="calFiltStatus"><option value="">Todos los estados</option>' + statusOpts + '</select>';
-   html += '<button class="sigos-btn-secondary" style="height:36px" id="calFiltersBtn">Filtros' + (activeFilterCount ? ' ' + activeFilterCount : '') + '</button>';
-   if (hasActiveFilters) html += '<button class="sigos-btn-secondary" style="height:36px;font-size:12px" id="calClear">Limpiar</button>';
+   html += '<button type="button" class="sigos-btn-secondary" style="height:36px" id="calFiltersBtn">Filtros' + (activeFilterCount ? ' ' + activeFilterCount : '') + '</button>';
+   if (hasActiveFilters) html += '<button type="button" class="sigos-btn-secondary" style="height:36px;font-size:12px" id="calClear">Limpiar</button>';
    if (!error) html += '<span style="font-size:11px;color:#96908A;margin-left:auto">' + items.length + ' resultado' + (items.length===1?'':'s') + '</span>';
    html += '</div>';
    // filters popover
@@ -651,16 +651,16 @@ async function renderCalendar(content) {
      html += '<label style="font-size:12px">Ciudad <select class="sigos-input" id="popCity"><option value="">Todas</option>' + cityOptions + '</select></label>';
      html += '<label style="font-size:12px">Zona <select class="sigos-input" id="popZone"><option value="">Todas</option>' + zoneOptions + '</select></label>';
      html += '<label style="font-size:12px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="popCancel" ' + (cs.filters.include_cancelled?'checked':'') + '> Incluir canceladas</label>';
-     html += '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="sigos-btn-secondary" style="height:32px" id="popReset">Restablecer</button><button class="sigos-btn-primary" style="height:32px" id="popApply">Aplicar</button></div>';
+     html += '<div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="sigos-btn-secondary" style="height:32px" id="popReset">Restablecer</button><button type="button" class="sigos-btn-primary" style="height:32px" id="popApply">Aplicar</button></div>';
      html += '</div></div>';
    }
   if (offline) {
     html += '<div style="background:#FDECEA;color:#D63B3B;padding:8px;border-radius:6px;font-size:12px">Sin conexión Â· datos de las ' + new Date().toLocaleTimeString('es-CO') + '</div>';
   } else if (error) {
     const d = eventsErrorDetail || {};
-    html += '<div class="sigos-card" style="margin:12px"><div class="empty-state"><div style="font-size:24px">⚠</div><div class="empty-state__title">No se pudo cargar la agenda</div><div class="empty-state__text">' + escapeHtml(error) + '</div><button class="sigos-btn-secondary" id="calRetry">Reintentar</button><details style="margin-top:8px;font-size:11px;color:#96908A"><summary>Detalle técnico</summary><div>status: ' + escapeHtml(d.status||'') + '</div><div>code: ' + escapeHtml(d.code||'') + '</div><div>url: ' + escapeHtml(d.url||'') + '</div><div>request_id: ' + escapeHtml((d.body && d.body.request_id)||'') + '</div></details></div></div>';
+    html += '<div class="sigos-card" style="margin:12px"><div class="empty-state"><div style="font-size:24px">⚠</div><div class="empty-state__title">No se pudo cargar la agenda</div><div class="empty-state__text">' + escapeHtml(error) + '</div><button type="button" class="sigos-btn-secondary" id="calRetry">Reintentar</button><details style="margin-top:8px;font-size:11px;color:#96908A"><summary>Detalle técnico</summary><div>status: ' + escapeHtml(d.status||'') + '</div><div>code: ' + escapeHtml(d.code||'') + '</div><div>url: ' + escapeHtml(d.url||'') + '</div><div>request_id: ' + escapeHtml((d.body && d.body.request_id)||'') + '</div></details></div></div>';
   } else if (!error && !items.length && !unassigned.length) {
-    html += '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">ðŸ“… Sin visitas programadas</div><div class="empty-state__text">No hay visitas en este rango. Programa una nueva desde Órdenes.</div><button class="sigos-btn-secondary" id="calGoOrders">Ir a Órdenes</button></div></div>';
+    html += '<div class="sigos-card"><div class="empty-state"><div class="empty-state__title">ðŸ“… Sin visitas programadas</div><div class="empty-state__text">No hay visitas en este rango. Programa una nueva desde Órdenes.</div><button type="button" class="sigos-btn-secondary" id="calGoOrders">Ir a Órdenes</button></div></div>';
   }
    // main layout: full width grid
    html += '<div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:16px">';
@@ -772,7 +772,7 @@ async function renderCalendar(content) {
      const parts = [e.city, e.zone].filter(Boolean);
      html += '<div style="font-size:11px;color:#64748B">' + escapeHtml(parts.join(' Â· ') || '—') + '</div>';
      html += '<div style="font-size:11px;color:#64748B">' + escapeHtml(e.start.slice(11,16)) + '–' + escapeHtml(e.end.slice(11,16)) + ' Â· ' + escapeHtml((e.technicians||[]).map(t=>t.name).join(', ')||'Por asignar') + '</div>';
-     html += '<div style="display:flex;gap:4px;margin-top:6px"><button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" onclick="state.selectedOrderId=' + e.order_id + ';state.view=\'order-detail\';render()">Abrir orden</button></div>';
+     html += '<div style="display:flex;gap:4px;margin-top:6px"><button type="button" class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" onclick="state.selectedOrderId=' + e.order_id + ';state.view=\'order-detail\';render()">Abrir orden</button></div>';
      html += '</div>';
    });
    html += '</div>';
@@ -978,7 +978,7 @@ async function renderDashboard(content) {
   const qs = new URLSearchParams({ range, ...(zone ? { zone } : {}), ...(tech ? { technician_id: tech } : {}) });
   const res = await api('GET', `/api/v1/dashboard/summary?${qs}`);
   if (!res.ok) {
-    content.innerHTML = `<div style="color:#991B1B">Error cargando dashboard: ${escapeHtml(res.body?.error || res.error || 'sin respuesta del servidor')}. <button class="sigos-btn-secondary" id="retryDash">Reintentar</button></div>`;
+    content.innerHTML = `<div style="color:#991B1B">Error cargando dashboard: ${escapeHtml(res.body?.error || res.error || 'sin respuesta del servidor')}. <button type="button" class="sigos-btn-secondary" id="retryDash">Reintentar</button></div>`;
     $('#retryDash')?.addEventListener('click', () => renderDashboard(content));
     return;
   }
@@ -1082,8 +1082,8 @@ async function renderDashboard(content) {
         <select id="dashRange" class="sigos-select"><option value="7" ${range==7?'selected':''}>7 días</option><option value="14" ${range==14?'selected':''}>14 días</option><option value="30" ${range==30?'selected':''}>30 días</option></select>
         <select id="dashZone" class="sigos-select"><option value="">Todas las zonas</option></select>
         <select id="dashTech" class="sigos-select"><option value="">Todos los técnicos</option>${(d.technicians||[]).map((t)=>`<option value="${t.user?.id}" ${String(tech)===String(t.user?.id)?'selected':''}>${escapeHtml(t.user?.username||'')}</option>`).join('')}</select>
-        <button class="sigos-btn-secondary" id="dashClear">Limpiar</button>
-        <button class="sigos-btn-secondary" id="dashExport">Exportar</button>
+        <button type="button" class="sigos-btn-secondary" id="dashClear">Limpiar</button>
+        <button type="button" class="sigos-btn-secondary" id="dashExport">Exportar</button>
       </div>
     </div>
 
@@ -1109,7 +1109,7 @@ async function renderDashboard(content) {
       <div class="sigos-card" style="padding:16px;overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <h3 style="margin:0;font-family:Outfit;font-weight:600;font-size:15px;color:#163028">Órdenes recientes</h3>
-          <button class="sigos-btn-secondary" id="goOrders">${icon('eye',14)} Ver todas</button>
+          <button type="button" class="sigos-btn-secondary" id="goOrders">${icon('eye',14)} Ver todas</button>
         </div>
         <table class="tbl">
           <thead><tr><th>ID</th><th>Cliente</th><th>Técnico</th><th>Fecha</th><th>Estado</th><th>Prioridad</th></tr></thead>
@@ -1282,7 +1282,7 @@ async function renderOrders(content) {
   const tabHtml = tabs.map((t) => {
     const c = t.key === '' ? Object.values(counts).reduce((a, b) => a + b, 0) : (counts[t.key] || 0);
     const active = st.filters.status === t.key;
-    return `<button class="tab-btn ${active ? 'active' : ''}" data-status="${t.key}" style="background:${active ? '#163028' : '#fff'};color:${active ? '#fff' : '#3A4552'};border:1px solid #DDD9D3;border-radius:4px;padding:6px 12px;font-size:13px;font-weight:500;cursor:pointer">${escapeHtml(t.label)} <i style="font-style:normal;background:${active ? 'rgba(255,255,255,.25)' : '#F1F5F9'};color:${active ? '#fff' : '#64748B'};border-radius:10px;padding:0 6px;font-size:11px;font-weight:700">${c}</i></button>`;
+    return `<button type="button" class="tab-btn ${active ? 'active' : ''}" data-status="${t.key}" style="background:${active ? '#163028' : '#fff'};color:${active ? '#fff' : '#3A4552'};border:1px solid #DDD9D3;border-radius:4px;padding:6px 12px;font-size:13px;font-weight:500;cursor:pointer">${escapeHtml(t.label)} <i style="font-style:normal;background:${active ? 'rgba(255,255,255,.25)' : '#F1F5F9'};color:${active ? '#fff' : '#64748B'};border-radius:10px;padding:0 6px;font-size:11px;font-weight:700">${c}</i></button>`;
   }).join('');
 
   const hasFilters = st.filters.q || st.filters.technician_id || st.filters.zone || st.filters.priority || st.filters.type || st.filters.date_from || st.filters.date_to || st.filters.unassigned;
@@ -1310,7 +1310,7 @@ async function renderOrders(content) {
     </tr>`;
   }).join('');
 
-  $('#topbarActions').innerHTML = `<button class="sigos-btn-primary" id="newOrderBtn">${icon('plus', 16)} Nueva orden</button>`;
+  $('#topbarActions').innerHTML = `<button type="button" class="sigos-btn-primary" id="newOrderBtn">${icon('plus', 16)} Nueva orden</button>`;
 
   content.innerHTML = `
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">${tabHtml}</div>
@@ -1318,8 +1318,8 @@ async function renderOrders(content) {
       <div style="flex:1 1 220px;min-width:220px">${searchField({ placeholder: 'Buscar por cliente, ID, dirección...', id: 'qInput', value: st.filters.q })}</div>
       <select id="filterTech" class="sigos-select" style="height:36px">${'<option value="">Todos los técnicos</option>' + state.profiles.map((p) => `<option value="${p.user?.id}" ${String(st.filters.technician_id) === String(p.user?.id) ? 'selected' : ''}>${escapeHtml(p.user?.username || '')}</option>`).join('')}</select>
       <select id="filterZone" class="sigos-select" style="height:36px">${'<option value="">Todas las zonas</option>' + ['Zona Norte','Zona Sur','Zona Centro','Zona Industrial','Zona Oeste'].map((z) => `<option value="${z}" ${st.filters.zone === z ? 'selected' : ''}>${z}</option>`).join('')}</select>
-      <button class="sigos-btn-secondary" id="applyFilters" style="height:36px;padding:0 14px">${icon('filter', 14)} Filtros</button>
-      ${hasFilters ? '<button class="sigos-btn-secondary" id="clearFilters" style="height:36px;color:#D63B3B;border-color:#FCA5A5">Limpiar</button>' : ''}
+      <button type="button" class="sigos-btn-secondary" id="applyFilters" style="height:36px;padding:0 14px">${icon('filter', 14)} Filtros</button>
+      ${hasFilters ? '<button type="button" class="sigos-btn-secondary" id="clearFilters" style="height:36px;color:#D63B3B;border-color:#FCA5A5">Limpiar</button>' : ''}
       <div style="margin-left:auto;font-size:12px;color:#96908A">${total === 1 ? '1 resultado' : total + ' resultados'}</div>
     </div>
     <div class="sigos-card" style="overflow:hidden">
@@ -1327,14 +1327,14 @@ async function renderOrders(content) {
         <thead><tr>${['ID Orden','Cliente','Dirección','Tipo','Técnico','Fecha visita','Estado','Prioridad','Acciones'].map((h) => `<th>${h}</th>`).join('')}</tr></thead>
         <tbody>${rows || '<tr><td colspan="9" class="empty-state__text">Sin resultados</td></tr>'}</tbody>
       </table>
-      ${!orders.length ? `<div class="empty-state"><div class="empty-state__icon">${icon('orders', 24)}</div><div class="empty-state__title">Sin resultados</div><div class="empty-state__text">No encontramos órdenes con esos criterios.</div><div class="empty-state__action"><button class="sigos-btn-secondary" id="clearEmpty">Limpiar filtros</button></div></div>` : ''}
+      ${!orders.length ? `<div class="empty-state"><div class="empty-state__icon">${icon('orders', 24)}</div><div class="empty-state__title">Sin resultados</div><div class="empty-state__text">No encontramos órdenes con esos criterios.</div><div class="empty-state__action"><button type="button" class="sigos-btn-secondary" id="clearEmpty">Limpiar filtros</button></div></div>` : ''}
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:8px">
       <div style="font-size:12px;color:#96908A">Mostrando ${orders.length} de ${total} órdenes</div>
       <div style="display:flex;gap:4px">
-        <button class="sigos-btn-secondary" id="prevPage" ${st.page <= 1 ? 'disabled' : ''}>‹</button>
+        <button type="button" class="sigos-btn-secondary" id="prevPage" ${st.page <= 1 ? 'disabled' : ''}>‹</button>
         <span style="padding:6px 10px;font-size:12px">${st.page}</span>
-        <button class="sigos-btn-secondary" id="nextPage" ${st.page * st.pageSize >= total ? 'disabled' : ''}>›</button>
+        <button type="button" class="sigos-btn-secondary" id="nextPage" ${st.page * st.pageSize >= total ? 'disabled' : ''}>›</button>
         <select id="pageSize" class="sigos-select" style="height:32px">${[10,25,50].map((n) => `<option value="${n}" ${st.pageSize === n ? 'selected' : ''}>${n}</option>`).join('')}</select>
       </div>
     </div>`;
@@ -1371,7 +1371,7 @@ async function showOrderForm(content, orderId = null) {
   modal.setAttribute('aria-modal', 'true');
   modal.innerHTML = `
     <form class="sigos-card modal-card" id="orderForm">
-      <div class="modal-head"><h3 id="modalTitle">${orderId ? 'Editar orden' : 'Nueva orden de servicio'}</h3><button type="button" id="closeModal" style="background:none;border:none;cursor:pointer;color:#96908A" aria-label="Cerrar">${icon('close', 20)}</button></div>
+      <div class="modal-head"><h3 id="modalTitle">${orderId ? 'Editar orden' : 'Nueva orden de servicio'}</h3><button type="button" type="button" id="closeModal" style="background:none;border:none;cursor:pointer;color:#96908A" aria-label="Cerrar">${icon('close', 20)}</button></div>
       <div class="modal-body">
         <div class="fld"><label for="fTitle">Título *</label><input class="sigos-input" id="fTitle" required placeholder="Título" value="${escapeHtml(existing?.title || '')}"></div>
         <div class="grid2">
@@ -1393,7 +1393,7 @@ async function showOrderForm(content, orderId = null) {
         </div>
         <div class="fld"><label for="fNotes">Notas</label><textarea class="sigos-input" id="fNotes" rows="3">${escapeHtml(existing?.description || '')}</textarea></div>
       </div>
-      <div class="modal-foot"><button type="button" class="sigos-btn-secondary" id="cancelForm">Cancelar</button><button type="button" class="sigos-btn-primary" id="saveOrder">${orderId ? 'Guardar cambios' : 'Crear orden'}</button></div>
+      <div class="modal-foot"><button type="button" type="button" class="sigos-btn-secondary" id="cancelForm">Cancelar</button><button type="button" type="button" class="sigos-btn-primary" id="saveOrder">${orderId ? 'Guardar cambios' : 'Crear orden'}</button></div>
     </form>`;
   document.body.appendChild(modal);
   const close = () => { document.removeEventListener('keydown', onKey); modal.remove(); };
@@ -1467,7 +1467,7 @@ async function renderOrderDetail(content) {
     <div class="sigos-card" style="padding:16px;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h2 style="margin:0">${escapeHtml(wo.title)} <span class="${statusOf(wo.status).badge}">${escapeHtml(statusOf(wo.status).label)}</span></h2>
-        <button class="sigos-btn-secondary" id="backBtn">Volver</button>
+        <button type="button" class="sigos-btn-secondary" id="backBtn">Volver</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div><label>Cliente</label><div>${escapeHtml(wo.customer_name)}</div></div>
@@ -1487,15 +1487,15 @@ async function renderOrderDetail(content) {
             <option value="">Sin cambios</option>
             ${profiles.map((p) => `<option value="${p.user?.id}" ${wo.assigned_to?.id === p.user?.id ? 'selected' : ''}>${escapeHtml(p.user?.username || '')}</option>`).join('')}
           </select></div>
-        <button class="sigos-btn-secondary" id="assignBtn" style="margin-bottom:12px">Asignar</button>
+        <button type="button" class="sigos-btn-secondary" id="assignBtn" style="margin-bottom:12px">Asignar</button>
         <div class="fld"><label>Cambiar estado</label>
           <select id="statusSel" class="sigos-select" style="width:100%">
             <option value="">Seleccionar</option>
             ${allowed.map((s) => `<option value="${s}">${escapeHtml(statusOf(s).label)}</option>`).join('')}
           </select></div>
         <div class="fld"><label>Notas</label><textarea id="statusNotes" class="sigos-input" rows="2"></textarea></div>
-        <button class="sigos-btn-primary" id="statusBtn">Aplicar estado</button>
-        ${allowed.includes('cancelled') ? '<button class="sigos-btn-secondary" id="cancelBtn" style="margin-left:8px;background:#FEE2E2;color:#991B1B;border-color:#FCA5A5">Cancelar orden</button>' : ''}
+        <button type="button" class="sigos-btn-primary" id="statusBtn">Aplicar estado</button>
+        ${allowed.includes('cancelled') ? '<button type="button" class="sigos-btn-secondary" id="cancelBtn" style="margin-left:8px;background:#FEE2E2;color:#991B1B;border-color:#FCA5A5">Cancelar orden</button>' : ''}
       </div>
       <div class="sigos-card" style="padding:16px">
         <h3 style="margin:0 0 8px">Historial</h3>
@@ -1506,7 +1506,7 @@ async function renderOrderDetail(content) {
       <h3 style="margin:0 0 8px">Evidencias</h3>
       <div id="evList" style="color:#96908A">Cargando...</div>
       <div class="fld" style="margin-top:8px"><label>Nueva observación</label><textarea id="obsText" class="sigos-input" rows="2"></textarea></div>
-      <button class="sigos-btn-secondary" id="addObs">Agregar observación</button>
+      <button type="button" class="sigos-btn-secondary" id="addObs">Agregar observación</button>
     </div>`;
 
   $('#backBtn').addEventListener('click', () => { state.view = 'orders'; state.selectedOrderId = null; render(); });
@@ -1576,7 +1576,7 @@ async function renderTechnicians(content) {
   const counts = body.counts || {};
   const total = body.total || techs.length;
 
-  $('#topbarActions').innerHTML = `<button class="sigos-btn-primary" id="newTechBtn">${icon('plus', 16)} Nuevo tecnico</button>`;
+  $('#topbarActions').innerHTML = `<button type="button" class="sigos-btn-primary" id="newTechBtn">${icon('plus', 16)} Nuevo tecnico</button>`;
 
   const summaryHtml = `
     <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px">
@@ -1610,9 +1610,9 @@ async function renderTechnicians(content) {
       <div style="font-size:12px;color:#64748B;margin-bottom:4px">Tel: ${escapeHtml(t.phone || '—')} - ${load} ordenes abiertas</div>
       <div style="height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px"></div></div>
       <div style="display:flex;gap:6px">
-        <button class="sigos-btn-secondary" style="font-size:12px;padding:4px 8px" data-view-orders="${t.user?.id}">Ver ordenes</button>
-        <button class="sigos-btn-secondary" style="font-size:12px;padding:4px 8px">Calendario</button>
-        <button class="sigos-btn-secondary" style="font-size:12px;padding:4px 8px" data-edit-tech="${t.id}">Editar</button>
+        <button type="button" class="sigos-btn-secondary" style="font-size:12px;padding:4px 8px" data-view-orders="${t.user?.id}">Ver ordenes</button>
+        <button type="button" class="sigos-btn-secondary" style="font-size:12px;padding:4px 8px">Calendario</button>
+        <button type="button" class="sigos-btn-secondary" style="font-size:12px;padding:4px 8px" data-edit-tech="${t.id}">Editar</button>
       </div>
     </div>`;
   }).join('');
@@ -1657,7 +1657,7 @@ async function showTechForm(content, techId = null) {
   modal.setAttribute('aria-modal', 'true');
   modal.innerHTML = `
     <form class="sigos-card modal-card" id="techForm">
-      <div class="modal-head"><h3 id="modalTitle">${techId ? 'Editar tecnico' : 'Nuevo tecnico'}</h3><button type="button" id="closeModal" style="background:none;border:none;cursor:pointer;color:#96908A" aria-label="Cerrar">${icon('close', 20)}</button></div>
+      <div class="modal-head"><h3 id="modalTitle">${techId ? 'Editar tecnico' : 'Nuevo tecnico'}</h3><button type="button" type="button" id="closeModal" style="background:none;border:none;cursor:pointer;color:#96908A" aria-label="Cerrar">${icon('close', 20)}</button></div>
       <div class="modal-body">
         <div class="grid2">
           <div><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Nombre *</label><input class="sigos-input" id="tFirst" value="${escapeHtml(existing?.first_name || '')}"></div>
@@ -1673,7 +1673,7 @@ async function showTechForm(content, techId = null) {
         </div>
         <div class="fld"><label style="display:block;font-size:13px;font-weight:600;color:#3A4552;margin-bottom:5px">Documento</label><input class="sigos-input" id="tDoc" value="${escapeHtml(existing?.document || '')}"></div>
       </div>
-      <div class="modal-foot"><button type="button" class="sigos-btn-secondary" id="cancelTech">Cancelar</button><button type="button" class="sigos-btn-primary" id="saveTech">${techId ? 'Guardar' : 'Crear'}</button></div>
+      <div class="modal-foot"><button type="button" type="button" class="sigos-btn-secondary" id="cancelTech">Cancelar</button><button type="button" type="button" class="sigos-btn-primary" id="saveTech">${techId ? 'Guardar' : 'Crear'}</button></div>
     </form>`;
   document.body.appendChild(modal);
   const close = () => { document.removeEventListener('keydown', onKey); modal.remove(); };
@@ -1734,10 +1734,10 @@ function showCredentials(username, password) {
   modal.innerHTML = `
     <div class="sigos-card modal-card" style="padding:24px">
       <h3 style="margin:0 0 12px;font-family:Outfit;font-weight:700;font-size:18px;color:#163028">Credenciales generadas</h3>
-      <div style="margin-bottom:8px"><label>Usuario</label><div style="display:flex;gap:8px"><input class="sigos-input" id="credUser" value="${escapeHtml(username)}" readonly><button class="sigos-btn-secondary" id="copyUser">Copiar</button></div></div>
-      <div style="margin-bottom:12px"><label>Contrasena temporal</label><div style="display:flex;gap:8px"><input class="sigos-input" id="credPass" value="${escapeHtml(password)}" readonly><button class="sigos-btn-secondary" id="copyPass">Copiar</button></div></div>
+      <div style="margin-bottom:8px"><label>Usuario</label><div style="display:flex;gap:8px"><input class="sigos-input" id="credUser" value="${escapeHtml(username)}" readonly><button type="button" class="sigos-btn-secondary" id="copyUser">Copiar</button></div></div>
+      <div style="margin-bottom:12px"><label>Contrasena temporal</label><div style="display:flex;gap:8px"><input class="sigos-input" id="credPass" value="${escapeHtml(password)}" readonly><button type="button" class="sigos-btn-secondary" id="copyPass">Copiar</button></div></div>
       <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="credAck"> Ya guarde las credenciales</label>
-      <div class="modal-foot"><button class="sigos-btn-primary" id="closeCred" disabled>Cerrar</button></div>
+      <div class="modal-foot"><button type="button" class="sigos-btn-primary" id="closeCred" disabled>Cerrar</button></div>
     </div>`;
   document.body.appendChild(modal);
   const close = () => modal.remove();
@@ -1765,7 +1765,7 @@ function showCredentials(username, password) {
   ]);
   if (!matRes.ok) {
     const msg = (matRes.body && (matRes.body.message || matRes.body.error)) || 'Error al cargar materiales.';
-    content.innerHTML = `<div style="color:#991B1B;margin-bottom:8px">${escapeHtml(msg)}</div><button class="sigos-btn-secondary" id="retryMaterials">Reintentar</button>`;
+    content.innerHTML = `<div style="color:#991B1B;margin-bottom:8px">${escapeHtml(msg)}</div><button type="button" class="sigos-btn-secondary" id="retryMaterials">Reintentar</button>`;
     const rb = $('#retryMaterials'); if (rb) rb.addEventListener('click', () => renderMaterials(content));
     return;
   }
@@ -1800,8 +1800,8 @@ function showCredentials(username, password) {
         <div style="font-size:13px;color:#96908A">${total} materiales</div>
       </div>
       <div style="display:flex;gap:8px">
-        ${isAdmin ? `<button class="sigos-btn-secondary" id="addCatalogBtn" style="height:36px">Agregar al catálogo</button>` : ''}
-        ${canManage ? `<button class="sigos-btn-primary" id="addMaterialBtn" style="height:36px">${icon('plus',16)} Agregar material</button>` : ''}
+        ${isAdmin ? `<button type="button" class="sigos-btn-secondary" id="addCatalogBtn" style="height:36px">Agregar al catálogo</button>` : ''}
+        ${canManage ? `<button type="button" class="sigos-btn-primary" id="addMaterialBtn" style="height:36px">${icon('plus',16)} Agregar material</button>` : ''}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
@@ -1825,7 +1825,7 @@ function showCredentials(username, password) {
         <option value="">Todas las unidades</option>
         ${units.map((u) => `<option value="${escapeHtml(u)}" ${filters.unit===u?'selected':''}>${escapeHtml(u)}</option>`).join('')}
       </select>
-      ${canManage ? `<button id="exportCsvBtn" class="sigos-btn-secondary" style="height:36px">Exportar CSV</button>` : ''}
+      ${canManage ? `<button type="button" id="exportCsvBtn" class="sigos-btn-secondary" style="height:36px">Exportar CSV</button>` : ''}
     </div>
     <div class="sigos-card" style="overflow:hidden">
       <table class="tbl">
@@ -1848,12 +1848,12 @@ function showCredentials(username, password) {
               <td>${formatCOP(m.unit_price)}</td>
               ${canManage ? `<td style="white-space:nowrap">
                 ${inherited ? `
-                  <button class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-link="${m.id}">Vincular</button>
-                  <button class="sigos-btn-secondary" style="height:28px;padding:0 8px;margin-left:4px" data-deactivate="${m.id}">Desactivar</button>
+                  <button type="button" class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-link="${m.id}">Vincular</button>
+                  <button type="button" class="sigos-btn-secondary" style="height:28px;padding:0 8px;margin-left:4px" data-deactivate="${m.id}">Desactivar</button>
                 ` : `
-                  <button class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-edit="${m.id}">Editar</button>
-                  <button class="sigos-btn-primary" style="height:28px;padding:0 8px;margin-left:4px" data-replenish="${m.id}">Reponer</button>
-                  <button class="sigos-btn-secondary" style="height:28px;padding:0 8px;margin-left:4px" data-adjust="${m.id}">Ajustar</button>
+                  <button type="button" class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-edit="${m.id}">Editar</button>
+                  <button type="button" class="sigos-btn-primary" style="height:28px;padding:0 8px;margin-left:4px" data-replenish="${m.id}">Reponer</button>
+                  <button type="button" class="sigos-btn-secondary" style="height:28px;padding:0 8px;margin-left:4px" data-adjust="${m.id}">Ajustar</button>
                 `}
               </td>` : ''}
             </tr>`;
@@ -1864,9 +1864,9 @@ function showCredentials(username, password) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap;gap:8px">
       <div style="font-size:13px;color:#3A4552">Valor del inventario: <strong>${formatCOP(totalValue)}</strong></div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="sigos-btn-secondary" id="prevPage" ${currentPage<=1?'disabled':''} style="height:32px">‹</button>
+        <button type="button" class="sigos-btn-secondary" id="prevPage" ${currentPage<=1?'disabled':''} style="height:32px">‹</button>
         <span style="font-size:12px;color:#96908A">Página ${currentPage} de ${totalPages}</span>
-        <button class="sigos-btn-secondary" id="nextPage" ${currentPage>=totalPages?'disabled':''} style="height:32px">›</button>
+        <button type="button" class="sigos-btn-secondary" id="nextPage" ${currentPage>=totalPages?'disabled':''} style="height:32px">›</button>
       </div>
     </div>
   `;
@@ -1963,9 +1963,9 @@ async function openMaterialModal(content, matId) {
       ${isEdit ? `<div class="fld"><label><input type="checkbox" id="mActive" ${mat?.is_active?'checked':''}> Activo</label></div>` : ''}
       <div id="mWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-        <button class="sigos-btn-secondary" id="mCancel">Cancelar</button>
-        ${isAdmin && !isEdit ? `<button class="sigos-btn-secondary" id="mAddCatalog">Agregar al catálogo</button>` : ''}
-        <button class="sigos-btn-primary" id="mSave">Guardar</button>
+        <button type="button" class="sigos-btn-secondary" id="mCancel">Cancelar</button>
+        ${isAdmin && !isEdit ? `<button type="button" class="sigos-btn-secondary" id="mAddCatalog">Agregar al catálogo</button>` : ''}
+        <button type="button" class="sigos-btn-primary" id="mSave">Guardar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2076,8 +2076,8 @@ async function openAddCatalogModal(content) {
       <div id="cWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
       <div id="cSimilar" style="color:#96908A;font-size:12px;margin:8px 0"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-        <button class="sigos-btn-secondary" id="cCancel">Cancelar</button>
-        <button class="sigos-btn-primary" id="cSave">Guardar</button>
+        <button type="button" class="sigos-btn-secondary" id="cCancel">Cancelar</button>
+        <button type="button" class="sigos-btn-primary" id="cSave">Guardar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2129,8 +2129,8 @@ async function openLinkCatalogModal(content, matId) {
       </select>
       <div id="linkWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-        <button class="sigos-btn-secondary" id="linkCancel">Cancelar</button>
-        <button class="sigos-btn-primary" id="linkSave">Vincular</button>
+        <button type="button" class="sigos-btn-secondary" id="linkCancel">Cancelar</button>
+        <button type="button" class="sigos-btn-primary" id="linkSave">Vincular</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2184,8 +2184,8 @@ async function openMaterialModal(content, matId) {
       ${isEdit ? `<div class="fld"><label><input type="checkbox" id="mActive" ${mat?.is_active?'checked':''}> Activo</label></div>` : ''}
       <div id="mWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-        <button class="sigos-btn-secondary" id="mCancel">Cancelar</button>
-        <button class="sigos-btn-primary" id="mSave">Guardar</button>
+        <button type="button" class="sigos-btn-secondary" id="mCancel">Cancelar</button>
+        <button type="button" class="sigos-btn-primary" id="mSave">Guardar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2235,8 +2235,8 @@ async function openReplenishModal(content, matId) {
       <div class="fld"><label>Motivo</label><input class="sigos-input" id="repNotes" placeholder="Compra, devolución..."></div>
       <div id="repResult" style="font-size:12px;color:#3A4552;margin:8px 0"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-        <button class="sigos-btn-secondary" id="repCancel">Cancelar</button>
-        <button class="sigos-btn-primary" id="repSave">Confirmar</button>
+        <button type="button" class="sigos-btn-secondary" id="repCancel">Cancelar</button>
+        <button type="button" class="sigos-btn-primary" id="repSave">Confirmar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2274,8 +2274,8 @@ async function openAdjustModal(content, matId) {
       <div class="fld"><label>Nuevo conteo físico</label><input type="number" class="sigos-input" id="adjCount" min="0" value="${mat.current_stock}"></div>
       <div class="fld"><label>Motivo (obligatorio)</label><input class="sigos-input" id="adjReason" placeholder="Inventario físico..."></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-        <button class="sigos-btn-secondary" id="adjCancel">Cancelar</button>
-        <button class="sigos-btn-primary" id="adjSave">Confirmar</button>
+        <button type="button" class="sigos-btn-secondary" id="adjCancel">Cancelar</button>
+        <button type="button" class="sigos-btn-primary" id="adjSave">Confirmar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2343,14 +2343,14 @@ async function openAdjustModal(content, matId) {
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button class="sigos-btn-secondary" id="previewBtn" style="height:32px">Vista previa</button>
-        <button class="sigos-btn-primary" id="downloadBtn" style="height:32px" disabled>Descargar</button>
+        <button type="button" class="sigos-btn-secondary" id="previewBtn" style="height:32px">Vista previa</button>
+        <button type="button" class="sigos-btn-primary" id="downloadBtn" style="height:32px" disabled>Descargar</button>
         <span id="rowCount" style="font-size:12px;color:#96908A;align-self:center"></span>
       </div>
       <div id="previewArea" style="border:1px solid #E5E7EB;border-radius:6px;padding:8px;min-height:120px;max-height:320px;overflow:auto;font-size:12px"></div>
       <div id="exportWarn" style="color:#991B1B;font-size:12px;margin-top:8px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-        <button class="sigos-btn-secondary" id="exportCancel">Cerrar</button>
+        <button type="button" class="sigos-btn-secondary" id="exportCancel">Cerrar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2473,7 +2473,7 @@ async function openAdjustModal(content, matId) {
   const res = await api('GET', '/api/v1/material-requests?' + params.toString());
   if (!res.ok) {
     const msg = (res.body && (res.body.message || res.body.error)) || 'Error al cargar solicitudes.';
-    content.innerHTML = `<div style="color:#991B1B;margin-bottom:8px">${escapeHtml(msg)}</div><button class="sigos-btn-secondary" id="retryReq">Reintentar</button>`;
+    content.innerHTML = `<div style="color:#991B1B;margin-bottom:8px">${escapeHtml(msg)}</div><button type="button" class="sigos-btn-secondary" id="retryReq">Reintentar</button>`;
     const rb = $('#retryReq'); if (rb) rb.addEventListener('click', () => renderRequests(content));
     return;
   }
@@ -2495,7 +2495,7 @@ async function openAdjustModal(content, matId) {
         <h2 style="font-family:Outfit;font-weight:700;font-size:20px;color:#163028;margin:0">Solicitudes de materiales</h2>
         <div style="font-size:13px;color:#96908A">${total} solicitudes</div>
       </div>
-      <button class="sigos-btn-primary" id="newReqBtn" style="height:36px">${icon('plus',16)} Nueva solicitud</button>
+      <button type="button" class="sigos-btn-primary" id="newReqBtn" style="height:36px">${icon('plus',16)} Nueva solicitud</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <select id="reqStatus" class="sigos-select" style="height:36px">
@@ -2516,7 +2516,7 @@ async function openAdjustModal(content, matId) {
             <td style="font-size:12px;color:#96908A">${escapeHtml((r.created_at || '').slice(0,10))}</td>
             <td>${(r.items || []).length}</td>
             <td>${statusBadge(r.status)}</td>
-            <td><button class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-viewreq="${r.id}">Ver</button></td>
+            <td><button type="button" class="sigos-btn-secondary" style="height:28px;padding:0 8px" data-viewreq="${r.id}">Ver</button></td>
           </tr>`).join('') || `<tr><td colspan="7" class="empty-state__text">Sin solicitudes</td></tr>`}
         </tbody>
       </table>
@@ -2524,9 +2524,9 @@ async function openAdjustModal(content, matId) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
       <div></div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="sigos-btn-secondary" id="prevReq" ${currentPage<=1?'disabled':''} style="height:32px">‹</button>
+        <button type="button" class="sigos-btn-secondary" id="prevReq" ${currentPage<=1?'disabled':''} style="height:32px">‹</button>
         <span style="font-size:12px;color:#96908A">Página ${currentPage} de ${totalPages}</span>
-        <button class="sigos-btn-secondary" id="nextReq" ${currentPage>=totalPages?'disabled':''} style="height:32px">›</button>
+        <button type="button" class="sigos-btn-secondary" id="nextReq" ${currentPage>=totalPages?'disabled':''} style="height:32px">›</button>
       </div>
     </div>
   `;
@@ -2560,12 +2560,12 @@ async function openRequestModal(content, reqId) {
       <div class="fld"><label>Técnico destinatario (id)</label><input type="number" class="sigos-input" id="rTech" value="${req?.technician_id || ''}"></div>
       <div style="font-size:13px;font-weight:600;margin:8px 0">Materiales</div>
       <div id="rItems"></div>
-      <button class="sigos-btn-secondary" id="rAddItem" style="height:28px;margin:8px 0">+ Agregar material</button>
+      <button type="button" class="sigos-btn-secondary" id="rAddItem" style="height:28px;margin:8px 0">+ Agregar material</button>
       <div id="rWarn" style="color:#991B1B;font-size:12px;margin:8px 0"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-        <button class="sigos-btn-secondary" id="rCancel">Cancelar</button>
-        <button class="sigos-btn-secondary" id="rSaveDraft">Guardar borrador</button>
-        <button class="sigos-btn-primary" id="rSubmit">Enviar</button>
+        <button type="button" class="sigos-btn-secondary" id="rCancel">Cancelar</button>
+        <button type="button" class="sigos-btn-secondary" id="rSaveDraft">Guardar borrador</button>
+        <button type="button" class="sigos-btn-primary" id="rSubmit">Enviar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -2581,7 +2581,7 @@ async function openRequestModal(content, reqId) {
       <div style="display:flex;gap:8px;margin-bottom:6px">
         <input type="number" class="sigos-input" placeholder="Material ID" value="${it.material_id}" data-idx="${idx}" data-field="material_id" style="width:120px;height:32px">
         <input type="number" class="sigos-input" placeholder="Cantidad" value="${it.quantity}" data-idx="${idx}" data-field="quantity" style="width:120px;height:32px">
-        <button class="sigos-btn-secondary" data-remove="${idx}" style="height:32px">✕</button>
+        <button type="button" class="sigos-btn-secondary" data-remove="${idx}" style="height:32px">✕</button>
       </div>`).join('');
     $$('input[data-field]').forEach((inp) => inp.addEventListener('change', () => {
       const idx = Number(inp.getAttribute('data-idx'));
@@ -2680,14 +2680,14 @@ async function openRequestModal(content, reqId) {
         </div>
         ${canManage ? `
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-            ${req.status === 'SUBMITTED' || req.status === 'PARTIALLY_APPROVED' ? `<button class="sigos-btn-primary" id="approveBtn" style="height:32px">Aprobar</button>
-            <button class="sigos-btn-secondary" id="rejectBtn" style="height:32px">Rechazar</button>` : ''}
-            ${['APPROVED','PARTIALLY_APPROVED','PARTIALLY_DELIVERED'].includes(req.status) ? `<button class="sigos-btn-primary" id="deliverBtn" style="height:32px">Entregar</button>` : ''}
-            ${!['DELIVERED','CANCELLED','REJECTED'].includes(req.status) ? `<button class="sigos-btn-secondary" id="cancelBtn" style="height:32px">Cancelar</button>` : ''}
+            ${req.status === 'SUBMITTED' || req.status === 'PARTIALLY_APPROVED' ? `<button type="button" class="sigos-btn-primary" id="approveBtn" style="height:32px">Aprobar</button>
+            <button type="button" class="sigos-btn-secondary" id="rejectBtn" style="height:32px">Rechazar</button>` : ''}
+            ${['APPROVED','PARTIALLY_APPROVED','PARTIALLY_DELIVERED'].includes(req.status) ? `<button type="button" class="sigos-btn-primary" id="deliverBtn" style="height:32px">Entregar</button>` : ''}
+            ${!['DELIVERED','CANCELLED','REJECTED'].includes(req.status) ? `<button type="button" class="sigos-btn-secondary" id="cancelBtn" style="height:32px">Cancelar</button>` : ''}
           </div>
         ` : ''}
         <div style="display:flex;justify-content:flex-end;margin-top:12px">
-          <button class="sigos-btn-secondary" id="closeDetail">Cerrar</button>
+          <button type="button" class="sigos-btn-secondary" id="closeDetail">Cerrar</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -2844,7 +2844,7 @@ async function openHistoryDrawer(orderId) {
   const drawer = document.createElement('div');
   drawer.id = 'calHistoryDrawer';
   drawer.style.cssText = 'position:fixed;right:0;top:0;height:100%;width:360px;background:#fff;border-left:1px solid #DDD9D3;box-shadow:-4px 0 12px rgba(0,0,0,.1);z-index:9998;padding:16px;overflow:auto;';
-  drawer.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Historial</div><button id="calHistoryClose" class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div><div id="calHistoryBody">Cargando...</div>';
+  drawer.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Historial</div><button type="button" id="calHistoryClose" class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div><div id="calHistoryBody">Cargando...</div>';
   document.body.appendChild(drawer);
   document.getElementById('calHistoryClose').addEventListener('click', () => drawer.remove());
   try {
@@ -2920,7 +2920,7 @@ async function openScheduleModal(opts) {
   modal.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-family:Outfit;font-weight:600;font-size:15px;color:#163028">Programar visita</div>
-      <button id="schClose" class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button>
+      <button type="button" id="schClose" class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div style="grid-column:1/-1">
@@ -2967,8 +2967,8 @@ async function openScheduleModal(opts) {
     <div id="schValidation" style="margin-top:8px;font-size:12px"></div>
     <div id="schConflictActions" style="margin-top:8px;display:none;gap:6px"></div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
-      <button id="schCancel" class="sigos-btn-secondary" style="height:36px">Cancelar</button>
-      <button id="schSave" class="sigos-btn-primary" style="height:36px">Guardar</button>
+      <button type="button" id="schCancel" class="sigos-btn-secondary" style="height:36px">Cancelar</button>
+      <button type="button" id="schSave" class="sigos-btn-primary" style="height:36px">Guardar</button>
     </div>
   `;
   overlay.appendChild(modal);
@@ -3243,8 +3243,8 @@ function askReason() {
       </select>
       <input id="reasonComment" class="sigos-input" style="height:32px;width:100%" placeholder="Comentario">
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
-        <button id="reasonCancel" class="sigos-btn-secondary" style="height:32px">Cancelar</button>
-        <button id="reasonOk" class="sigos-btn-primary" style="height:32px">Aceptar</button>
+        <button type="button" id="reasonCancel" class="sigos-btn-secondary" style="height:32px">Cancelar</button>
+        <button type="button" id="reasonOk" class="sigos-btn-primary" style="height:32px">Aceptar</button>
       </div>
     `;
     overlay.appendChild(modal);
@@ -3708,7 +3708,7 @@ function openDayModal(dayKey) {
   const byDay = {};
   (state._calItems || []).forEach(e => { const d = e.start.slice(0,10); (byDay[d]=byDay[d]||[]).push(e); });
   const pub = state._calPublic || {};
-  const html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Agenda del día</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>' + dayAgendaHtml(dayKey, byDay, pub, state.calendarState, calTodayStr());
+  const html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Agenda del día</div><button type="button" data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>' + dayAgendaHtml(dayKey, byDay, pub, state.calendarState, calTodayStr());
   openModal(html);
 }
 
@@ -3723,7 +3723,7 @@ function openPendingModal() {
     const parts = [main, pr].filter(Boolean);
     return escapeHtml(code) + (parts.length ? ' - ' + parts.map(escapeHtml).join(' - ') : '');
   };
-  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Pendientes</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>';
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">Pendientes</div><button type="button" data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>';
   html += '<div style="font-size:12px;font-weight:600;color:#96908A">Por programar (' + porProgramar.length + ')</div>';
   porProgramar.slice(0,20).forEach(o => { html += '<div style="font-size:11px;padding:4px;border-bottom:1px solid #F0ECE4">' + pendingLine(o) + '</div>'; });
   html += '<div style="font-size:12px;font-weight:600;color:#96908A;margin-top:6px">Por asignar (' + porAsignar.length + ')</div>';
@@ -3739,13 +3739,13 @@ function openOrderModal(orderId) {
   const code = orderCode(o);
   const title = o.title || 'Orden';
   const techs = (o.technicians || []).map(t => t.name).join(', ') || 'Por asignar';
-  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">' + escapeHtml(code) + '</div><button data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>';
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:Outfit;font-weight:600;font-size:14px;color:#163028">' + escapeHtml(code) + '</div><button type="button" data-close class="sigos-btn-secondary" style="height:28px;padding:0 8px">Cerrar</button></div>';
   html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px">' + escapeHtml(title) + '</div>';
   html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Técnico:</span> ' + escapeHtml(techs) + '</div>';
   if (o.start) html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Horario:</span> ' + escapeHtml(o.start.slice(11,16)) + '–' + escapeHtml(o.end.slice(11,16)) + '</div>';
   html += '<div style="font-size:11px;margin-bottom:2px"><span style="color:#96908A">Estado:</span> ' + escapeHtml((typeof statusOf === 'function' ? statusOf(o.status).label : o.status)) + '</div>';
   html += '<div style="display:flex;gap:6px;margin-top:10px">';
-  html += '<button class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" onclick="state.selectedOrderId=' + orderId + ';state.view=\'order-detail\';render();document.querySelector(\'div[style*=\"z-index:10000\"]\')?.remove()">Abrir orden</button>';
+  html += '<button type="button" class="sigos-btn-secondary" style="font-size:11px;padding:2px 6px" onclick="state.selectedOrderId=' + orderId + ';state.view=\'order-detail\';render();document.querySelector(\'div[style*=\"z-index:10000\"]\')?.remove()">Abrir orden</button>';
   html += '</div>';
   openModal(html);
 }

@@ -36,7 +36,7 @@ async function renderEvidenceInbox(content) {
     content.innerHTML = `
       <div class="card" style="padding:20px">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-          <button id="evBackBtn" class="sigos-btn-secondary">Volver</button>
+          <button type="button" id="evBackBtn" class="sigos-btn-secondary">Volver</button>
           <h2 style="font-family:Outfit;font-size:20px;color:#163028;margin:0">Expediente ${escapeHtml(orderCode(wo))}</h2>
           ${evidenceStatusBadge(detail.status)}
         </div>
@@ -62,10 +62,10 @@ async function renderEvidenceInbox(content) {
             <div style="font-size:12px;color:#96908A">${reviews.map(r => `<div>${escapeHtml(r.decision)} ${escapeHtml(r.created_at || '')} ${escapeHtml(r.notes || '')}</div>`).join('') || 'Sin revisiones'}</div>
             <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:12px">Acciones</h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button id="evStartReviewBtn" class="sigos-btn-secondary">Iniciar revision</button>
-              <button id="evCorrectBtn" class="sigos-btn-secondary">Solicitar correccion</button>
-              <button id="evApproveBtn" class="sigos-btn-primary">Aprobar</button>
-              <button id="evRejectBtn" class="sigos-btn-secondary">Rechazar</button>
+              <button type="button" id="evStartReviewBtn" class="sigos-btn-secondary">Iniciar revision</button>
+              <button type="button" id="evCorrectBtn" class="sigos-btn-secondary">Solicitar correccion</button>
+              <button type="button" id="evApproveBtn" class="sigos-btn-primary">Aprobar</button>
+              <button type="button" id="evRejectBtn" class="sigos-btn-secondary">Rechazar</button>
             </div>
           </div>
         </div>
@@ -118,18 +118,18 @@ async function renderEvidenceInbox(content) {
           <option value="">Todos</option>
           ${['DRAFT','SUBMITTED','UNDER_REVIEW','CORRECTION_REQUIRED','RESUBMITTED','APPROVED','REJECTED'].map(s => `<option value="${s}" ${f.status === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
-        <button id="evInboxSearch" class="sigos-btn-secondary">Filtrar</button>
+        <button type="button" id="evInboxSearch" class="sigos-btn-secondary">Filtrar</button>
       </div>
       <div style="font-size:12px;color:#96908A;margin-bottom:8px">Total: ${data.total || 0} | Pendientes: ${data.counts?.SUBMITTED || 0}</div>
       <table class="sigos-table" style="width:100%">
         <thead><tr><th>Orden</th><th>Estado</th><th>Evidencias</th><th>Accion</th></tr></thead>
         <tbody>
-          ${items.map(it => `<tr><td>${escapeHtml(orderCode(it.work_order))}</td><td>${evidenceStatusBadge(it.validation_status)}</td><td>${it.evidence_count}</td><td><button class="sigos-btn-secondary ev-open-btn" data-wo="${it.work_order.id}">Abrir</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty-state__text">Sin expedientes</td></tr>'}
+          ${items.map(it => `<tr><td>${escapeHtml(orderCode(it.work_order))}</td><td>${evidenceStatusBadge(it.validation_status)}</td><td>${it.evidence_count}</td><td><button type="button" class="sigos-btn-secondary ev-open-btn" data-wo="${it.work_order.id}">Abrir</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty-state__text">Sin expedientes</td></tr>'}
         </tbody>
       </table>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button id="evPrev" class="sigos-btn-secondary" ${f.page <= 1 ? 'disabled' : ''}>Anterior</button>
-        <button id="evNext" class="sigos-btn-secondary" ${f.page * 20 >= (data.total || 0) ? 'disabled' : ''}>Siguiente</button>
+        <button type="button" id="evPrev" class="sigos-btn-secondary" ${f.page <= 1 ? 'disabled' : ''}>Anterior</button>
+        <button type="button" id="evNext" class="sigos-btn-secondary" ${f.page * 20 >= (data.total || 0) ? 'disabled' : ''}>Siguiente</button>
       </div>
     </div>`;
 
