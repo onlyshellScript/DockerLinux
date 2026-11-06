@@ -40,8 +40,8 @@ async function renderEvidenceInbox(content) {
           <h2 style="font-family:Outfit;font-size:20px;color:#163028;margin:0">Expediente ${escapeHtml(orderCode(wo))}</h2>
           ${evidenceStatusBadge(detail.status)}
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:16px">
-            <div style="flex:1;min-width:320px">
+        <div style="display:block">
+            <div>
             <h3 style="font-family:Outfit;font-size:16px;color:#163028">Informacion general</h3>
             <div style="font-size:13px">Cliente: ${escapeHtml(wo.customer_name || '')}</div>
             <div style="font-size:13px">Tecnico: ${escapeHtml(wo.assigned_to?.username || '')}</div>
@@ -53,7 +53,7 @@ async function renderEvidenceInbox(content) {
             <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:12px">Firma</h3>
             <div style="font-size:13px">${sigs.length ? sigs.map(s => s.refused ? 'Negativa: ' + escapeHtml(s.refusal_reason || '') : 'Firma registrada' + (s.signer_name ? ' - ' + escapeHtml(s.signer_name) : '')).join('<br>') : 'Sin firma registrada'}</div>
             </div>
-            <div style="flex:1;min-width:320px">
+            <div>
              <h3 style="font-family:Outfit;font-size:16px;color:#163028">Checklist</h3>
             <div style="font-size:13px">${checklist.map(i => `${escapeHtml(i.label)} - ${escapeHtml(i.result || 'PENDING')}`).join('<br>') || 'Sin items'}</div>
             <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:12px">Historial</h3>

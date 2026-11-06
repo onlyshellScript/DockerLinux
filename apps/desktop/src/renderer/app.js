@@ -357,8 +357,8 @@ async function renderEvidence(content) {
         </select>
         <span class="badge-${status === 'APPROVED' ? 'completed' : status === 'REJECTED' ? 'cancelled' : 'pending'}">${escapeHtml(status)}</span>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:16px">
-        <div style="flex:1;min-width:320px">
+      <div style="display:block">
+        <div>
           <h3 style="font-family:Outfit;font-size:16px;color:#163028">Fotografías</h3>
           <div style="display:flex;gap:8px;margin-bottom:8px">
             <select id="evCategory" class="sigos-input">
@@ -374,7 +374,7 @@ async function renderEvidence(content) {
             ${evidences.map(e => `<div class="sigos-card" style="padding:6px"><div style="font-size:11px;color:#96908A">${escapeHtml(e.category || '')}</div><img data-ev-id="${e.id}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;background:#EAE6DE"><div style="font-size:11px;margin-top:4px">${escapeHtml(e.description || '')}</div></div>`).join('') || '<div class="empty-state__text">Sin evidencias</div>'}
           </div>
         </div>
-        <div style="flex:1;min-width:320px">
+        <div>
           <h3 style="font-family:Outfit;font-size:16px;color:#163028">Firma</h3>
           <div id="evSigStatus">${signatures.length ? signatures.map(s => `<div style="font-size:13px">${s.refused ? 'Negativa: ' + escapeHtml(s.refusal_reason || '') : 'Firma registrada'}</div>`).join('') : 'Sin firma registrada'}</div>
           <canvas id="evSigCanvas" width="300" height="120" style="border:1px solid #DDD9D3;border-radius:4px;background:#fff;margin-top:8px"></canvas>
