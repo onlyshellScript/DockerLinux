@@ -40,21 +40,21 @@ async function renderEvidenceInbox(content) {
           <h2 style="font-family:Outfit;font-size:20px;color:#163028;margin:0">Expediente ${escapeHtml(orderCode(wo))}</h2>
           ${evidenceStatusBadge(detail.status)}
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px">
+            <div style="flex:1;min-width:320px">
             <h3 style="font-family:Outfit;font-size:16px;color:#163028">Informacion general</h3>
             <div style="font-size:13px">Cliente: ${escapeHtml(wo.customer_name || '')}</div>
             <div style="font-size:13px">Tecnico: ${escapeHtml(wo.assigned_to?.username || '')}</div>
             <div style="font-size:13px">Estado orden: ${escapeHtml(wo.status || '')}</div>
             <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:12px">Fotografias</h3>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
               ${evs.map(e => `<div class="sigos-card" style="padding:6px"><div style="font-size:11px;color:#96908A">${escapeHtml(e.category || '')}</div><img data-ev-id="${e.id}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;background:#EAE6DE"><div style="font-size:11px;margin-top:4px">${escapeHtml(e.description || '')}</div><div style="font-size:10px;color:#96908A">${escapeHtml(e.mime_type || '')} ${e.size_bytes || ''} bytes</div></div>`).join('') || '<div class="empty-state__text">Sin evidencias</div>'}
             </div>
             <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:12px">Firma</h3>
             <div style="font-size:13px">${sigs.length ? sigs.map(s => s.refused ? 'Negativa: ' + escapeHtml(s.refusal_reason || '') : 'Firma registrada' + (s.signer_name ? ' - ' + escapeHtml(s.signer_name) : '')).join('<br>') : 'Sin firma registrada'}</div>
-          </div>
-          <div>
-            <h3 style="font-family:Outfit;font-size:16px;color:#163028">Checklist</h3>
+            </div>
+            <div style="flex:1;min-width:320px">
+             <h3 style="font-family:Outfit;font-size:16px;color:#163028">Checklist</h3>
             <div style="font-size:13px">${checklist.map(i => `${escapeHtml(i.label)} - ${escapeHtml(i.result || 'PENDING')}`).join('<br>') || 'Sin items'}</div>
             <h3 style="font-family:Outfit;font-size:16px;color:#163028;margin-top:12px">Historial</h3>
             <div style="font-size:12px;color:#96908A;max-height:160px;overflow:auto">${events.map(e => `<div>${escapeHtml(e.action)} ${escapeHtml(e.from_status || '')}->${escapeHtml(e.to_status || '')} ${escapeHtml(e.created_at || '')}</div>`).join('')}</div>
