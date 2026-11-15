@@ -192,10 +192,12 @@ function statusClass(s) {
 
 function render() {
   const app = $('#app');
+  if (!state.view) state.view = 'dashboard';
   if (!state.session) { app.innerHTML = loginTemplate(); bindLogin(); return; }
   app.innerHTML = shellTemplate();
   bindShell();
   renderView();
+  syncHash();
 }
 
 function loginTemplate() {
@@ -229,7 +231,13 @@ function bindLogin() {
     if (!res.ok) { notify(res.body?.error || 'Credenciales inválidas', 'error'); return; }
     state.session = res.body;
     await saveSession();
-    notify('Sesión iniciada', 'success');
+    if (state.pendingRoute) {
+      const r = hashToView(state.pendingRoute);
+      state.view = r.view;
+      if (r.orderId) state.selectedOrderId = r.orderId;
+      state.pendingRoute = null;
+    }
+    notify('Sesi��n iniciada', 'success');
     render();
   });
   $('#password').addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
@@ -1484,7 +1492,7 @@ async function renderOrderDetail(content) {
     api('GET', `/api/v1/work-orders/${id}/history`),
     api('GET', '/api/v1/technician-profiles'),
   ]);
-  if (!woRes.ok) { content.innerHTML = `<div style="color:#991B1B">${escapeHtml(woRes.body?.error || 'No encontrada')}</div>`; return; }
+  if (!woRes.ok) { content.innerHTML = `<div style="color:#991B1B">Orden no encontrada</div><div style="margin-top:8px"><button type="button" class="sigos-btn-secondary" id="backBtn">Volver a órdenes</button></div>`; const b = $('#backBtn'); if (b) b.addEventListener('click', () => { state.view = 'orders'; state.selectedOrderId = null; render(); }); return; }
   const wo = woRes.body;
   const history = histRes.ok ? (histRes.body || []) : [];
   const profiles = profilesRes.ok ? (profilesRes.body || []) : [];
@@ -3036,8 +3044,56 @@ async function renderNotifications(content) {
     </div>`;
 }
 
+const ADMIN_ONLY_VIEWS = new Set(['users', 'settings', 'reports']);
+function isTechnicianRole() { return (state.session?.user?.roles || []).includes('technician'); }
+function viewToHash(view) {
+  if (view === 'order-detail' && state.selectedOrderId) return '#/ordenes/' + state.selectedOrderId;
+  const map = { dashboard: 'dashboard', orders: 'ordenes', technicians: 'tecnicos', calendar: 'calendario', materials: 'materiales', requests: 'solicitudes', evidence: 'evidencias', reports: 'reportes', users: 'usuarios', notifications: 'notificaciones', settings: 'configuracion' };
+  return '#/' + (map[view] || 'dashboard');
+}
+let _hashSyncing = false;
+function syncHash() {
+  const desired = viewToHash(state.view);
+  if (location.hash !== desired) { _hashSyncing = true; location.hash = desired; _hashSyncing = false; }
+}
+function hashToView(hash) {
+  const raw = (hash || '').replace(/^#\\/?/, '');
+  const parts = raw.split('/').filter(Boolean);
+  if (!parts.length) return { view: 'dashboard' };
+  const seg = parts[0];
+  const id = parts[1];
+  const map = { dashboard: 'dashboard', ordenes: 'orders', tecnicos: 'technicians', calendario: 'calendar', materiales: 'materials', solicitudes: 'requests', evidencias: 'evidence', reportes: 'reports', usuarios: 'users', notificaciones: 'notifications', configuracion: 'settings' };
+  let view = map[seg] || 'dashboard';
+  const out = { view: view };
+  if (seg === 'ordenes' && id) { out.view = 'order-detail'; out.orderId = id; }
+  if (isTechnicianRole() && ADMIN_ONLY_VIEWS.has(out.view)) out.view = 'dashboard';
+  return out;
+}
+window.addEventListener('hashchange', () => {
+  if (_hashSyncing) return;
+  if (!state.session) return;
+  const r = hashToView(location.hash);
+  state.view = r.view;
+  if (r.orderId) state.selectedOrderId = r.orderId;
+  render();
+});
 (async function init() {
   const ok = await loadSession();
+  if (ok) {
+    if (location.hash && location.hash !== '#' && location.hash !== '#/') {
+      state.pendingRoute = location.hash;
+    }
+    if (state.pendingRoute) {
+      const r = hashToView(state.pendingRoute);
+      state.view = r.view;
+      if (r.orderId) state.selectedOrderId = r.orderId;
+      state.pendingRoute = null;
+    } else if (!state.view) {
+      state.view = 'dashboard';
+    }
+  } else {
+    state.pendingRoute = location.hash;
+  }
   render();
 })();
 
