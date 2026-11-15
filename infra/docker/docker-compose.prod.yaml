@@ -18,6 +18,9 @@
     volumes:
       - api-uploads:/app/uploads
     restart: unless-stopped
+    depends_on:
+      sqlserver:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/health')"]
       interval: 30s
@@ -29,11 +32,14 @@
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
-    ports:
-      - "1433:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -C -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   api-uploads:
