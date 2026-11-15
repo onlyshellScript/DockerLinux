@@ -29,17 +29,18 @@ function clearSession() {
   try { fs.unlinkSync(SESSION_FILE); } catch {}
 }
 
-async function apiRequest({ method, path: reqPath, body, form, token }) {
+async function apiRequest({ method, path: reqPath, body, form, token, headers: extraHeaders }) {
   const url = new URL(reqPath, API_BASE_URL);
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (extraHeaders && typeof extraHeaders === 'object') Object.assign(headers, extraHeaders);
   let payload;
   if (form) {
     const fd = new FormData();
     Object.entries(form).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, v); });
     payload = fd;
   } else if (body) {
-    headers['Content-Type'] = 'application/json';
+    if (!headers['Content-Type'] && !headers['content-type']) headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
   try {

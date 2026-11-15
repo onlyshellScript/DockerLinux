@@ -35,8 +35,8 @@ function orderCode(o) {
   return id != null ? 'OS-' + String(id).padStart(4, '0') : '';
 }
 
-async function api(method, path, body = null, form = null, canRetry = true) {
-  const res = await window.sigos.apiRequest({ method, path, body, form, token: state.session?.access_token });
+async function api(method, path, body = null, form = null, headers = null, canRetry = true) {
+  const res = await window.sigos.apiRequest({ method, path, body, form, token: state.session?.access_token, headers });
   if (res && typeof classifyError === 'function') res.errorInfo = classifyError(res);
   if (res.status !== 401 || !canRetry || !state.session?.refresh_token) return res;
   const refreshed = await window.sigos.apiRequest({
@@ -48,7 +48,7 @@ async function api(method, path, body = null, form = null, canRetry = true) {
     state.session.access_token = refreshed.body.access_token;
     if (refreshed.body.user) state.session.user = refreshed.body.user;
     await saveSession();
-    return api(method, path, body, form, false);
+    return api(method, path, body, form, headers, false);
   }
   await clearSession();
   render();
@@ -179,7 +179,7 @@ const NAV = [
 const NAV_BOTTOM = [
   { key: 'notifications', label: 'Notificaciones', icon: 'bell', roles: null },
   { key: 'settings', label: 'Configuración', icon: 'settings', roles: ['admin', 'dispatcher'] },
-  { key: 'mobile', label: 'Vista Técnico', icon: 'mobile', roles: null },
+
 ];
 
 function navAllowed(item) {
@@ -212,8 +212,7 @@ function loginTemplate() {
       <div class="fld"><label>Usuario</label><input id="username" class="sigos-input" autocomplete="username"></div>
       <div class="fld"><label>Contraseña</label><input id="password" type="password" class="sigos-input" autocomplete="current-password"></div>
       <button type="button" id="loginBtn" class="sigos-btn-primary" style="width:100%;justify-content:center;padding:10px">Ingresar</button>
-      <div class="section-label" style="margin:20px 0 8px">Credenciales de desarrollo</div>
-      <div class="muted">admin / Admin123!</div>
+      ${window.sigos && window.sigos.isDev && window.sigos.isDev() ? '<div class="section-label" style="margin:20px 0 8px">Credenciales de desarrollo</div><div class="muted">admin / Admin123!</div>' : ''}
     </div>
   </div>`;
 }
@@ -238,7 +237,7 @@ function bindLogin() {
 
 function shellTemplate() {
   const user = state.session.user;
-  const roles = (user.roles || []).join(', ');
+  const roles = (user.roles || []).map((r) => (typeof roleOf === 'function' ? roleOf(r).label : r)).join(', ');
   const items = (list) => list.filter(navAllowed).map((item) => `
     <a href="#" class="sidebar-nav-item${state.view === item.key ? ' active' : ''}" data-view="${item.key}">
       <span style="flex-shrink:0">${icon(item.icon, 18)}</span><span style="flex:1">${escapeHtml(item.label)}</span>${item.key === 'materials' ? '<span data-menu-badge="materials" style="display:none;background:#E8A520;color:#fff;border-radius:999px;padding:0 6px;font-size:11px;font-weight:700;margin-left:6px"></span>' : ''}
@@ -271,9 +270,7 @@ function shellTemplate() {
         <div style="flex:1"><div class="tb-title" id="viewTitle">SIGOS</div><div class="tb-sub" id="viewSub"></div></div>
         <div style="width:300px">${searchField({ placeholder: 'Buscar órdenes, técnicos, clientes...', id: 'globalSearch' })}</div>
         <div id="topbarActions" style="display:flex;gap:8px;align-items:center"></div>
-        <button type="button" class="tb-btn" aria-label="Ayuda">Ayuda</button>
         <a class="bell" href="#" id="bellBtn" aria-label="Notificaciones">${icon('bell', 18)}<span id="bellBadge" style="display:none">0</span></a>
-        <a class="tb-btn" href="#" id="fieldBtn" aria-label="Vista técnico">${icon('mobile', 16)}<span>Campo</span></a>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="avatar-sm">${escapeHtml(user.initials || (user.username || '').slice(0, 2).toUpperCase())}</div>
           <div><div style="font-size:12px;font-weight:600;color:#1A1F27;line-height:1.2">${escapeHtml(user.username || user.name || '')}</div><div style="font-size:10px;color:#96908A">${escapeHtml(roles)}</div></div>
@@ -289,7 +286,6 @@ function bindShell() {
   $$('[data-view]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); state.view = b.dataset.view; state.selectedOrderId = null; render(); }));
   $('#logoutBtn').addEventListener('click', async (e) => { e.preventDefault(); await clearSession(); render(); });
   $('#bellBtn').addEventListener('click', (e) => { e.preventDefault(); state.view = 'notifications'; render(); });
-  $('#fieldBtn').addEventListener('click', (e) => { e.preventDefault(); state.view = 'mobile'; render(); });
 }
 
 const VIEW_META = {
@@ -329,6 +325,8 @@ function renderView() {
   else if (state.view === 'evidence-inbox') renderEvidenceInbox(content);
   else if (state.view === 'users') renderUsers(content);
   else if (state.view === 'notifications') renderNotifications(content);
+  else if (state.view === 'reports') renderReports(content);
+  else if (state.view === 'mobile') renderMobile(content);
   else pendingView(content, meta[0]);
 }
 
@@ -547,7 +545,8 @@ async function renderCalendar(content) {
    const tz = state.calendarTz || CAL_TZ;
    const pub = state._calPublic || {};
    const anchorStr = (cs.view === 'day' && cs.selectedDay) ? cs.selectedDay : cs.anchor;
-   const anchor = new Date(anchorStr + 'T00:00:00');
+   let anchor = new Date(anchorStr + 'T00:00:00');
+    if (isNaN(anchor.getTime())) { cs.anchor = calTodayStr(); cs.selectedDay = calTodayStr(); anchor = new Date(cs.anchor + 'T00:00:00'); }
   let from, to, days = [];
   if (cs.view === 'day') {
     from = new Date(anchor); from.setHours(0,0,0,0);
@@ -586,7 +585,7 @@ async function renderCalendar(content) {
     state._calUnassigned = unassigned;
     if (!error) cs.lastUpdated = Date.now();
     techOpts = []; cityOpts = []; zoneOpts = []; typeOpts = [];
-    if (hasRole('admin') || hasRole('dispatcher')) {
+    if (hasRole('dispatcher')) {
       try { const tr = await api('GET', '/api/v1/technicians?page_size=200&active=true'); if (tr.ok) techOpts = (tr.body && tr.body.items) || []; } catch(e) {}
     }
     try { const cr = await api('GET', '/api/v1/catalogs/cities'); if (cr.ok) cityOpts = cr.body || []; } catch(e) {}
@@ -608,7 +607,7 @@ async function renderCalendar(content) {
   const todayStr = calTodayStr();
   let html = '';
   // topbar actions area handled by view title; add period nav
-   const canSchedule = hasRole('admin') || hasRole('dispatcher');
+   const canSchedule = hasRole('dispatcher');
    html += '<div class="cal-root" style="display:flex;flex-direction:column;height:100%;min-height:0;gap:8px;overflow:hidden">';
    // row 1
    const lu = cs.lastUpdated ? new Date(cs.lastUpdated).toLocaleTimeString('es-CO') : '';
@@ -631,7 +630,7 @@ async function renderCalendar(content) {
    html += '<span class="cal-chip" style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;height:28px;cursor:pointer" id="chipUnas">Sin asignar <span style="font-family:Outfit;font-weight:800;font-size:15px;color:#C9892A">' + unassignedCount + '</span></span>';
    html += '<span class="cal-chip" style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #DDD9D3;border-radius:999px;font-size:12px;height:28px;cursor:pointer" id="chipProg2">En ejecución <span style="font-family:Outfit;font-weight:800;font-size:15px;color:#2A5C45">' + inProgress + '</span></span>';
    const techOptions = techOpts.map(t => '<option value="' + (t.user_id||t.id) + '"' + (String(cs.filters.technician_id)===String(t.user_id||t.id)?' selected':'') + '>' + escapeHtml(t.full_name||t.username||('Técnico '+(t.user_id||t.id))) + '</option>').join('');
-   const statusOpts = ['pending','assigned','in_progress','completed','closed','cancelled'].map(s => '<option value="' + s + '"' + (cs.filters.status===s?' selected':'') + '>' + escapeHtml((typeof statusOf==='function'?statusOf(s).label:s)) + '</option>').join('');
+   const statusOpts = ['pending','assigned','in_progress','completed','cancelled'].map(s => '<option value="' + s + '"' + (cs.filters.status===s?' selected':'') + '>' + escapeHtml((typeof statusOf==='function'?statusOf(s).label:s)) + '</option>').join('');
    html += '<select class="sigos-input" id="calFiltTech"><option value="">Todos los técnicos</option>' + techOptions + '</select>';
    html += '<select class="sigos-input" id="calFiltStatus"><option value="">Todos los estados</option>' + statusOpts + '</select>';
    html += '<button type="button" class="sigos-btn-secondary" style="height:36px" id="calFiltersBtn">Filtros' + (activeFilterCount ? ' ' + activeFilterCount : '') + '</button>';
@@ -827,7 +826,7 @@ async function renderCalendar(content) {
            reason = window.prompt('Motivo de cancelación (obligatorio):');
            if (!reason) { notify('Motivo obligatorio.', 'error'); return; }
          }
-         const actionName = next === 'assigned' ? 'assign' : next === 'in_progress' ? 'start' : next === 'completed' ? 'complete' : next === 'closed' ? 'close' : next === 'cancelled' ? 'cancel' : next;
+         const actionName = next === 'assigned' ? 'assign' : next === 'in_progress' ? 'start' : next === 'completed' ? 'complete' : next === 'cancelled' ? 'cancel' : next;
          const res = await api('POST', '/api/v1/work-orders/' + eid + '/transitions', { action: actionName, reason });
          if (res.ok) { notify('Estado actualizado.', 'success'); cs.selectedEventId = eid; render(); }
          else { notify((res.body && (res.body.message || res.body.error)) || 'Error', 'error'); }
@@ -972,6 +971,43 @@ function destroyCharts() {
 async function renderDashboard(content) {
   destroyCharts();
   content.innerHTML = '<div class="empty-state"><div class="empty-state__title">Cargando dashboard...</div></div>';
+  const isTech = (state.session?.user?.roles || []).includes('technician');
+  if (isTech) {
+    const res = await api('GET', '/api/v1/tecnico/mi-dashboard');
+    if (!res.ok) {
+      content.innerHTML = `<div style="color:#991B1B">Error cargando dashboard: ${escapeHtml(res.body?.error || res.error || 'sin respuesta del servidor')}. <button type="button" class="sigos-btn-secondary" id="retryDash">Reintentar</button></div>`;
+      $('#retryDash')?.addEventListener('click', () => renderDashboard(content));
+      return;
+    }
+    const d = res.body;
+    const counts = d.counts || {};
+    const resumen = d.resumen || {};
+    const orders = d.orders || [];
+    const statusLabel = (s) => ({pending:'Pendiente',assigned:'Asignada',in_progress:'En proceso',completed:'Completada',cancelled:'Cancelada'}[s] || s);
+    const statusColor = (s) => ({pending:'#E8A520',assigned:'#3B82F6',in_progress:'#0EA5E9',completed:'#22C55E',cancelled:'#D63B3B'}[s] || '#3A4552');
+    const statusIcon = (s) => ({pending:'\u23F3',assigned:'\u{1F4CB}',in_progress:'\u{1F6B6}',completed:'\u2705',cancelled:'\u274C'}[s] || '');
+    const chip = (val, label, color, show) => show ? `<span style="display:inline-block;background:${color}22;color:${color};border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;margin:2px">${label}: ${val}</span>` : '';
+    content.innerHTML = `<div class="sigos-card" style="padding:16px;margin-bottom:12px">
+      <h3 style="font-family:Outfit;font-size:18px;color:#163028;margin:0 0 4px">Mi dia</h3>
+      <div style="font-size:12px;color:#96908A;margin-bottom:12px">${new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">
+        ${chip(resumen.hoy||0, 'Hoy', '#163028', true)}
+        ${chip(resumen.en_proceso||0, 'En proceso', '#0EA5E9', (resumen.en_proceso||0) > 0)}
+        ${chip(resumen.completadas_hoy||0, 'Completadas hoy', '#22C55E', (resumen.completadas_hoy||0) > 0)}
+        ${chip(resumen.pendientes_vencidas||0, 'Pendientes/vencidas', '#D63B3B', (resumen.pendientes_vencidas||0) > 0)}
+      </div>
+      ${orders.length ? orders.map(o=>`<div style="border:1px solid #E5E0D8;border-radius:8px;padding:10px;margin-bottom:8px;cursor:pointer" data-wo="${o.id}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-weight:700;color:#163028">OS-${o.id}</span>
+          <span style="font-size:11px;font-weight:600;color:${statusColor(o.status)}">${statusIcon(o.status)} ${statusLabel(o.status)}</span>
+        </div>
+        <div style="font-size:13px;color:#3A4552">${escapeHtml(o.title||'')}</div>
+        <div style="font-size:11px;color:#96908A;margin-top:4px">${escapeHtml(o.customer_name||'Sin dato')} - ${escapeHtml(o.zone||o.legacy_zone||'Sin dato')}</div>
+        ${o.scheduled_at ? `<div style="font-size:11px;color:#96908A">Ventana: ${escapeHtml(o.scheduled_at)} - ${escapeHtml(o.scheduled_end||'')}</div>` : ''}
+      </div>`).join('') : '<div style="text-align:center;color:#96908A;padding:20px">No tienes ordenes asignadas.</div>'}
+    </div>`;
+    return;
+  }
   const range = state.dashboardRange || 7;
   const zone = state.dashboardZone || '';
   const tech = state.dashboardTech || '';
@@ -1083,7 +1119,6 @@ async function renderDashboard(content) {
         <select id="dashZone" class="sigos-select"><option value="">Todas las zonas</option></select>
         <select id="dashTech" class="sigos-select"><option value="">Todos los técnicos</option>${(d.technicians||[]).map((t)=>`<option value="${t.user?.id}" ${String(tech)===String(t.user?.id)?'selected':''}>${escapeHtml(t.user?.username||'')}</option>`).join('')}</select>
         <button type="button" class="sigos-btn-secondary" id="dashClear">Limpiar</button>
-        <button type="button" class="sigos-btn-secondary" id="dashExport">Exportar</button>
       </div>
     </div>
 
@@ -1456,11 +1491,15 @@ async function renderOrderDetail(content) {
   const transitions = {
     pending: ['assigned', 'cancelled'],
     assigned: ['in_progress', 'cancelled'],
-    in_progress: ['completed'],
-    completed: ['closed'],
-    closed: [],
+    in_progress: ['completed', 'cancelled'],
+    completed: [],
     cancelled: [],
   };
+  const isManager = hasRole('dispatcher') || hasRole('admin');
+  const isTechnician = hasRole('technician');
+  if (isTechnician) {
+    if (transitions[wo.status]) transitions[wo.status] = transitions[wo.status].filter((x) => x !== 'cancelled');
+  }
   const allowed = transitions[wo.status] || [];
 
   content.innerHTML = `
@@ -1479,15 +1518,42 @@ async function renderOrderDetail(content) {
       </div>
       <div style="margin-top:12px"><label>Descripción</label><div>${escapeHtml(wo.description)}</div></div>
     </div>
+    ${visibleActions(hasRole('admin') ? 'admin' : (hasRole('dispatcher') ? 'dispatcher' : 'technician'), wo.status).edit ? `<div class="sigos-card" style="padding:16px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0">Edición</h3>
+        <button type="button" class="sigos-btn-secondary" id="editOrderBtn">Editar</button>
+      </div>
+      <div id="editPanel" style="display:none">
+        <div class="fld"><label>Tipo de instalación</label><input id="edType" class="sigos-input" value="${escapeHtml(wo.installation_type || '')}"></div>
+        <div class="fld"><label>Técnico</label><select id="edTech" class="sigos-select" style="width:100%"><option value="">Sin cambios</option>${profiles.filter((p) => p.is_active !== false && p.user?.is_active !== false).map((p) => `<option value="${p.user?.id}" ${wo.assigned_to?.id === p.user?.id ? 'selected' : ''}>${escapeHtml(p.user?.username || p.name || '')}</option>`).join('')}</select></div>
+        <div class="fld"><label>Fecha/hora programada</label><input id="edScheduled" class="sigos-input" type="datetime-local" value="${wo.scheduled_at ? wo.scheduled_at.slice(0,16) : ''}"></div>
+        ${hasRole('admin') ? `<div class="fld"><label>Motivo *</label><textarea id="edReason" class="sigos-input" rows="2" placeholder="Motivo obligatorio"></textarea></div>` : ''}
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <button type="button" class="sigos-btn-primary" id="saveEditBtn">Guardar cambios</button>
+          <span id="editLoading" style="display:none;font-size:12px;color:#96908A">Guardando...</span>
+        </div>
+        <div id="editError" style="color:#991B1B;font-size:12px;margin-top:4px"></div>
+      </div>
+    </div>` : ''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
       <div class="sigos-card" style="padding:16px">
         <h3 style="margin:0 0 8px">Acciones</h3>
-        <div class="fld"><label>Asignar técnico</label>
+${isManager ? `        <div class="fld"><label>Asignar técnico</label>
           <select id="assignSel" class="sigos-select" style="width:100%">
             <option value="">Sin cambios</option>
             ${profiles.map((p) => `<option value="${p.user?.id}" ${wo.assigned_to?.id === p.user?.id ? 'selected' : ''}>${escapeHtml(p.user?.username || '')}</option>`).join('')}
           </select></div>
-        <button type="button" class="sigos-btn-secondary" id="assignBtn" style="margin-bottom:12px">Asignar</button>
+        <button type="button" class="sigos-btn-secondary" id="assignBtn" style="margin-bottom:12px">Asignar</button>` : ''}
+        ${isManager ? `<div class="fld" style="margin-top:8px"><label>Programar visita</label>
+          <input id="schStart" class="sigos-input" type="datetime-local" value="${wo.scheduled_at ? wo.scheduled_at.slice(0,16) : ''}" style="margin-bottom:6px">
+          <input id="schEnd" class="sigos-input" type="datetime-local" value="${wo.scheduled_end ? wo.scheduled_end.slice(0,16) : ''}" style="margin-bottom:6px">
+          <select id="schTech" class="sigos-select" style="width:100%;margin-bottom:6px">
+            <option value="">T?cnico actual</option>
+            ${profiles.map((p) => `<option value="${p.user?.id}" ${wo.assigned_to?.id === p.user?.id ? 'selected' : ''}>${escapeHtml(p.user?.username || '')}</option>`).join('')}
+          </select>
+          <textarea id="schReason" class="sigos-input" rows="2" placeholder="Motivo (si reprograma)"></textarea>
+          <button type="button" class="sigos-btn-primary" id="schBtn" style="margin-top:6px">Programar</button>
+          <div id="schError" style="color:#991B1B;font-size:12px;margin-top:4px"></div>` : ''}
         <div class="fld"><label>Cambiar estado</label>
           <select id="statusSel" class="sigos-select" style="width:100%">
             <option value="">Seleccionar</option>
@@ -1495,27 +1561,112 @@ async function renderOrderDetail(content) {
           </select></div>
         <div class="fld"><label>Notas</label><textarea id="statusNotes" class="sigos-input" rows="2"></textarea></div>
         <button type="button" class="sigos-btn-primary" id="statusBtn">Aplicar estado</button>
-        ${allowed.includes('cancelled') ? '<button type="button" class="sigos-btn-secondary" id="cancelBtn" style="margin-left:8px;background:#FEE2E2;color:#991B1B;border-color:#FCA5A5">Cancelar orden</button>' : ''}
+        ${(isManager && allowed.includes('cancelled')) ? '<button type="button" class="sigos-btn-secondary" id="cancelBtn" style="margin-left:8px;background:#FEE2E2;color:#991B1B;border-color:#FCA5A5">Cancelar orden</button>' : ''}
       </div>
       <div class="sigos-card" style="padding:16px">
         <h3 style="margin:0 0 8px">Historial</h3>
-        ${history.length ? history.map((h) => `<div style="padding:6px 0;border-bottom:1px solid #F5F2EB"><span class="${statusOf(h.to_status).badge}">${escapeHtml(statusOf(h.to_status).label)}</span> <span style="font-size:12px;color:#96908A">${escapeHtml(h.created_at)} por ${escapeHtml(h.changed_by?.username)}</span><div style="font-size:12px;color:#96908A">${escapeHtml(h.notes)}</div></div>`).join('') : '<div class="empty-state__text">Sin historial</div>'}
+        ${history.length ? history.map((h) => `<div style="padding:6px 0;border-bottom:1px solid #F5F2EB">${h.from_status ? `<span class="${statusOf(h.from_status).badge}">${escapeHtml(statusOf(h.from_status).label)}</span> → ` : ''}${h.to_status ? `<span class="${statusOf(h.to_status).badge}">${escapeHtml(statusOf(h.to_status).label)}</span>` : '<span style="font-size:12px;color:#96908A">Cambio</span>'} <span style="font-size:12px;color:#96908A">${escapeHtml(h.created_at)} por ${escapeHtml(h.changed_by?.username)}</span><div style="font-size:12px;color:#96908A">${escapeHtml(h.notes || h.new_value || '')}</div></div>`).join('') : '<div class="empty-state__text">Sin historial</div>'}
       </div>
+    </div>
+    <div class="sigos-card" style="padding:16px;margin-top:16px">
+      <h3 style="margin:0 0 8px">Materiales usados</h3>
+      <div id="matList" style="color:#96908A">Cargando...</div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <select id="matSel" class="sigos-select" style="flex:1"></select>
+        <input id="matQty" class="sigos-input" type="number" min="1" placeholder="Cantidad" style="width:100px">
+        <button type="button" class="sigos-btn-secondary" id="matAddBtn">Registrar</button>
+      </div>
+      <div id="matError" style="color:#991B1B;font-size:12px;margin-top:4px"></div>
     </div>
     <div class="sigos-card" style="padding:16px;margin-top:16px">
       <h3 style="margin:0 0 8px">Evidencias</h3>
       <div id="evList" style="color:#96908A">Cargando...</div>
       <div class="fld" style="margin-top:8px"><label>Nueva observación</label><textarea id="obsText" class="sigos-input" rows="2"></textarea></div>
       <button type="button" class="sigos-btn-secondary" id="addObs">Agregar observación</button>
+      <div class="fld" style="margin-top:8px"><label>Adjuntar archivo</label><input type="file" id="fileInput" class="sigos-input"></div>
+      <button type="button" class="sigos-btn-secondary" id="uploadFileBtn">Subir archivo</button>
+      <div id="fileError" style="color:#991B1B;font-size:12px;margin-top:4px"></div>
     </div>`;
 
   $('#backBtn').addEventListener('click', () => { state.view = 'orders'; state.selectedOrderId = null; render(); });
+  $('#editOrderBtn')?.addEventListener('click', () => {
+    const panel = $('#editPanel');
+    if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+  $('#saveEditBtn')?.addEventListener('click', async () => {
+    const errEl = $('#editError');
+    if (errEl) errEl.textContent = '';
+    const btn = $('#saveEditBtn');
+    const loading = $('#editLoading');
+    if (btn) btn.disabled = true;
+    if (loading) loading.style.display = 'inline';
+    const isAdmin = hasRole('admin');
+    if (isAdmin) {
+      const reason = $('#edReason')?.value.trim();
+      if (!reason) { if (errEl) errEl.textContent = 'Motivo obligatorio'; if (btn) btn.disabled = false; if (loading) loading.style.display = 'none'; return; }
+    }
+    const techVal = $('#edTech')?.value;
+    const scheduled = $('#edScheduled')?.value;
+    const body = {
+      installation_type: $('#edType')?.value.trim() || null,
+    };
+    if (techVal !== undefined) body.assigned_to_id = techVal ? Number(techVal) : null;
+    if (scheduled) body.scheduled_at = scheduled.length === 16 ? scheduled + ':00' : scheduled;
+    if (isAdmin) body.reason = $('#edReason').value.trim();
+    const res = await api('PATCH', `/api/v1/work-orders/${id}`, body, null, { 'If-Match': String(wo.version) });
+    if (btn) btn.disabled = false;
+    if (loading) loading.style.display = 'none';
+    if (!res.ok) {
+      const status = res.status;
+      let msg = res.body?.error || res.body?.message || 'Error al guardar';
+      if (status === 409 || status === 412) {
+        msg = 'Otra persona modificó esta orden';
+        if (errEl) errEl.innerHTML = `${escapeHtml(msg)} <button type="button" class="sigos-btn-secondary" id="reloadOrderBtn" style="margin-left:8px">Recargar</button>`;
+        const rb = $('#reloadOrderBtn');
+        if (rb) rb.addEventListener('click', () => renderOrderDetail(content));
+      } else if (status === 422) {
+        msg = res.body?.error || res.body?.message || 'Datos inválidos';
+        if (errEl) errEl.textContent = msg;
+      } else if (status === 403 && (res.body?.code === 'sunday_authorization_required' || String(res.body?.error || '').toLowerCase().includes('sunday'))) {
+        msg = 'Se requiere autorización de administrador para programar en domingo o festivo';
+        if (errEl) errEl.textContent = msg;
+      } else {
+        if (String(msg).toLowerCase().includes('schedule_conflict') || String(msg).toLowerCase().includes('solape')) msg = 'Solape de horario del técnico';
+        if (String(msg).toLowerCase().includes('invalid_time') || String(msg).toLowerCase().includes('fuera')) msg = 'Fuera de horario laboral';
+        if (errEl) errEl.textContent = msg;
+      }
+      notify(msg, 'error');
+      return;
+    }
+    notify('Cambios guardados', 'success');
+    renderOrderDetail(content);
+  });
   $('#assignBtn').addEventListener('click', async () => {
     const v = $('#assignSel').value;
     const body = { assigned_to_id: v ? Number(v) : null };
     const res = await api('PUT', `/api/v1/work-orders/${id}`, body);
     if (!res.ok) { notify(res.body?.error || 'Error', 'error'); return; }
     notify('Asignación actualizada', 'success');
+    renderOrderDetail(content);
+  });
+  $('#schBtn')?.addEventListener('click', async () => {
+    const errEl = $('#schError');
+    if (errEl) errEl.textContent = '';
+    const start = $('#schStart').value;
+    const end = $('#schEnd').value;
+    const tech = $('#schTech').value;
+    const reason = $('#schReason').value.trim();
+    const body = { start, end, version: wo.version };
+    if (tech) body.technician_ids = [Number(tech)];
+    if (reason) body.reason = reason;
+    const res = await api('POST', `/api/v1/work-orders/${id}/schedule`, body);
+    if (!res.ok) {
+      const msg = res.body?.error || res.body?.message || 'Error al programar';
+      if (errEl) errEl.textContent = msg;
+      notify(msg, 'error');
+      return;
+    }
+    notify('Visita programada', 'success');
     renderOrderDetail(content);
   });
   $('#statusBtn').addEventListener('click', async () => {
@@ -1534,6 +1685,7 @@ async function renderOrderDetail(content) {
     renderOrderDetail(content);
   });
   loadEvidences(id);
+  loadMaterials(id);
   $('#addObs').addEventListener('click', async () => {
     const desc = $('#obsText').value.trim();
     if (!desc) { notify('Observación vacía', 'error'); return; }
@@ -1542,6 +1694,58 @@ async function renderOrderDetail(content) {
     notify('Observación agregada', 'success');
     $('#obsText').value = '';
     loadEvidences(id);
+  });
+  $('#uploadFileBtn')?.addEventListener('click', async () => {
+    const input = $('#fileInput');
+    const errEl = $('#fileError');
+    if (errEl) errEl.textContent = '';
+    if (!input || !input.files || !input.files.length) { if (errEl) errEl.textContent = 'Selecciona un archivo'; return; }
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = String(reader.result || '').split(',')[1] || '';
+      const res = await window.sigos.uploadFile({ method: 'POST', path: `/api/v1/work-orders/${id}/evidences`, fields: { evidence_type: 'photo' }, file: { data: base64, name: file.name, type: file.type }, token: state.session?.access_token });
+      if (!res.ok) { const msg = res.body?.error || 'Archivo rechazado'; if (errEl) errEl.textContent = msg; notify(msg, 'error'); return; }
+      notify('Archivo subido', 'success');
+      input.value = '';
+      loadEvidences(id);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function loadMaterials(id) {
+  const el = $('#matList');
+  const sel = $('#matSel');
+  if (!el) return;
+  const [matsRes, reqsRes] = await Promise.all([
+    api('GET', '/api/v1/materials'),
+    api('GET', `/api/v1/work-orders/${id}/material-requests`),
+  ]);
+  if (sel && matsRes.ok) {
+    const mats = matsRes.body || [];
+    sel.innerHTML = mats.map((m) => `<option value="${m.id}">${escapeHtml(m.name)} (stock ${m.current_stock})</option>`).join('');
+  }
+  if (!reqsRes.ok) { el.innerHTML = `<div style="color:#991B1B">${escapeHtml(reqsRes.body?.error || 'Error')}</div>`; return; }
+  const reqs = reqsRes.body?.items || reqsRes.body || [];
+  el.innerHTML = reqs.length ? reqs.map((r) => `<div style="padding:4px 0;border-bottom:1px solid #F5F2EB">${escapeHtml(r.status)} - ${escapeHtml(r.reason || '')}</div>`).join('') : '<div class="empty-state__text">Sin materiales registrados</div>';
+  const btn = $('#matAddBtn');
+  if (btn) btn.addEventListener('click', async () => {
+    const matId = $('#matSel').value;
+    const qty = Number($('#matQty').value);
+    const errEl = $('#matError');
+    if (errEl) errEl.textContent = '';
+    if (!matId || !qty || qty <= 0) { if (errEl) errEl.textContent = 'Cantidad inv?lida'; return; }
+    const res = await api('POST', `/api/v1/materials/${matId}/movements`, { quantity: qty, movement_type: 'CONSUMPTION', work_order_id: id });
+    if (!res.ok) {
+      const msg = res.body?.error || res.body?.message || 'Stock insuficiente';
+      if (errEl) errEl.textContent = msg;
+      notify(msg, 'error');
+      return;
+    }
+    notify('Material registrado', 'success');
+    $('#matQty').value = '';
+    loadMaterials(id);
   });
 }
 
@@ -1783,7 +1987,7 @@ function showCredentials(username, password) {
   items.forEach((m) => { if (!m.status) m.status = materialStatus(m.current_stock, m.min_stock).key; });
 
   const roles = (state.session?.user?.roles || []);
-  const canManage = roles.includes('admin') || roles.includes('dispatcher');
+  const canManage = roles.includes('dispatcher');
   const isAdmin = roles.includes('admin');
   const units = Array.from(new Set(items.map((m) => m.unit).filter(Boolean)));
 
@@ -2574,19 +2778,35 @@ async function openRequestModal(content, reqId) {
   $('#rCancel').addEventListener('click', close);
 
   const items = req ? (req.items || []).map((it) => ({ material_id: it.material_id, quantity: it.quantity_requested || it.quantity })) : [];
+  // cargar materiales para selector (sin IDs manuales)
+  if (!state._materialsOpts) {
+    try {
+      const mr = await api('GET', '/api/v1/materials?page_size=200&is_active=true');
+      const mats = (mr.body && mr.body.items) || [];
+      state._materialsOpts = mats.map((m) => `<option value="${m.id}">${escapeHtml(m.name || '')} (${escapeHtml(m.code || '')}) - ${escapeHtml(m.unit || '')} - stock: ${m.current_stock ?? 0}</option>`).join('');
+    } catch (e) { state._materialsOpts = ''; }
+  }
   const renderItems = () => {
     const c = $('#rItems');
     if (!c) return;
     c.innerHTML = items.map((it, idx) => `
-      <div style="display:flex;gap:8px;margin-bottom:6px">
-        <input type="number" class="sigos-input" placeholder="Material ID" value="${it.material_id}" data-idx="${idx}" data-field="material_id" style="width:120px;height:32px">
-        <input type="number" class="sigos-input" placeholder="Cantidad" value="${it.quantity}" data-idx="${idx}" data-field="quantity" style="width:120px;height:32px">
+      <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+        <select class="sigos-input" data-idx="${idx}" data-field="material_id" style="width:260px;height:32px">
+          <option value="">Seleccionar material</option>
+          ${state._materialsOpts}
+        </select>
+        <input type="number" class="sigos-input" placeholder="Cantidad" value="${it.quantity}" data-idx="${idx}" data-field="quantity" style="width:100px;height:32px" min="1">
         <button type="button" class="sigos-btn-secondary" data-remove="${idx}" style="height:32px">✕</button>
       </div>`).join('');
-    $$('input[data-field]').forEach((inp) => inp.addEventListener('change', () => {
+    // set selected values
+    items.forEach((it, idx) => {
+      const sel = c.querySelector(`select[data-idx="${idx}"]`);
+      if (sel && it.material_id) sel.value = String(it.material_id);
+    });
+    $$('select[data-field], input[data-field]').forEach((inp) => inp.addEventListener('change', () => {
       const idx = Number(inp.getAttribute('data-idx'));
       const field = inp.getAttribute('data-field');
-      items[idx][field] = field === 'quantity' ? Number(inp.value) : Number(inp.value);
+      items[idx][field] = field === 'quantity' ? Number(inp.value) : (inp.value ? Number(inp.value) : null);
     }));
     $$('button[data-remove]').forEach((b) => b.addEventListener('click', () => { items.splice(Number(b.getAttribute('data-remove')), 1); renderItems(); }));
   };
@@ -2639,7 +2859,7 @@ async function openRequestModal(content, reqId) {
   let req = await load();
   if (!req) return;
   const roles = (state.session?.user?.roles || []);
-  const canManage = roles.includes('admin') || roles.includes('dispatcher');
+  const canManage = roles.includes('dispatcher');
 
   const renderOverlay = () => {
     // remove existing
@@ -2901,7 +3121,7 @@ document.addEventListener('keydown', (ev) => {
 
 async function openScheduleModal(opts) {
   opts = opts || {};
-  const canSchedule = hasRole('admin') || hasRole('dispatcher');
+  const canSchedule = hasRole('dispatcher');
   if (!canSchedule) { notify('Sin permisos para programar.', 'error'); return; }
   // fetch data
   const unRes = await api('GET', '/api/v1/calendar/unassigned?page_size=100');
@@ -3754,4 +3974,12 @@ function openOrderModal(orderId) {
 
 
 
+
+function renderReports(content) {
+  content.innerHTML = '<div class="sigos-card" style="padding:16px"><h3 style="font-family:Outfit;font-size:15px;color:#163028;margin:0 0 8px">Reportes</h3><div style="font-size:13px;color:#3A4552">Panel de reportes en construccion.</div></div>';
+}
+
+function renderMobile(content) {
+  content.innerHTML = '<div class="sigos-card" style="padding:16px"><h3 style="font-family:Outfit;font-size:15px;color:#163028;margin:0 0 8px">Vista Tecnico</h3><div style="font-size:13px;color:#3A4552">Dashboard del tecnico en construccion.</div></div>';
+}
 
