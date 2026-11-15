@@ -1,170 +1,112 @@
 # SIGOS 2.0
 
-Software empresarial multiplataforma para la gestión de órdenes de servicio. Monorepositorio completo H0-H7: fundación, identidad, órdenes, materiales, evidencias, sync offline, notificaciones y producción.
+SIGOS 2.0 es un monorepositorio para la gestión de órdenes de servicio técnico. Provee una API
+Flask (servicios) consumida por aplicaciones de escritorio (Electron) y móvil (Flutter), además
+de documentación y scripts de operación.
 
-## Stack
+## Estructura del monorepo
 
-- Backend: Python 3.12+ · Flask · SQLAlchemy · Alembic
-- Base de datos: Microsoft SQL Server
-- Escritorio: Electron · JavaScript · HTML5 · CSS3
-- Móvil: Flutter · Dart (Android)
+```
+SIGOSV/
+├── apps/
+│   ├── desktop/        # Aplicación de escritorio (Electron)
+│   └── mobile/         # Aplicación móvil (Flutter)
+├── services/
+│   └── api/            # API REST (Flask) + migraciones Alembic + tests
+├── contracts/          # OpenAPI (openapi.yaml)
+├── docs/               # Documentación técnica, auditorías, trazabilidad
+├── examples/           # Ejemplos de uso de la API
+├── infra/docker/       # Compose de desarrollo y producción
+├── scripts/            # Backups, seeds, utilidades
+└── .env.example        # Plantilla de variables de entorno
+```
 
 ## Requisitos
 
-- Python 3.12+
-- ODBC Driver 18 for SQL Server
-- SQL Server 2022+ o SQL Server Express
-- Node.js 20+
-- Flutter stable
+- Python 3.12
+- Node.js 20 (para `apps/desktop`)
+- Flutter (canal stable) (para `apps/mobile`)
+- SQL Server 2022 (producción/desarrollo) o SQLite (solo tests en memoria)
+- Docker + Docker Compose (para despliegue containerizado)
+- ODBC Driver 18 for SQL Server (en el host o en la imagen)
 
-## Base de datos local
+## Variables de entorno
 
-Crea la base de datos y el usuario de desarrollo:
+La plantilla completa está en `.env.example`. Copiarla a `.env` (raíz o `services/api/`) y
+reemplazar los valores marcados como `CAMBIAR_ESTE_VALOR`. No versionar `.env`.
 
-```powershell
-sqlcmd -S "localhost,1433" -E -C -Q "CREATE DATABASE sigos;"
-sqlcmd -S "localhost,1433" -E -C -Q "CREATE LOGIN sigos WITH PASSWORD = 'Sigos_Dev_2026!', CHECK_POLICY = ON;"
-sqlcmd -S "localhost,1433" -E -C -Q "USE sigos; CREATE USER sigos FOR LOGIN sigos; ALTER ROLE db_owner ADD MEMBER sigos;"
-```
+Variables mínimas para la API:
 
-Alternativamente, usa Docker Compose desde `infra/docker/compose.yaml`.
+- `DB_URL`: cadena de conexión SQLAlchemy (ej. `mssql+pyodbc://...`).
+- `JWT_SECRET_KEY`: secreto para firmar tokens JWT.
 
+El resto (uploads/evidencias, SMTP, WhatsApp, logging, worker de notificaciones, puertos) está
+documentado en `.env.example`.
 
+## Levantar la API (desarrollo)
 
-## Base de datos de pruebas (SQL Server)
-
-Crea una base dedicada para los tests contra SQL Server:
-
-`powershell
-sqlcmd -S "localhost,1433" -E -C -Q "CREATE DATABASE sigos_test;"
-`
-
-Ejecuta el carril SQL Server con:
-
-`powershell
- = "mssql+pyodbc://sigos:Sigos_Dev_2026!@localhost:1433/sigos_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
-cd services/api
-.venv\Scripts\python -m pytest tests/ -m sqlserver -v
-`
-
-Si TEST_DB_URL no existe, esos tests se omiten.
-## Backend (Flask)
-
-```powershell
+```bash
 cd services/api
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-
-$env:DB_URL = "mssql+pyodbc://sigos:Sigos_Dev_2026!@localhost:1433/sigos?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
-$env:FLASK_APP = "wsgi.py"
-.venv\Scripts\flask db upgrade
-.venv\Scripts\python seed.py
-.venv\Scripts\flask run --port 5000
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+cp ../../.env.example .env   # ajustar DB_URL y JWT_SECRET_KEY
+flask --app wsgi db upgrade
+flask --app wsgi run --port 5000
 ```
 
-Verificación:
+La API queda disponible en `http://localhost:5000` (health: `GET /api/v1/health`).
 
-```powershell
-Invoke-RestMethod http://localhost:5000/api/v1/health
-```
+## Ejecutar los tests
 
-Credenciales iniciales (desarrollo): `admin` / `Admin123!`
-
-## Escritorio (Electron)
-
-```powershell
-cd apps/desktop
-npm install
-npm start
-```
-
-Variable opcional: `SIGOS_API_BASE_URL`.
-
-## Móvil (Flutter)
-
-```powershell
-cd apps/mobile
-flutter pub get
-flutter run --dart-define=SIGOS_API_BASE_URL=http://10.0.2.2:5000
-```
-
-## Pruebas
-
-```powershell
+```bash
 cd services/api
-.venv\Scripts\python -m pytest tests/ -v
-
-cd apps/desktop
-npm test
-
-cd apps/mobile
-flutter test
+pip install -r requirements.txt
+python -m pytest tests/ -v
 ```
 
-## Estructura
+Las pruebas que requieren SQL Server real se marcan con `@pytest.mark.sqlserver` y se saltan
+si no se define `TEST_DB_URL`. Para ejecutarlas:
 
-```text
-sigos/
-+-- apps/desktop/       Electron + JavaScript
-+-- apps/mobile/        Flutter + Dart
-+-- services/api/       Python + Flask
-+-- contracts/          OpenAPI
-+-- infra/docker/       Docker Compose para SQL Server
-+-- docs/               Arquitectura y decisiones
-+-- .env.example        Variables de entorno de ejemplo
+```bash
+TEST_DB_URL="mssql+pyodbc://sa:<password>@localhost:1433/sigos_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes" \
+DB_URL="mssql+pyodbc://sa:<password>@localhost:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes" \
+python -m pytest tests/ -v
 ```
 
-## Producción
+Suite de referencia (Fase 2): 257 passed, 10 skipped, 0 failed.
 
-### Docker
+## Despliegue con Docker
 
-```powershell
+Desarrollo (solo SQL Server):
+
+```bash
 cd infra/docker
-$env:DB_URL = "mssql+pyodbc://sa:YourPassword@sqlserver:1433/sigos?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
-$env:JWT_SECRET_KEY = "your-secret-key"
-$env:MSSQL_SA_PASSWORD = "YourPassword"
-docker compose -f docker-compose.prod.yaml up -d
+docker compose -f compose.yaml up -d
 ```
 
-### Backups
+Producción (API + SQL Server):
 
-```powershell
-# Backup de base de datos
-.\scripts\backup-db.ps1 -Server "localhost,1433" -Database "sigos" -BackupDir "C:\Backups\SIGOS"
-
-# Backup de evidencias
-.\scripts\backup-uploads.ps1
+```bash
+cd infra/docker
+# Crear .env con DB_URL, JWT_SECRET_KEY, MSSQL_SA_PASSWORD, etc.
+docker compose -f docker-compose.prod.yaml up -d --build
 ```
 
-### Instaladores
+La imagen de la API se construye desde `services/api/Dockerfile` (instala ODBC Driver 18,
+crea usuario no-root `sigos`, define `HEALTHCHECK` y arranca con `wsgi_prod:app`).
 
-```powershell
-# Escritorio (Windows)
-cd apps/desktop
-npm run dist
+## Roles
 
-# Móvil (Android APK)
-cd apps/mobile
-flutter build apk --release
-```
+Equivalencia con el documento de requisitos: Administrador = `admin`,
+Coordinador = `dispatcher`, Técnico = `technician`. El rol Operador no existe
+como rol separado; sus funciones (RF-01, RF-04) las cubren `admin` y
+`dispatcher`.
 
-### Variables de entorno de producción
+## Documentación
 
-| Variable | Descripción |
-|----------|-------------|
-| DB_URL | Cadena de conexión SQL Server |
-| JWT_SECRET_KEY | Secreto para firmar tokens |
-| SMTP_HOST/PORT/USER/PASS | Configuración email |
-| WHATSAPP_API_URL/TOKEN | Configuración WhatsApp |
-| UPLOAD_DIR | Directorio de evidencias |
-| ENABLE_NOTIFICATION_WORKER | "true" para activar worker |
-| LOG_LEVEL | DEBUG, INFO, WARNING, ERROR |
-| LOG_FORMAT | json o text |
-
-## CI/CD
-
-GitHub Actions en `.github/workflows/ci.yml`:
-- Tests automáticos en cada push/PR
-- Build de instalador Windows en main
-- Build de APK Android en main
-
+- Documentación completa: `docs/DOCUMENTACION_COMPLETA.md`.
+- Trazabilidad: `docs/traceability/design-requirements-matrix.md`.
+- Brechas y estado: `docs/analisis-brechas-estado.md`.
+- Migraciones: `docs/architecture/auditoria-migraciones.md`.
