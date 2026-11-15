@@ -104,14 +104,63 @@ def work_orders_patch(wo_id):
     if not wo:
         return jsonify({"error": "work order not found"}), 404
     roles = request.user_roles
-    if "dispatcher" not in roles and wo.assigned_to_id != request.user_id:
+    is_admin = "admin" in roles
+    is_dispatcher = "dispatcher" in roles
+    if not (is_admin or is_dispatcher):
         return jsonify({"error": "insufficient permissions"}), 403
-    # admin cannot edit work orders
-    if "admin" in roles:
-        return jsonify({"error": "insufficient permissions"}), 403
+    if_match = request.headers.get("If-Match")
+    if if_match:
+        try:
+            ifm = int(if_match.strip().strip('"'))
+        except ValueError:
+            return jsonify({"error": "invalid If-Match version"}), 400
+        if ifm != wo.version:
+            return jsonify({"error": "stale version"}), 400
+    if is_admin and wo.status in ("completed", "cancelled"):
+        return jsonify({"error": "cannot edit terminal order"}), 409
+    if is_admin:
+        reason = data.get("reason")
+        if not reason:
+            return jsonify({"error": "reason required"}), 422
+        if "status" in data and data.get("status") == "cancelled":
+            return jsonify({"error": "admin cannot cancel orders"}), 403
+    if is_dispatcher and wo.assigned_to_id != request.user_id and "dispatcher" not in roles:
+        pass
+
+    old_assigned = wo.assigned_to_id
+    old_scheduled = wo.scheduled_at
+    old_title = wo.title
+
     wo = update_work_order(wo_id, data, request.user_id)
     if not wo:
         return jsonify({"error": "work order not found"}), 404
+
+    if is_admin:
+        from app.settings.models import AuditLog
+        db.session.add(AuditLog(
+            user_id=request.user_id,
+            section="OrdenesTrabajo",
+            field=f"work_order:{wo_id}",
+            old_value=str({"title": old_title}),
+            new_value=str(data),
+            result="applied",
+                username=db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id).username,
+            ))
+        db.session.commit()
+
+    # notify technician on reassignment or reschedule
+    try:
+        from app.notifications.service import create_in_app_notification
+        if wo.assigned_to_id and (wo.assigned_to_id != old_assigned or wo.scheduled_at != old_scheduled):
+            create_in_app_notification(
+                wo.assigned_to_id,
+                f"Cambio en orden OS-{wo.id:04d}",
+                f"La orden OS-{wo.id:04d} fue modificada por un administrador.",
+            )
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     return jsonify(wo.to_dict()), 200
 
 
@@ -153,7 +202,7 @@ def work_orders_change_status(wo_id):
     if to_status == "cancelled" and not is_dispatcher:
         return jsonify({"error": "insufficient permissions"}), 403
 
-    user = db.session.get(User, request.user_id)
+    user = db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id)
     result, error = change_status(wo_id, to_status, user, data.get("notes"), data.get("reason"), data.get("technician_id"), data.get("scheduled_at"))
     if error == "not_found":
         return jsonify({"error": "work order not found"}), 404
@@ -190,7 +239,7 @@ def work_orders_transition(wo_id):
     if action == "assign" and (not data.get("technician_id") or not data.get("scheduled_at")):
         return jsonify({"error": "technician_id and scheduled_at required"}), 422
 
-    user = db.session.get(User, request.user_id)
+    user = db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id)
     result, error = transition_work_order(
         wo_id, action, user,
         technician_id=data.get("technician_id"),
@@ -220,11 +269,22 @@ def work_orders_schedule(wo_id):
     roles = request.user_roles
     if "dispatcher" not in roles:
         return jsonify({"error": "forbidden"}), 403
-    result, err = calendar_service.schedule_order(wo_id, data, db.session.get(User, request.user_id), roles)
+    result, err = calendar_service.schedule_order(wo_id, data, db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id), roles)
     if err == "not_found":
         return jsonify({"error": "not found"}), 404
     if err == "forbidden":
         return jsonify({"error": "forbidden"}), 403
+    if err == "sunday_authorization_required":
+        try:
+            from app.notifications.service import create_in_app_notification
+            from app.identity.models import User, Role
+            admins = User.query.join(User.roles).filter(Role.name == "admin").all()
+            for a in admins:
+                create_in_app_notification(a.id, "Autorización domingo/festivo", "Se requiere autorización para programar en domingo o festivo.")
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        return jsonify({"error": "sunday authorization required", "code": "sunday_authorization_required"}), 403
     if err == "stale_version":
         return jsonify({"error": "stale version", "code": "STALE_VERSION"}), 409
     if err == "invalid_transition":
@@ -261,11 +321,22 @@ def work_orders_reschedule(wo_id):
     roles = request.user_roles
     if "dispatcher" not in roles:
         return jsonify({"error": "forbidden"}), 403
-    result, err = calendar_service.schedule_order(wo_id, data, db.session.get(User, request.user_id), roles)
+    result, err = calendar_service.schedule_order(wo_id, data, db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id), roles)
     if err == "not_found":
         return jsonify({"error": "not found"}), 404
     if err == "forbidden":
         return jsonify({"error": "forbidden"}), 403
+    if err == "sunday_authorization_required":
+        try:
+            from app.notifications.service import create_in_app_notification
+            from app.identity.models import User, Role
+            admins = User.query.join(User.roles).filter(Role.name == "admin").all()
+            for a in admins:
+                create_in_app_notification(a.id, "Autorización domingo/festivo", "Se requiere autorización para programar en domingo o festivo.")
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        return jsonify({"error": "sunday authorization required", "code": "sunday_authorization_required"}), 403
     if err == "stale_version":
         return jsonify({"error": "stale version", "code": "STALE_VERSION"}), 409
     if err == "invalid_transition":
@@ -292,11 +363,22 @@ def work_orders_assign(wo_id):
     roles = request.user_roles
     if "dispatcher" not in roles:
         return jsonify({"error": "forbidden"}), 403
-    result, err = calendar_service.assign_order(wo_id, data, db.session.get(User, request.user_id), roles)
+    result, err = calendar_service.assign_order(wo_id, data, db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id), roles)
     if err == "not_found":
         return jsonify({"error": "not found"}), 404
     if err == "forbidden":
         return jsonify({"error": "forbidden"}), 403
+    if err == "sunday_authorization_required":
+        try:
+            from app.notifications.service import create_in_app_notification
+            from app.identity.models import User, Role
+            admins = User.query.join(User.roles).filter(Role.name == "admin").all()
+            for a in admins:
+                create_in_app_notification(a.id, "Autorización domingo/festivo", "Se requiere autorización para programar en domingo o festivo.")
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        return jsonify({"error": "sunday authorization required", "code": "sunday_authorization_required"}), 403
     if err == "invalid_transition":
         return jsonify({"error": "invalid transition", "code": "INVALID_TRANSITION"}), 409
     if err == "invalid_technician":
@@ -321,7 +403,7 @@ def work_orders_materials(wo_id):
     wo = get_work_order(wo_id)
     if not wo:
         return jsonify({"error": "work order not found"}), 404
-    user = db.session.get(User, request.user_id)
+    user = db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id)
     is_technician = "technician" in roles
     if is_technician and wo.assigned_to_id != request.user_id:
         return jsonify({"error": "insufficient permissions"}), 403
@@ -351,7 +433,32 @@ def work_orders_history(wo_id):
 @blueprint.get("/work-orders/<int:wo_id>/timeline")
 @require_auth
 def work_orders_timeline(wo_id):
-    return work_orders_history(wo_id)
+    wo = get_work_order(wo_id)
+    if not wo:
+        return jsonify({"error": "work order not found"}), 404
+    roles = request.user_roles
+    if "admin" not in roles and "dispatcher" not in roles and wo.assigned_to_id != request.user_id:
+        return jsonify({"error": "insufficient permissions"}), 403
+    history = [h.to_dict() for h in get_history(wo_id)]
+    try:
+        from app.settings.models import AuditLog
+        audits = AuditLog.query.filter_by(section="OrdenesTrabajo", field=f"work_order:{wo_id}").order_by(AuditLog.created_at).all()
+        for a in audits:
+            actor = db.session.get(User, a.user_id)
+            history.append({
+                "id": a.id,
+                "work_order_id": wo_id,
+                "from_status": None,
+                "to_status": None,
+                "changed_by": actor.to_dict() if actor else None,
+                    "notes": a.new_value,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+                "audit": True,
+            })
+    except Exception:
+        pass
+    history.sort(key=lambda x: x.get("created_at") or "")
+    return jsonify(history), 200
 
 
 @blueprint.post("/work-orders/bulk")
@@ -363,7 +470,7 @@ def work_orders_bulk():
     payload = data.get("payload") or {}
     if not ids or not action:
         return jsonify({"error": "ids and action required"}), 400
-    user = db.session.get(User, request.user_id)
+    user = db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id)
     results = bulk_update(ids, action, payload, request.user_id, request.user_roles)
     return jsonify({"results": results}), 200
 
