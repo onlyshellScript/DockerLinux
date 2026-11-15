@@ -56,12 +56,18 @@ def username_available():
 @require_role("admin")
 def create_technician():
     data = request.get_json() or {}
-    if not data.get("first_name") or not data.get("last_name") or not (data.get("specialty_code") or data.get("specialty")):
-        return jsonify({"error": "first_name, last_name, specialty required"}), 422
+    if not data.get("first_name") or not data.get("last_name"):
+        return jsonify({"error": "first_name, last_name required"}), 422
+    if not data.get("document_type") or not data.get("document_number"):
+        return jsonify({"error": "document_type, document_number required"}), 422
     result, err = service.create_technician(data, request.user_id)
     if err == "username_taken":
         return jsonify({"error": "username already exists"}), 409
-    if err in ("invalid_specialty", "invalid_city", "invalid_zone", "invalid_coverage", "coverage_required", "too_many_coverages", "multiple_primary", "duplicate_coverage"):
+    if err == "document_taken":
+        return jsonify({"error": "document already exists"}), 409
+    if err == "initial_password_not_configured":
+        return jsonify({"error": "TECH_INITIAL_PASSWORD not configured"}), 500
+    if err in ("invalid_specialty", "invalid_document_type", "invalid_city", "invalid_zone", "invalid_department", "invalid_municipality", "municipality_not_in_department", "invalid_coverage", "coverage_required", "too_many_coverages", "multiple_primary", "duplicate_coverage", "missing_fields", "missing_document"):
         return jsonify({"error": err}), 422
     if not result:
         return jsonify({"error": "could not create"}), 400
@@ -70,7 +76,6 @@ def create_technician():
     return jsonify({
         "technician": _profile_to_dict(profile),
         "username": result["username"],
-        "temporary_password": result["temporary_password"],
     }), 201
 
 
@@ -78,11 +83,12 @@ def create_technician():
 @require_auth
 def get_technician(tid):
     roles = request.user_roles
-    if "admin" not in roles and "dispatcher" not in roles:
-        return jsonify({"error": "insufficient permissions"}), 403
     p = service.get_technician(tid)
     if not p:
         return jsonify({"error": "not found"}), 404
+    if "admin" not in roles and "dispatcher" not in roles:
+        if "technician" not in roles or p.user_id != request.user_id:
+            return jsonify({"error": "insufficient permissions"}), 403
     return jsonify(_profile_to_dict(p)), 200
 
 
@@ -95,7 +101,11 @@ def patch_technician(tid):
         return jsonify({"error": "not found"}), 404
     if err == "username_taken":
         return jsonify({"error": "username already exists"}), 409
-    if err in ("invalid_specialty", "invalid_city", "invalid_zone", "invalid_coverage", "coverage_required", "too_many_coverages", "multiple_primary", "duplicate_coverage"):
+    if err == "document_taken":
+        return jsonify({"error": "document already exists"}), 409
+    if err == "password_not_allowed":
+        return jsonify({"error": "password cannot be set from this module"}), 422
+    if err in ("invalid_specialty", "invalid_document_type", "invalid_city", "invalid_zone", "invalid_department", "invalid_municipality", "municipality_not_in_department", "invalid_coverage", "coverage_required", "too_many_coverages", "multiple_primary", "duplicate_coverage", "missing_fields", "missing_document"):
         return jsonify({"error": err}), 422
     if not profile:
         return jsonify({"error": "could not update"}), 400
