@@ -2,6 +2,7 @@ const state = {
 
 }
 const $ = (sel, root = document) => root.querySelector(sel);
+function safeHtml(el, html) { if (el) el.innerHTML = html; }
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 function searchField({ placeholder = '', id = '', value = '' } = {}) {
   return `<label class="search-field"><svg class="search-field__icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/><path d="M21 21l-4.35-4.35"/></svg><input type="search" class="search-field__input" id="${escapeHtml(id)}" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" aria-label="Buscar"></label>`;
