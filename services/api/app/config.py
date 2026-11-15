@@ -1,17 +1,21 @@
 import os
 from datetime import timedelta
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+except ImportError:
+    pass
 
 
 class Config:
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DB_URL",
-        "mssql+pyodbc://sigos:Sigos_Dev_2026!@localhost:1433/sigos"
-        "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes",
-    )
+    SQLALCHEMY_DATABASE_URI = os.getenv("DB_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     TESTING = False
 
-    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-change-in-production")
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
 

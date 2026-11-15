@@ -9,6 +9,12 @@ def create_app(config_object=None):
     app = Flask(__name__)
     app.config.from_object(config_object or Config)
 
+    if not app.config.get("TESTING"):
+        if not app.config.get("SQLALCHEMY_DATABASE_URI"):
+            raise RuntimeError("DB_URL environment variable is required")
+        if not app.config.get("JWT_SECRET_KEY"):
+            raise RuntimeError("JWT_SECRET_KEY environment variable is required")
+
     @app.after_request
     def apply_utf8_charset(response):
         ct = response.headers.get("Content-Type", "")
@@ -55,6 +61,12 @@ def create_app(config_object=None):
 
     from app.settings.routes import blueprint as settings_blueprint
     app.register_blueprint(settings_blueprint, url_prefix="/api/v1")
+
+    from app.reportes.routes import blueprint as reportes_blueprint
+    app.register_blueprint(reportes_blueprint, url_prefix="/api/v1")
+
+    from app.tecnico.routes import blueprint as tecnico_blueprint
+    app.register_blueprint(tecnico_blueprint, url_prefix="/api/v1/tecnico")
 
     return app
 

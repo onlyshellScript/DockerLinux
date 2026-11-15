@@ -14,7 +14,7 @@ jobs:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: "CI_Passw0rd!"
+          MSSQL_SA_PASSWORD: "${{ secrets.CI_DB_PASSWORD }}"
         ports:
           - "1433:1433"
     steps:
@@ -30,17 +30,22 @@ jobs:
           sudo add-apt-repository "$(curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list)"
           sudo apt-get update
           sudo apt-get install -y msodbcsql18
-      - name: Create test database
+      - name: Wait for SQL Server
         run: |
-          python -c "import pyodbc; c=pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost;UID=sa;PWD=CI_Passw0rd!;TrustServerCertificate=yes'); c.autocommit=True; c.execute(\"IF DB_ID('sigos_test') IS NULL CREATE DATABASE sigos_test\"); c.close()"
+          for i in $(seq 1 30); do
+            python -c "import pyodbc; pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost;UID=sa;PWD=${{ secrets.CI_DB_PASSWORD }};TrustServerCertificate=yes')" && break
+            sleep 2
+          done
+        run: |
+          python -c "import pyodbc; c=pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost;UID=sa;PWD=${{ secrets.CI_DB_PASSWORD }};TrustServerCertificate=yes'); c.autocommit=True; c.execute(\"IF DB_ID('sigos_test') IS NULL CREATE DATABASE sigos_test\"); c.close()"
 
       - name: Install deps
         run: pip install -r services/api/requirements.txt
       - name: Run tests
         run: cd services/api && python -m pytest tests/ -v
         env:
-          DB_URL: mssql+pyodbc://sa:CI_Passw0rd!@localhost:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
-          TEST_DB_URL: mssql+pyodbc://sa:CI_Passw0rd!@localhost:1433/sigos_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+          DB_URL: mssql+pyodbc://sa:${{ secrets.CI_DB_PASSWORD }}@localhost:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+          TEST_DB_URL: mssql+pyodbc://sa:${{ secrets.CI_DB_PASSWORD }}@localhost:1433/sigos_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
 
   desktop-tests:
     runs-on: ubuntu-latest

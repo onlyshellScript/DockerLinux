@@ -2,6 +2,8 @@
 build/
 dist/
 .env
+.env.local
+.env.*.local
 *.log
 __pycache__/
 .venv/
