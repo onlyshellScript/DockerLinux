@@ -1641,7 +1641,7 @@ ${isManager ? `        <div class="fld"><label>Asignar técnico</label>
     notify('Cambios guardados', 'success');
     renderOrderDetail(content);
   });
-  $('#assignBtn').addEventListener('click', async () => {
+  $('#assignBtn')?.addEventListener('click', async () => {
     const v = $('#assignSel').value;
     const body = { assigned_to_id: v ? Number(v) : null };
     const res = await api('PUT', `/api/v1/work-orders/${id}`, body);
@@ -1718,16 +1718,46 @@ async function loadMaterials(id) {
   const el = $('#matList');
   const sel = $('#matSel');
   if (!el) return;
-  const [matsRes, reqsRes] = await Promise.all([
-    api('GET', '/api/v1/materials'),
-    api('GET', `/api/v1/work-orders/${id}/material-requests`),
-  ]);
-  if (sel && matsRes.ok) {
-    const mats = matsRes.body || [];
+  let matsRes, reqsRes;
+  try {
+    [matsRes, reqsRes] = await Promise.all([
+      api('GET', '/api/v1/materials'),
+      api('GET', `/api/v1/work-orders/${id}/material-requests`),
+    ]);
+  } catch (e) {
+    el.innerHTML = `<div style="color:#991B1B">${escapeHtml((e && e.message) || 'Error')}</div><button type="button" class="sigos-btn-secondary" id="retryMaterials" style="margin-top:8px">Reintentar</button>`;
+    const rb = $('#retryMaterials');
+    if (rb) rb.addEventListener('click', () => loadMaterials(id));
+    return;
+  }
+  if (!matsRes.ok) {
+    const msg = matsRes.body?.error || matsRes.body?.message || 'Error al cargar materiales';
+    el.innerHTML = `<div style="color:#991B1B">${escapeHtml(msg)}</div><button type="button" class="sigos-btn-secondary" id="retryMaterials" style="margin-top:8px">Reintentar</button>`;
+    const rb = $('#retryMaterials');
+    if (rb) rb.addEventListener('click', () => loadMaterials(id));
+    return;
+  }
+  if (!reqsRes.ok) {
+    const msg = reqsRes.body?.error || reqsRes.body?.message || 'Error al cargar materiales';
+    el.innerHTML = `<div style="color:#991B1B">${escapeHtml(msg)}</div><button type="button" class="sigos-btn-secondary" id="retryMaterials" style="margin-top:8px">Reintentar</button>`;
+    const rb = $('#retryMaterials');
+    if (rb) rb.addEventListener('click', () => loadMaterials(id));
+    return;
+  }
+  let mats = [], reqs = [];
+  try {
+    mats = asList(matsRes);
+    reqs = asList(reqsRes);
+  } catch (e) {
+    const msg = (e && e.message) || 'Error al cargar materiales';
+    el.innerHTML = `<div style="color:#991B1B">${escapeHtml(msg)}</div><button type="button" class="sigos-btn-secondary" id="retryMaterials" style="margin-top:8px">Reintentar</button>`;
+    const rb = $('#retryMaterials');
+    if (rb) rb.addEventListener('click', () => loadMaterials(id));
+    return;
+  }
+  if (sel) {
     sel.innerHTML = mats.map((m) => `<option value="${m.id}">${escapeHtml(m.name)} (stock ${m.current_stock})</option>`).join('');
   }
-  if (!reqsRes.ok) { el.innerHTML = `<div style="color:#991B1B">${escapeHtml(reqsRes.body?.error || 'Error')}</div>`; return; }
-  const reqs = reqsRes.body?.items || reqsRes.body || [];
   el.innerHTML = reqs.length ? reqs.map((r) => `<div style="padding:4px 0;border-bottom:1px solid #F5F2EB">${escapeHtml(r.status)} - ${escapeHtml(r.reason || '')}</div>`).join('') : '<div class="empty-state__text">Sin materiales registrados</div>';
   const btn = $('#matAddBtn');
   if (btn) btn.addEventListener('click', async () => {

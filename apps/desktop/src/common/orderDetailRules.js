@@ -49,6 +49,22 @@ function validateRequiredFields(obj) {
   return errors;
 }
 
+function asList(resp) {
+  if (!resp) return [];
+  if (Array.isArray(resp)) return resp;
+  if (resp.ok === false) {
+    const err = new Error((resp.body && (resp.body.error || resp.body.message)) || 'Error de la API');
+    err.status = resp.status;
+    err.body = resp.body;
+    throw err;
+  }
+  const body = (resp.body !== undefined) ? resp.body : resp;
+  if (Array.isArray(body)) return body;
+  if (body && Array.isArray(body.items)) return body.items;
+  if (resp && Array.isArray(resp.items)) return resp.items;
+  return [];
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { allowedTransitions, visibleActions, backendErrorToMessage, validateMaterialQty, validateRequiredFields };
+  module.exports = { allowedTransitions, visibleActions, backendErrorToMessage, validateMaterialQty, validateRequiredFields, asList };
 }
