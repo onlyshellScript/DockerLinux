@@ -202,14 +202,14 @@ def audit_list():
             df = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
             q = q.filter(AuditLog.created_at >= df)
         except ValueError:
-            pass
+            return jsonify({"error": "invalid date_from"}), 400
     if date_to:
         try:
             from datetime import datetime
             dt = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
             q = q.filter(AuditLog.created_at <= dt)
         except ValueError:
-            pass
+            return jsonify({"error": "invalid date_to"}), 400
     total = q.count()
     items = q.order_by(AuditLog.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
     return jsonify({
@@ -253,14 +253,14 @@ def audit_export():
             df = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
             q = q.filter(AuditLog.created_at >= df)
         except ValueError:
-            pass
+            return jsonify({"error": "invalid date_from"}), 400
     if date_to:
         try:
             from datetime import datetime
             dt = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
             q = q.filter(AuditLog.created_at <= dt)
         except ValueError:
-            pass
+            return jsonify({"error": "invalid date_to"}), 400
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["fecha", "usuario", "seccion", "campo", "anterior", "nuevo", "resultado"])

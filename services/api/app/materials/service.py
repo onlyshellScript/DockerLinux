@@ -519,7 +519,8 @@ def _transition(req, new_status, actor_id, action, payload=None):
 
 
 def _get_request(req_id):
-    return MaterialRequest.query.filter_by(id=req_id).with_for_update() if False else MaterialRequest.query.get(req_id)
+    # Bloqueo pesimista real; SQLite lo ignora, se valida en SQL Server (ver DECISIONES PENDIENTES).
+    return MaterialRequest.query.filter_by(id=req_id).with_for_update().first()
 
 
 def create_request(data, user_id, operation_id=None):

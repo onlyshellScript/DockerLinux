@@ -10,9 +10,9 @@ from app.notifications.models import Notification
 
 VALID_RANGES = (7, 14, 30)
 ACTIVE_STATUSES = ("pending", "assigned", "in_progress")
-DONE_STATUSES = ("completed", "closed")
+DONE_STATUSES = ("completed",)
 STACK_STATUSES = ("pending", "assigned", "in_progress", "completed", "cancelled")
-ALL_STATUSES = ("pending", "assigned", "in_progress", "completed", "closed", "cancelled")
+ALL_STATUSES = ("pending", "assigned", "in_progress", "completed", "cancelled")
 SLA_DAYS = 7          # plazo SLA (antes estaba fijo dentro del cálculo)
 SPARK_POINTS = 10
 
@@ -68,6 +68,56 @@ def _zone_key(wo):
 
 
 # ---------------------------------------------------------------- servicio
+def build_tecnico_summary(user_id):
+    from app.workorders.models import WorkOrder, ALL_STATUSES
+    from app.materials.models import TechnicianProfile
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+    wos = WorkOrder.query.filter_by(assigned_to_id=user_id).all()
+    counts = {s: 0 for s in ALL_STATUSES}
+    for w in wos:
+        if w.status in counts:
+            counts[w.status] += 1
+    hoy = 0
+    en_proceso = 0
+    completadas_hoy = 0
+    pendientes_vencidas = 0
+    for w in wos:
+        sched = w.scheduled_at
+        if sched is not None and sched.tzinfo is None:
+            sched = sched.replace(tzinfo=timezone.utc)
+        if sched is not None and today_start <= sched < today_end:
+            hoy += 1
+        if w.status == "in_progress":
+            en_proceso += 1
+        if w.status == "completed":
+            done = w.completed_at or w.updated_at
+            if done is not None and done.tzinfo is None:
+                done = done.replace(tzinfo=timezone.utc)
+            if done is not None and today_start <= done < today_end:
+                completadas_hoy += 1
+        # Pendientes o vencidas: abiertas (pending/assigned) sin fecha, atrasadas o de dias anteriores
+        if w.status in ("pending", "assigned"):
+            if sched is None or sched < today_start:
+                pendientes_vencidas += 1
+    profile = TechnicianProfile.query.filter_by(user_id=user_id).first()
+    return {
+        "user_id": user_id,
+        "counts": counts,
+        "resumen": {
+            "hoy": hoy,
+            "en_proceso": en_proceso,
+            "completadas_hoy": completadas_hoy,
+            "pendientes_vencidas": pendientes_vencidas,
+        },
+        "total": len(wos),
+        "orders": [w.to_dict() for w in wos],
+        "profile": profile.to_dict() if profile else None,
+    }
+
+
 def build_summary(range_days=7, zone=None, city_id=None, zone_id=None,
                   technician_id=None, user_id=None):
     days = _parse_range(range_days)

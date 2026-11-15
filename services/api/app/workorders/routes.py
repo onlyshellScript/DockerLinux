@@ -13,6 +13,7 @@ from app.workorders.service import (
     get_history,
     bulk_update,
     export_csv,
+    record_used_materials,
 )
 from app.calendar import service as calendar_service
 
@@ -69,7 +70,7 @@ def work_orders_list():
 
 
 @blueprint.post("/work-orders")
-@require_role("admin", "dispatcher")
+@require_role("dispatcher")
 def work_orders_create():
     data = request.get_json()
     if not data or not data.get("title"):
@@ -103,7 +104,10 @@ def work_orders_patch(wo_id):
     if not wo:
         return jsonify({"error": "work order not found"}), 404
     roles = request.user_roles
-    if "admin" not in roles and "dispatcher" not in roles and wo.assigned_to_id != request.user_id:
+    if "dispatcher" not in roles and wo.assigned_to_id != request.user_id:
+        return jsonify({"error": "insufficient permissions"}), 403
+    # admin cannot edit work orders
+    if "admin" in roles:
         return jsonify({"error": "insufficient permissions"}), 403
     wo = update_work_order(wo_id, data, request.user_id)
     if not wo:
@@ -112,7 +116,7 @@ def work_orders_patch(wo_id):
 
 
 @blueprint.put("/work-orders/<int:wo_id>")
-@require_role("admin", "dispatcher")
+@require_role("dispatcher")
 def work_orders_update(wo_id):
     data = request.get_json()
     if not data:
@@ -141,12 +145,12 @@ def work_orders_change_status(wo_id):
     if not wo:
         return jsonify({"error": "work order not found"}), 404
     roles = request.user_roles
-    is_admin = "admin" in roles
+    is_admin = False  # admin cannot change status
     is_dispatcher = "dispatcher" in roles
     is_assigned = wo.assigned_to_id == request.user_id
-    if to_status in ("assigned", "in_progress", "completed", "closed") and not (is_admin or is_dispatcher or is_assigned):
+    if to_status in ("assigned", "in_progress", "completed") and not (is_dispatcher or is_assigned):
         return jsonify({"error": "insufficient permissions"}), 403
-    if to_status == "cancelled" and not (is_admin or is_dispatcher):
+    if to_status == "cancelled" and not is_dispatcher:
         return jsonify({"error": "insufficient permissions"}), 403
 
     user = db.session.get(User, request.user_id)
@@ -155,6 +159,8 @@ def work_orders_change_status(wo_id):
         return jsonify({"error": "work order not found"}), 404
     if error == "invalid_transition":
         return jsonify({"error": f"cannot transition from {wo.status} to {to_status}"}), 409
+    if error == "reason_required":
+        return jsonify({"error": "reason required"}), 422
     return jsonify(result.to_dict()), 200
 
 
@@ -169,13 +175,13 @@ def work_orders_transition(wo_id):
     if not wo:
         return jsonify({"error": "work order not found"}), 404
     roles = request.user_roles
-    is_admin = "admin" in roles
+    is_admin = False  # admin cannot manage orders
     is_dispatcher = "dispatcher" in roles
     is_assigned = wo.assigned_to_id == request.user_id
     # permission checks by action
-    if action in ("assign", "cancel", "close", "reopen") and not (is_admin or is_dispatcher):
+    if action in ("assign", "cancel") and not is_dispatcher:
         return jsonify({"error": "insufficient permissions"}), 403
-    if action in ("start", "complete") and not (is_admin or is_dispatcher or is_assigned):
+    if action in ("start", "complete") and not (is_dispatcher or is_assigned):
         return jsonify({"error": "insufficient permissions"}), 403
     if action == "cancel" and not data.get("reason"):
         return jsonify({"error": "reason required"}), 422
@@ -207,12 +213,12 @@ def work_orders_schedule(wo_id):
         try:
             data["version"] = int(request.headers.get("If-Match").strip().strip('\"'))
         except ValueError:
-            pass
+            return jsonify({"error": "invalid If-Match version"}), 400
     wo = get_work_order(wo_id)
     if not wo:
         return jsonify({"error": "not found"}), 404
     roles = request.user_roles
-    if "admin" not in roles and "dispatcher" not in roles:
+    if "dispatcher" not in roles:
         return jsonify({"error": "forbidden"}), 403
     result, err = calendar_service.schedule_order(wo_id, data, db.session.get(User, request.user_id), roles)
     if err == "not_found":
@@ -247,13 +253,13 @@ def work_orders_reschedule(wo_id):
         try:
             data["version"] = int(request.headers.get("If-Match").strip().strip('\"'))
         except ValueError:
-            pass
+            return jsonify({"error": "invalid If-Match version"}), 400
     data.setdefault("reason", data.get("reason") or data.get("motivo"))
     wo = get_work_order(wo_id)
     if not wo:
         return jsonify({"error": "not found"}), 404
     roles = request.user_roles
-    if "admin" not in roles and "dispatcher" not in roles:
+    if "dispatcher" not in roles:
         return jsonify({"error": "forbidden"}), 403
     result, err = calendar_service.schedule_order(wo_id, data, db.session.get(User, request.user_id), roles)
     if err == "not_found":
@@ -284,7 +290,7 @@ def work_orders_reschedule(wo_id):
 def work_orders_assign(wo_id):
     data = request.get_json() or {}
     roles = request.user_roles
-    if "admin" not in roles and "dispatcher" not in roles:
+    if "dispatcher" not in roles:
         return jsonify({"error": "forbidden"}), 403
     result, err = calendar_service.assign_order(wo_id, data, db.session.get(User, request.user_id), roles)
     if err == "not_found":
@@ -299,6 +305,33 @@ def work_orders_assign(wo_id):
         return jsonify({"error": "schedule conflict", "code": "SCHEDULE_CONFLICT"}), 409
     if not result:
         return jsonify({"error": "could not assign"}), 400
+    return jsonify(result.to_dict()), 200
+
+
+@blueprint.post("/work-orders/<int:wo_id>/materials")
+@require_auth
+def work_orders_materials(wo_id):
+    roles = request.user_roles
+    if "admin" in roles and "dispatcher" not in roles:
+        return jsonify({"error": "insufficient permissions"}), 403
+    data = request.get_json() or {}
+    items = data.get("items") or data.get("materials") or []
+    if not items:
+        return jsonify({"error": "items required"}), 400
+    wo = get_work_order(wo_id)
+    if not wo:
+        return jsonify({"error": "work order not found"}), 404
+    user = db.session.get(User, request.user_id)
+    is_technician = "technician" in roles
+    if is_technician and wo.assigned_to_id != request.user_id:
+        return jsonify({"error": "insufficient permissions"}), 403
+    result, error = record_used_materials(wo_id, user, items)
+    if error == "not_found":
+        return jsonify({"error": "work order not found"}), 404
+    if error == "forbidden":
+        return jsonify({"error": "insufficient permissions"}), 403
+    if error == "invalid_material":
+        return jsonify({"error": "invalid material"}), 400
     return jsonify(result.to_dict()), 200
 
 
@@ -322,7 +355,7 @@ def work_orders_timeline(wo_id):
 
 
 @blueprint.post("/work-orders/bulk")
-@require_role("admin", "dispatcher")
+@require_role("dispatcher")
 def work_orders_bulk():
     data = request.get_json() or {}
     ids = data.get("ids") or []

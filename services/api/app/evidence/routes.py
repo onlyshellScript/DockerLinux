@@ -80,7 +80,7 @@ def evidences_create(wo_id):
     if category not in EVIDENCE_CATEGORIES:
         category = "ADDITIONAL"
     if evidence_type not in ALL_TYPES and evidence_type not in EVIDENCE_CATEGORIES:
-        pass
+        return jsonify({"error": "invalid evidence_type"}), 400
 
     file = request.files.get("file")
     if evidence_type in ("photo", "document") and not file and category in ("BEFORE", "DURING", "AFTER"):
