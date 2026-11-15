@@ -39,6 +39,7 @@ Variables mínimas para la API:
 
 - `DB_URL`: cadena de conexión SQLAlchemy (ej. `mssql+pyodbc://...`).
 - `JWT_SECRET_KEY`: secreto para firmar tokens JWT.
+- `TECH_INITIAL_PASSWORD`: contraseña inicial asignada a técnicos creados desde el panel admin (placeholder `CAMBIAR_ESTE_VALOR`). El técnico debe cambiarla en el primer acceso.
 
 El resto (uploads/evidencias, SMTP, WhatsApp, logging, worker de notificaciones, puertos) está
 documentado en `.env.example`.

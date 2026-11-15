@@ -13,6 +13,9 @@ def _password_change_required(user):
     path = request.path or ""
     if path.endswith("/auth/change-password") or path.endswith("/auth/logout") or path.endswith("/auth/refresh"):
         return False
+    # Allow reading own technician profile before the mandatory password change.
+    if request.method == "GET" and (path.startswith("/api/v1/technicians/") or path.endswith("/mi-perfil")):
+        return False
     return True
 
 def require_auth(f):

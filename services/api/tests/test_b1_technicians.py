@@ -136,3 +136,63 @@ def test_b1_dispatcher_cannot_create(client, app):
     headers = {"Authorization": "Bearer " + disp_tok}
     r = client.post("/api/v1/technicians", json={"first_name": "D", "last_name": "P", "document_type": "CC", "document_number": "7007"}, headers=headers)
     assert r.status_code in (401, 403)
+
+
+def test_b1_initial_password_stored_hashed(client, app, admin_token):
+    os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
+    headers = {"Authorization": "Bearer " + admin_token}
+    r = client.post("/api/v1/technicians", json={"first_name": "H1", "last_name": "H2", "document_type": "CC", "document_number": "9001"}, headers=headers)
+    assert r.status_code == 201
+    with app.app_context():
+        from app.materials.models import TechnicianProfile
+        prof = TechnicianProfile.query.filter_by(document_number="9001").first()
+        assert prof is not None
+        u = prof.user
+        assert u.password_hash != "InitPass123!"
+        assert u.check_password("InitPass123!") is True
+        assert u.must_change_password is True
+
+
+def test_b1_password_not_in_create_list_edit_responses(client, app, admin_token):
+    os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
+    headers = {"Authorization": "Bearer " + admin_token}
+    r = client.post("/api/v1/technicians", json={"first_name": "N1", "last_name": "N2", "document_type": "CC", "document_number": "9002"}, headers=headers)
+    assert r.status_code == 201
+    body = r.get_data(as_text=True)
+    assert "InitPass123!" not in body
+    tid = r.get_json()["technician"]["id"]
+    rl = client.get("/api/v1/technicians", headers=headers)
+    assert "InitPass123!" not in rl.get_data(as_text=True)
+    rp = client.patch("/api/v1/technicians/{}".format(tid), json={"phone": "555"}, headers=headers)
+    assert rp.status_code == 200
+    assert "InitPass123!" not in rp.get_data(as_text=True)
+
+
+def test_b1_second_names_concatenated(client, app, admin_token):
+    os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
+    headers = {"Authorization": "Bearer " + admin_token}
+    r = client.post("/api/v1/technicians", json={"first_name": "Juan", "second_name": "Carlos", "last_name": "Perez", "second_last_name": "Gomez", "document_type": "CC", "document_number": "9003"}, headers=headers)
+    assert r.status_code == 201
+    tech = r.get_json()["technician"]
+    assert tech["first_name"] == "Juan Carlos"
+    assert tech["last_name"] == "Perez Gomez"
+    tid = tech["id"]
+    rp = client.patch("/api/v1/technicians/{}".format(tid), json={"first_name": "Ana", "second_name": "Maria", "last_name": "Lopez"}, headers=headers)
+    assert rp.status_code == 200
+    assert rp.get_json()["first_name"] == "Ana Maria"
+
+
+def test_b1_technician_own_profile_only(client, app, admin_token):
+    os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
+    headers = {"Authorization": "Bearer " + admin_token}
+    r1 = client.post("/api/v1/technicians", json={"first_name": "T1", "last_name": "U1", "document_type": "CC", "document_number": "9101"}, headers=headers)
+    assert r1.status_code == 201
+    tid1 = r1.get_json()["technician"]["id"]
+    username1 = r1.get_json()["username"]
+    r2 = client.post("/api/v1/technicians", json={"first_name": "T2", "last_name": "U2", "document_type": "CC", "document_number": "9102"}, headers=headers)
+    assert r2.status_code == 201
+    tid2 = r2.get_json()["technician"]["id"]
+    tok1 = _token(client, username1, "InitPass123!")
+    h1 = {"Authorization": "Bearer " + tok1}
+    assert client.get("/api/v1/technicians/{}".format(tid1), headers=h1).status_code == 200
+    assert client.get("/api/v1/technicians/{}".format(tid2), headers=h1).status_code == 403

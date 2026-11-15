@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from app.extensions import db
 from app.identity.models import User, Role, AuditEvent
-from app.identity.passwords import generate_username, normalize_username
+from app.identity.passwords import generate_username, normalize_username, generate_temporary_password
 from app.materials.models import TechnicianProfile
 from app.catalogs.models import City, Zone, TechnicianZone, Department, Municipality
 from app.common.normalize import normalize_text
