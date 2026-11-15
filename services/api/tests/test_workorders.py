@@ -57,7 +57,57 @@ def test_technician_cannot_create(client, app):
         headers={"Authorization": f"Bearer {token}"},
         json={"title": "Test"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 403
+
+
+def test_timeline_per_field_on_admin_edit(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    disp_tok = _login(client, "disp", "Disp123!")
+    admin_tok = _login(client, "admin", "Admin123!")
+    # create work order
+    r = client.post("/api/v1/work-orders", headers={"Authorization": "Bearer " + disp_tok}, json={"title": "WO1", "description": "d", "priority": "high"})
+    assert r.status_code == 201
+    wo_id = r.get_json()["id"]
+    # assign technician
+    r2 = client.patch("/api/v1/work-orders/{}".format(wo_id), headers={"Authorization": "Bearer " + disp_tok, "If-Match": str(r.get_json()["version"])}, json={"assigned_to_id": tech_id})
+    # admin edit: technician, installation_type, scheduled_at
+    # get current version
+    g = client.get("/api/v1/work-orders/{}".format(wo_id), headers={"Authorization": "Bearer " + admin_tok})
+    ver = g.get_json()["version"]
+    r3 = client.patch("/api/v1/work-orders/{}".format(wo_id), headers={"Authorization": "Bearer " + admin_tok, "If-Match": str(ver)}, json={
+        "assigned_to_id": None,
+        "installation_type": "Instalacion X",
+        "scheduled_at": "2026-12-01T10:00:00",
+        "scheduled_end": "2026-12-01T11:00:00",
+        "reason": "motivo test",
+    })
+    assert r3.status_code == 200
+    tl = client.get("/api/v1/work-orders/{}/timeline".format(wo_id), headers={"Authorization": "Bearer " + admin_tok})
+    assert tl.status_code == 200
+    entries = tl.get_json()
+    fields = [e.get("field") for e in entries]
+    assert "assigned_to_id" in fields
+    assert "installation_type" in fields
+    assert "scheduled_at" in fields
+    for f in ("assigned_to_id", "installation_type", "scheduled_at"):
+        e = next(x for x in entries if x.get("field") == f)
+        assert "old_value" in e
+        assert "new_value" in e
+        assert e.get("reason") == "motivo test"
+        assert e.get("actor") is not None
+        assert e.get("created_at") is not None
+
+
+def test_timeline_technician_forbidden_other(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    disp_tok = _login(client, "disp", "Disp123!")
+    tech_tok = _login(client, "tech", "Tech123!")
+    r = client.post("/api/v1/work-orders", headers={"Authorization": "Bearer " + disp_tok}, json={"title": "WO2"})
+    assert r.status_code == 201
+    wo_id = r.get_json()["id"]
+    # tech tries timeline of unassigned order -> 403
+    tl = client.get("/api/v1/work-orders/{}/timeline".format(wo_id), headers={"Authorization": "Bearer " + tech_tok})
+    assert tl.status_code == 403
 
 
 def test_assign_and_transition(client, app):
@@ -406,7 +456,7 @@ def test_admin_edit_appears_in_timeline(client, app):
     resp = client.get(f"/api/v1/work-orders/{wo_id}/timeline", headers={"Authorization": f"Bearer {admin_token}"})
     assert resp.status_code == 200
     data = resp.get_json()
-    assert any("Motivo timeline" in str(item.get("notes", "")) for item in data)
+    assert any(item.get("reason") == "Motivo timeline" for item in data)
 
 
 def test_admin_changes_technician_validates_rf09(client, app):
@@ -541,4 +591,4 @@ def test_admin_edit_stores_old_and_new_in_timeline(client, app):
     resp = client.get(f"/api/v1/work-orders/{wo_id}/timeline", headers={"Authorization": f"Bearer {admin_token}"})
     assert resp.status_code == 200
     data = resp.get_json()
-    assert any("Motivo oldnew" in str(item.get("notes", "")) for item in data)
+    assert any(item.get("reason") == "Motivo oldnew" for item in data)

@@ -131,6 +131,15 @@ def work_orders_patch(wo_id):
     old_scheduled = wo.scheduled_at
     old_title = wo.title
 
+    tracked = ("title", "description", "priority", "customer_name", "customer_phone", "address", "zone", "legacy_zone", "city_id", "zone_id", "installation_type", "installation_type_code", "assigned_to_id", "scheduled_at", "scheduled_end")
+    old_values = {}
+    for f in tracked:
+        if f in data:
+            v = getattr(wo, f, None)
+            if hasattr(v, "isoformat"):
+                v = v.isoformat() if v is not None else None
+            old_values[f] = v
+
     # Validación de programación (solape, horario, domingos) si se envía fecha
     if "scheduled_at" in data or "scheduled_end" in data or "scheduled_end" in data:
         from app.calendar import service as calendar_service
@@ -152,15 +161,29 @@ def work_orders_patch(wo_id):
         return jsonify({"error": "work order not found"}), 404
 
     if is_admin:
+        actor = db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id)
+        actor_name = actor.username if actor else None
+        reason = data.get("reason")
         from app.settings.models import AuditLog
-        db.session.add(AuditLog(
-            user_id=request.user_id,
-            section="OrdenesTrabajo",
-            field=f"work_order:{wo_id}",
-            old_value=str({"title": old_title}),
-            new_value=str(data),
-            result="applied",
-                username=db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id).username,
+        # Audit per changed field (additive; legacy generic entries remain readable).
+        for f in tracked:
+            if f not in data:
+                continue
+            new_val = data.get(f)
+            if hasattr(new_val, "isoformat"):
+                new_val = new_val.isoformat() if new_val is not None else None
+            old_val = old_values.get(f)
+            if str(old_val) == str(new_val):
+                continue
+            db.session.add(AuditLog(
+                user_id=request.user_id,
+                section="OrdenesTrabajo",
+                field=f"work_order:{wo_id}:{f}",
+                old_value=None if old_val is None else str(old_val),
+                new_value=None if new_val is None else str(new_val),
+                result="applied",
+                request_id=(str(reason)[:40] if reason is not None else None),
+                username=actor_name,
             ))
         db.session.commit()
 
@@ -461,21 +484,48 @@ def work_orders_timeline(wo_id):
     roles = request.user_roles
     if "admin" not in roles and "dispatcher" not in roles and wo.assigned_to_id != request.user_id:
         return jsonify({"error": "insufficient permissions"}), 403
-    history = [h.to_dict() for h in get_history(wo_id)]
+    history = []
+    for h in get_history(wo_id):
+        d = h.to_dict()
+        d.setdefault("field", "status")
+        d.setdefault("old_value", d.get("from_status"))
+        d.setdefault("new_value", d.get("to_status"))
+        d.setdefault("reason", d.get("notes"))
+        d.setdefault("actor", (d.get("changed_by") or {}).get("username"))
+        history.append(d)
     try:
         from app.settings.models import AuditLog
-        audits = AuditLog.query.filter_by(section="OrdenesTrabajo", field=f"work_order:{wo_id}").order_by(AuditLog.created_at).all()
+        audits = AuditLog.query.filter(
+            AuditLog.section == "OrdenesTrabajo",
+            db.or_(
+                AuditLog.field == f"work_order:{wo_id}",
+                AuditLog.field.like(f"work_order:{wo_id}:%"),
+            ),
+        ).order_by(AuditLog.created_at).all()
         for a in audits:
-            actor = db.session.get(User, a.user_id)
+            actor = db.session.get(User, a.user_id) if a.user_id else None
+            if actor is None and a.username:
+                actor = User.query.filter_by(username=a.username).first()
+            # derive field name for per-field entries
+            field_name = a.field or ""
+            if field_name.startswith(f"work_order:{wo_id}:"):
+                field_name = field_name.split(":", 2)[-1] if ":" in field_name else field_name
+            elif field_name == f"work_order:{wo_id}":
+                field_name = "work_order"
             history.append({
                 "id": a.id,
                 "work_order_id": wo_id,
                 "from_status": None,
                 "to_status": None,
-                "changed_by": actor.to_dict() if actor else None,
-                    "notes": a.new_value,
+                "changed_by": actor.to_dict() if actor else ({"username": a.username} if a.username else None),
+                "notes": a.new_value,
                 "created_at": a.created_at.isoformat() if a.created_at else None,
                 "audit": True,
+                "field": field_name,
+                "old_value": a.old_value,
+                "new_value": a.new_value,
+                "reason": a.request_id,
+                "actor": a.username or (actor.username if actor else None),
             })
     except Exception:
         pass
