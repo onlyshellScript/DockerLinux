@@ -68,7 +68,31 @@ def validate():
     return jsonify(result), 200
 
 
-@blueprint.get("/technicians/<int:tid>/availability")
+@blueprint.post("/calendar/authorize-sunday")
+@require_role("admin")
+def authorize_sunday():
+    data = request.get_json() or {}
+    order_id = data.get("order_id")
+    if order_id is None:
+        return jsonify({"error": "order_id required"}), 422
+    try:
+        order_id = int(order_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid order_id"}), 422
+    if not data.get("reason"):
+        return jsonify({"error": "reason required"}), 422
+    if not data.get("authorize_sunday"):
+        return jsonify({"error": "authorize_sunday required"}), 422
+    from app.identity.models import User
+    user = db.session.get(User, request.user_id)
+    result, err = service.schedule_order(order_id, data, user, request.user_roles)
+    if err == "not_found":
+        return jsonify({"error": "not found"}), 404
+    if err == "forbidden":
+        return jsonify({"error": "forbidden"}), 403
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify(result.to_dict() if hasattr(result, "to_dict") else result), 200
 @require_auth
 def availability(tid):
     roles = request.user_roles

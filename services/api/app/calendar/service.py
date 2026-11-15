@@ -120,7 +120,7 @@ def list_events(from_dt, to_dt, filters=None, for_user_id=None, for_user_roles=N
 def list_unassigned(page=1, page_size=20, for_user_id=None, for_user_roles=None):
     roles = for_user_roles or []
     q = WorkOrder.query.filter(db.or_(WorkOrder.scheduled_at.is_(None), WorkOrder.assigned_to_id.is_(None)))
-    q = q.filter(WorkOrder.status.notin_(["cancelled", "closed", "completed"]))
+    q = q.filter(WorkOrder.status.notin_(["cancelled", "completed"]))
     if for_user_id and "admin" not in roles and "dispatcher" not in roles:
         q = q.filter(WorkOrder.assigned_to_id == for_user_id)
     total = q.count()
@@ -155,10 +155,10 @@ def technician_availability(tech_id, from_dt, to_dt):
 
 def _state_allows_schedule(wo, is_reprogram=False, roles=None):
     roles = roles or []
-    if wo.status in ("completed", "closed", "cancelled"):
+    if wo.status in ("completed", "cancelled"):
         return False
     if is_reprogram and wo.status == "in_progress":
-        return "admin" in roles or "dispatcher" in roles
+        return "dispatcher" in roles
     return wo.status in ("pending", "assigned", "in_progress")
 
 
@@ -167,7 +167,7 @@ def schedule_order(order_id, data, user, roles):
     wo = WorkOrder.query.filter_by(id=order_id).with_for_update().first()
     if not wo:
         return None, "not_found"
-    if "admin" not in roles and "dispatcher" not in roles:
+    if "dispatcher" not in roles:
         return None, "forbidden"
     # version check
     if "version" in data and data.get("version") is not None:
@@ -243,12 +243,13 @@ def _conflict_to_error(code):
         "technician_unavailable": "invalid_technician",
         "schedule_conflict": "schedule_conflict",
         "reason_required": "reason_required",
+        "sunday_authorization_required": "sunday_authorization_required",
     }.get(code, "invalid_time")
 
 
 def validate_schedule(order_id, data, roles):
     roles = roles or []
-    if "admin" not in roles and "dispatcher" not in roles:
+    if "dispatcher" not in roles:
         return None, "forbidden"
     wo = db.session.get(WorkOrder, order_id)
     if not wo:
@@ -282,6 +283,20 @@ def validate_schedule(order_id, data, roles):
         max_hours = int(data.get("max_hours", 8))
         if (end - start).total_seconds() > max_hours * 3600:
             conflicts.append({"code": "duration_too_long", "message": "duración demasiado larga"})
+        # autorización de domingos y festivos (solo admin con motivo)
+        try:
+            import holidays as _holidays
+            co_holidays = _holidays.Colombia()
+        except Exception:
+            co_holidays = set()
+        is_restricted_day = (local_start.weekday() == 6) or (local_start.date() in co_holidays)
+        if is_restricted_day:
+            if "admin" not in roles:
+                conflicts.append({"code": "sunday_authorization_required", "message": "programación en domingo o festivo requiere autorización del administrador"})
+            elif not data.get("authorize_sunday"):
+                conflicts.append({"code": "sunday_authorization_required", "message": "programación en domingo o festivo requiere authorize_sunday=true"})
+            elif not data.get("reason"):
+                conflicts.append({"code": "reason_required", "message": "motivo obligatorio para autorización"})
         # reason required when reprogramming
         if is_reprogram and not data.get("reason"):
             conflicts.append({"code": "reason_required", "message": "motivo del cambio obligatorio"})
@@ -295,11 +310,11 @@ def validate_schedule(order_id, data, roles):
         margin = timedelta(minutes=opset.travel_margin_minutes or 0)
         for tid in (tech_ids or []):
             u = db.session.get(User, tid)
-            if not u or not u.is_active:
+            if not u or not u.is_active or "technician" not in [r.name for r in (u.roles or [])]:
                 conflicts.append({"code": "invalid_technician", "message": "técnico inválido", "technician_id": tid})
                 continue
             prof = TechnicianProfile.query.filter_by(user_id=tid).first()
-            if prof and not prof.is_available:
+            if prof and (not prof.is_active or not prof.is_available):
                 conflicts.append({"code": "technician_unavailable", "message": "técnico fuera de servicio", "technician_id": tid})
             # coverage check (warning if not covered)
             if prof and (wo.city_id or wo.zone_id):
@@ -334,12 +349,12 @@ def validate_schedule(order_id, data, roles):
 
 
 def assign_order(order_id, data, user, roles):
-    if "admin" not in roles and "dispatcher" not in roles:
+    if "dispatcher" not in roles:
         return None, "forbidden"
     wo = WorkOrder.query.filter_by(id=order_id).with_for_update().first()
     if not wo:
         return None, "not_found"
-    if wo.status in ("completed", "closed", "cancelled"):
+    if wo.status in ("completed", "cancelled"):
         return None, "invalid_transition"
     tech_ids = data.get("technician_ids")
     if tech_ids is None and data.get("technician_id") is not None:
@@ -349,6 +364,7 @@ def assign_order(order_id, data, user, roles):
     if not tech_ids:
         # unassign
         wo.assigned_to_id = None
+        wo.assigned_by_id = None
         if wo.status == "assigned":
             wo.status = "pending"
         wo.version = (wo.version or 0) + 1
@@ -358,7 +374,10 @@ def assign_order(order_id, data, user, roles):
     primary = None
     for tid in tech_ids:
         u = db.session.get(User, tid)
-        if not u or not u.is_active:
+        if not u or not u.is_active or "technician" not in [r.name for r in (u.roles or [])]:
+            return None, "invalid_technician"
+        prof = TechnicianProfile.query.filter_by(user_id=tid).first()
+        if prof and not prof.is_active:
             return None, "invalid_technician"
         primary = u
     # conflict check if scheduled
@@ -383,6 +402,7 @@ def assign_order(order_id, data, user, roles):
                     if (o_start - margin) < end and start < (o_end + margin):
                         return None, "schedule_conflict"
             wo.assigned_to_id = primary.id
+            wo.assigned_by_id = user.id
             if wo.status == "pending":
                 wo.status = "assigned"
             wo.version = (wo.version or 0) + 1
