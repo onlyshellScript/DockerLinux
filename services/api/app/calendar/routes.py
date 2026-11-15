@@ -93,6 +93,7 @@ def authorize_sunday():
     if err:
         return jsonify({"error": err}), 400
     return jsonify(result.to_dict() if hasattr(result, "to_dict") else result), 200
+@blueprint.get("/technicians/<int:tid>/availability")
 @require_auth
 def availability(tid):
     roles = request.user_roles

@@ -310,6 +310,8 @@ def validate_schedule(order_id, data, roles):
             tech_ids = [data.get("technician_id")]
         if tech_ids is None and data.get("assigned_to_id") is not None:
             tech_ids = [data.get("assigned_to_id")]
+        if tech_ids is None and getattr(wo, "assigned_to_id", None) is not None:
+            tech_ids = [wo.assigned_to_id]
         if tech_ids:
             tech_ids = [int(x) for x in tech_ids]
         margin = timedelta(minutes=opset.travel_margin_minutes or 0)

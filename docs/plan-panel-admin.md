@@ -1,9 +1,9 @@
-## Estado de implementación (Fase A)
-- A1: implementado (admin edita con motivo, If-Match, timeline/audit, notificación).
-- A2: implementado (domingos/festivos con autorización admin; tarjetas UI pendiente).
-- A3: implementado (exportación xlsx/pdf y KPIs existentes; UI reportes pendiente).
-- A4: pendiente (solo UI, sin cambios de API).
-- A5: en progreso.
+## Estado real (Fase A cerrada)
+- A1: implementado y probado (admin edita con motivo, If-Match, timeline/audit, notificación).
+- A2: implementado y probado (domingos/festivos con autorización admin).
+- A3: implementado y probado (exportación xlsx/pdf y KPIs).
+- A4: NO HECHO (UI pendiente).
+- A5: parcial (docs actualizados).
 
 ## 0. Resumen (≤25 líneas)
 SIGOS ya tiene la mayoría de los campos necesarios; faltan estados de usuario, segundo nombre/apellido y centro de costo/puesto, que conviene resolver sin migración cuando sea posible o con una migración mínima si se confirma el alcance. El bloqueo principal es el modelo de permisos: admin es solo lectura en workorders (RNF-05, `test_admin_cannot_create_work_order`, `ACCESS_RULES`). Se propone edición admin con motivo obligatorio e historial, más endpoints de usuarios (suspender/deshabilitar/eliminar lógico) y reportes (exportación xlsx/pdf y KPIs). Calendario y evidencias se resuelven con cambios de UI/API acotados. No se altera el esquema salvo decisión explícita en DECISIONES PENDIENTES.

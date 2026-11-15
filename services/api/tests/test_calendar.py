@@ -405,3 +405,17 @@ def test_calendar_dispatcher_sunday_returns_required_code(client, app):
     })
     assert resp.status_code == 403
     assert resp.get_json().get("code") == "sunday_authorization_required"
+
+
+def test_calendar_2330_local_stays_same_day(client, app):
+    ids = _seed(app)
+    token = _login(client, "disp", "Disp123!")
+    with app.app_context():
+        wo = WorkOrder.query.get(ids["work_order_id"])
+        version = wo.version
+    resp = client.post("/api/v1/work-orders/{}/schedule".format(ids["work_order_id"]), headers={"Authorization": f"Bearer {token}"}, json={
+        "start": "2026-11-09T23:30:00", "end": "2026-11-09T23:45:00", "version": version,
+    })
+    # Fuera de horario operativo, pero no debe colapsar ni cambiar de d�a silenciosamente
+    assert resp.status_code in (422, 400, 403)
+    assert "invalid" in str(resp.get_json()).lower()

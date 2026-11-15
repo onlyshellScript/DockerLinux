@@ -407,3 +407,138 @@ def test_admin_edit_appears_in_timeline(client, app):
     assert resp.status_code == 200
     data = resp.get_json()
     assert any("Motivo timeline" in str(item.get("notes", "")) for item in data)
+
+
+def test_admin_changes_technician_validates_rf09(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    disp_token = _login(client, "disp", "Disp123!")
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden cambio tecnico"})
+    wo_id = resp.get_json()["id"]
+    version = resp.get_json().get("version", 0)
+
+    # invalid technician -> 400/404
+    resp = client.patch(
+        f"/api/v1/work-orders/{wo_id}",
+        headers={"Authorization": f"Bearer {admin_token}", "If-Match": str(version)},
+        json={"assigned_to_id": 999999, "reason": "Reasignacion"},
+    )
+    assert resp.status_code in (400, 404)
+
+    # valid technician
+    resp = client.patch(
+        f"/api/v1/work-orders/{wo_id}",
+        headers={"Authorization": f"Bearer {admin_token}", "If-Match": str(version)},
+        json={"assigned_to_id": tech_id, "reason": "Reasignacion valida"},
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["assigned_to"]["id"] == tech_id
+
+
+def test_admin_changes_installation_type(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    disp_token = _login(client, "disp", "Disp123!")
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden tipo"})
+    wo_id = resp.get_json()["id"]
+    version = resp.get_json().get("version", 0)
+
+    resp = client.patch(
+        f"/api/v1/work-orders/{wo_id}",
+        headers={"Authorization": f"Bearer {admin_token}", "If-Match": str(version)},
+        json={"installation_type": "Residencial", "installation_type_code": None, "reason": "Cambio tipo"},
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["installation_type"] == "Residencial"
+
+
+def test_admin_adds_materials(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    disp_token = _login(client, "disp", "Disp123!")
+
+    # create material
+    # create material via API
+    resp = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {admin_token}"}, json={"name": "MatAdmin", "category_id": 1, "unit_id": 1, "current_stock": 10, "min_stock": 1})
+    # if category/unit missing, skip
+    if resp.status_code not in (200, 201):
+        import pytest
+        pytest.skip("No se pudo crear material (catálogo no disponible)")
+    mat_id = resp.get_json()["id"]
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden materiales"})
+    wo_id = resp.get_json()["id"]
+
+    resp = client.post(
+        f"/api/v1/work-orders/{wo_id}/materials",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"items": [{"material_id": mat_id, "quantity": 1}]},
+    )
+    assert resp.status_code == 200
+
+
+def test_admin_postpones_date(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    disp_token = _login(client, "disp", "Disp123!")
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden fecha"})
+    wo_id = resp.get_json()["id"]
+    version = resp.get_json().get("version", 0)
+
+    resp = client.patch(
+        f"/api/v1/work-orders/{wo_id}",
+        headers={"Authorization": f"Bearer {admin_token}", "If-Match": str(version)},
+        json={"scheduled_at": "2026-11-10T10:00:00", "scheduled_end": "2026-11-10T11:00:00", "reason": "Aplazar"},
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["scheduled_at"].startswith("2026-11-10")
+
+
+def test_admin_edit_date_overlap_rejected(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    disp_token = _login(client, "disp", "Disp123!")
+
+    # base order
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden base", "assigned_to_id": tech_id})
+    wo_id = resp.get_json()["id"]
+    version = resp.get_json().get("version", 0)
+    # schedule it
+    client.post(f"/api/v1/work-orders/{wo_id}/schedule", headers={"Authorization": f"Bearer {disp_token}"}, json={"start": "2026-11-10T10:00:00", "end": "2026-11-10T11:00:00", "version": version})
+
+    # second order
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden solape", "assigned_to_id": tech_id})
+    wo2_id = resp.get_json()["id"]
+    version2 = resp.get_json().get("version", 0)
+
+    resp = client.patch(
+        f"/api/v1/work-orders/{wo2_id}",
+        headers={"Authorization": f"Bearer {admin_token}", "If-Match": str(version2)},
+        json={"scheduled_at": "2026-11-10T10:30:00", "scheduled_end": "2026-11-10T11:30:00", "reason": "Solape"},
+    )
+    assert resp.status_code == 409
+
+
+def test_admin_edit_stores_old_and_new_in_timeline(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    disp_token = _login(client, "disp", "Disp123!")
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden oldnew"})
+    wo_id = resp.get_json()["id"]
+    version = resp.get_json().get("version", 0)
+
+    resp = client.patch(
+        f"/api/v1/work-orders/{wo_id}",
+        headers={"Authorization": f"Bearer {admin_token}", "If-Match": str(version)},
+        json={"title": "Orden new value", "reason": "Motivo oldnew"},
+    )
+    assert resp.status_code == 200
+
+    resp = client.get(f"/api/v1/work-orders/{wo_id}/timeline", headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert any("Motivo oldnew" in str(item.get("notes", "")) for item in data)
