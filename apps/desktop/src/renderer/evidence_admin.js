@@ -148,4 +148,3 @@ async function renderEvidenceInbox(content) {
   const next = $('#evNext');
   if (next) next.addEventListener('click', () => { state.evidenceInboxFilters.page++; render(); });
 }
-EOF

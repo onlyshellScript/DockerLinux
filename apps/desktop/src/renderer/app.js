@@ -1752,6 +1752,7 @@ async function loadMaterials(id) {
 async function loadEvidences(id) {
   const res = await api('GET', `/api/v1/work-orders/${id}/evidences`);
   const el = $('#evList');
+  if (!el) return;
   if (!res.ok) { el.innerHTML = `<div style="color:#991B1B">${escapeHtml(res.body?.error || 'Error')}</div>`; return; }
   const evs = res.body || [];
   el.innerHTML = evs.length ? evs.map((e) => `<div style="padding:4px 0">${escapeHtml(e.evidence_type)} - ${escapeHtml(e.description || e.file_name)} <span style="color:#96908A;font-size:12px">${escapeHtml(e.created_at)}</span></div>`).join('') : '<div class="empty-state__text">Sin evidencias</div>';
