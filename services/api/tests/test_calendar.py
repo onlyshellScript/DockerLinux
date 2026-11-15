@@ -1,4 +1,5 @@
 import threading
+import pytest
 from datetime import datetime, timezone, timedelta
 
 from app.extensions import db
@@ -69,10 +70,10 @@ def _login(client, username, password):
 
 def test_validate_detects_overlap(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     with app.app_context():
         from app.identity.models import User
-        admin = User.query.filter_by(username="admin").first()
+        disp = User.query.filter_by(username="disp").first()
         wo2 = WorkOrder(title="Otra", created_by_id=ids["admin_id"], status="pending", priority="medium",
                         city_id=ids["city_id"], zone_id=ids["zone_id"], installation_type_code="residencial")
         db.session.add(wo2)
@@ -81,7 +82,7 @@ def test_validate_detects_overlap(client, app):
         cs.schedule_order(wo2.id, {
             "start": "2026-11-04T10:00:00", "end": "2026-11-04T11:00:00",
             "technician_ids": [ids["tech_user_id"]], "version": wo2.version,
-        }, admin, ["admin"])
+        }, disp, ["dispatcher"])
         db.session.commit()
 
     # validate overlapping 10:30-11:30
@@ -109,7 +110,7 @@ def test_validate_detects_overlap(client, app):
 
 def test_validate_out_of_hours(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     resp = client.post("/api/v1/calendar/validate", headers={"Authorization": f"Bearer {token}"}, json={
         "order_id": ids["work_order_id"],
         "start": "2026-11-04T06:00:00",
@@ -124,7 +125,7 @@ def test_validate_out_of_hours(client, app):
 
 def test_validate_out_of_service(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     with app.app_context():
         prof = TechnicianProfile.query.get(ids["tech_profile_id"])
         prof.is_available = False
@@ -143,7 +144,7 @@ def test_validate_out_of_service(client, app):
 
 def test_validate_zone_not_covered(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     # create a work order in a different city/zone by changing city_id to a non-covered one
     with app.app_context():
         wo = WorkOrder.query.get(ids["work_order_id"])
@@ -163,7 +164,7 @@ def test_validate_zone_not_covered(client, app):
 
 def test_validate_state_not_programmable(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     with app.app_context():
         wo = WorkOrder.query.get(ids["work_order_id"])
         wo.status = "completed"
@@ -182,17 +183,17 @@ def test_validate_state_not_programmable(client, app):
 
 def test_reschedule_requires_reason(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     # schedule first
     with app.app_context():
         from app.identity.models import User
-        admin = User.query.filter_by(username="admin").first()
+        disp = User.query.filter_by(username="disp").first()
         wo = WorkOrder.query.get(ids["work_order_id"])
         from app.calendar import service as cs
         cs.schedule_order(wo.id, {
             "start": "2026-11-04T09:00:00", "end": "2026-11-04T10:00:00",
             "technician_ids": [], "version": wo.version,
-        }, admin, ["admin"])
+        }, disp, ["dispatcher"])
         db.session.commit()
     # reschedule without reason
     with app.app_context():
@@ -207,16 +208,16 @@ def test_reschedule_requires_reason(client, app):
 
 def test_stale_version(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     with app.app_context():
         from app.identity.models import User
-        admin = User.query.filter_by(username="admin").first()
+        disp = User.query.filter_by(username="disp").first()
         wo = WorkOrder.query.get(ids["work_order_id"])
         from app.calendar import service as cs
         cs.schedule_order(wo.id, {
             "start": "2026-11-04T09:00:00", "end": "2026-11-04T10:00:00",
             "technician_ids": [], "version": wo.version,
-        }, admin, ["admin"])
+        }, disp, ["dispatcher"])
         db.session.commit()
     # use stale version 0
     resp = client.post(f"/api/v1/work-orders/{ids['work_order_id']}/schedule",
@@ -240,7 +241,7 @@ def test_permissions_forbidden(client, app):
 
 def test_2330_local_day(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     # 23:30 Bogota = next day 04:30 UTC; validate should treat local day
     resp = client.post("/api/v1/calendar/validate", headers={"Authorization": f"Bearer {token}"}, json={
         "order_id": ids["work_order_id"],
@@ -255,7 +256,7 @@ def test_2330_local_day(client, app):
 
 def test_cancelled_excluded(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     with app.app_context():
         wo = WorkOrder.query.get(ids["work_order_id"])
         wo.status = "cancelled"
@@ -277,7 +278,7 @@ def test_concurrent_schedule(sqlserver_client, sqlserver_app):
     ids = _seed(sqlserver_app)
     with sqlserver_app.app_context():
         from app.identity.models import User
-        admin = User.query.filter_by(username="admin").first()
+        disp = User.query.filter_by(username="disp").first()
         wo1 = WorkOrder(title="C1", created_by_id=ids["admin_id"], status="pending", priority="medium",
                         city_id=ids["city_id"], zone_id=ids["zone_id"], installation_type_code="residencial")
         wo2 = WorkOrder(title="C2", created_by_id=ids["admin_id"], status="pending", priority="medium",
@@ -307,7 +308,7 @@ def test_concurrent_schedule(sqlserver_client, sqlserver_app):
 
 def test_unassigned_tray(client, app):
     ids = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     resp = client.get("/api/v1/calendar/unassigned?page_size=50", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     data = resp.get_json()
@@ -319,7 +320,7 @@ def test_atomicity_schedule(client, app):
     ids = _seed(app)
     with app.app_context():
         from app.identity.models import User
-        admin = User.query.filter_by(username="admin").first()
+        disp = User.query.filter_by(username="disp").first()
         wo = WorkOrder.query.get(ids["work_order_id"])
         from app.calendar import service as cs
         from unittest.mock import patch
@@ -328,7 +329,7 @@ def test_atomicity_schedule(client, app):
                 cs.schedule_order(wo.id, {
                     "start": "2026-11-04T09:00:00", "end": "2026-11-04T10:00:00",
                     "technician_ids": [], "version": wo.version,
-                }, admin, ["admin"])
+                }, disp, ["dispatcher"])
         except Exception:
             pass
         db.session.rollback()
