@@ -32,6 +32,8 @@ def require_auth(f):
             return jsonify({"error": "invalid token type"}), 401
         from app.extensions import db
         user = db.session.get(__import__("app.identity.models", fromlist=["User"]).User, int(payload["sub"]))
+        if not user or not getattr(user, "is_active", False):
+            return jsonify({"error": "user not found or inactive"}), 401
         if user and _password_change_required(user):
             return jsonify({"error": "PASSWORD_CHANGE_REQUIRED"}), 403
         request.user_id = int(payload["sub"])
@@ -57,6 +59,10 @@ def require_role(*roles):
             if payload.get("type") != "access":
                 return jsonify({"error": "invalid token type"}), 401
             user_roles = payload.get("roles", [])
+            from app.extensions import db
+            user = db.session.get(__import__("app.identity.models", fromlist=["User"]).User, int(payload["sub"]))
+            if not user or not getattr(user, "is_active", False):
+                return jsonify({"error": "user not found or inactive"}), 401
             if not any(r in user_roles for r in roles):
                 return jsonify({"error": "insufficient permissions"}), 403
             request.user_id = int(payload["sub"])

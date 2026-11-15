@@ -8,19 +8,24 @@ from app.identity.models import User, Role
 def _seed(app):
     with app.app_context():
         admin_role = Role(name="admin", description="Administrador")
+        disp_role = Role(name="dispatcher", description="Despachador")
         tech_role = Role(name="technician", description="Tecnico")
-        db.session.add_all([admin_role, tech_role])
+        db.session.add_all([admin_role, disp_role, tech_role])
         db.session.flush()
 
         admin = User(username="admin", email="admin@test.local")
         admin.set_password("Admin123!")
         admin.roles.append(admin_role)
 
+        disp = User(username="disp", email="disp@test.local")
+        disp.set_password("Disp123!")
+        disp.roles.append(disp_role)
+
         tech = User(username="tech", email="tech@test.local")
         tech.set_password("Tech123!")
         tech.roles.append(tech_role)
 
-        db.session.add_all([admin, tech])
+        db.session.add_all([admin, disp, tech])
         db.session.commit()
         import os, sys
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,7 +44,7 @@ def _login(client, username, password):
 
 def test_push_change_status(client, app):
     admin_id, tech_id = _seed(app)
-    admin_token = _login(client, "admin", "Admin123!")
+    admin_token = _login(client, "disp", "Disp123!")
 
     # Create WO and assign
     resp = client.post(
@@ -78,7 +83,7 @@ def test_push_change_status(client, app):
 
 def test_push_idempotent(client, app):
     admin_id, tech_id = _seed(app)
-    admin_token = _login(client, "admin", "Admin123!")
+    admin_token = _login(client, "disp", "Disp123!")
     resp = client.post(
         "/api/v1/work-orders",
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -102,7 +107,7 @@ def test_push_idempotent(client, app):
 
 def test_push_unknown_type(client, app):
     admin_id, tech_id = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     op_id = str(uuid.uuid4())
     resp = client.post(
         "/api/v1/sync/push",
@@ -119,7 +124,7 @@ def test_push_unknown_type(client, app):
 
 def test_pull_changes(client, app):
     admin_id, tech_id = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
 
     client.post(
         "/api/v1/work-orders",
@@ -145,7 +150,89 @@ def test_pull_changes(client, app):
 
 def test_push_batch_limit(client, app):
     admin_id, tech_id = _seed(app)
-    token = _login(client, "admin", "Admin123!")
+    token = _login(client, "disp", "Disp123!")
     ops = [{"client_operation_id": str(uuid.uuid4()), "operation_type": "x", "payload": {}} for _ in range(101)]
     resp = client.post("/api/v1/sync/push", headers={"Authorization": f"Bearer {token}"}, json={"operations": ops})
     assert resp.status_code == 400
+
+
+def test_sync_pull_only_assigned_orders(client, app):
+    admin_id, tech_id = _seed(app)
+    disp_token = _login(client, "disp", "Disp123!")
+
+    with app.app_context():
+        tech_role = Role.query.filter_by(name="technician").first()
+        tech2 = User(username="tech2", email="tech2@test.local")
+        tech2.set_password("Tech123!")
+        tech2.roles.append(tech_role)
+        db.session.add(tech2)
+        db.session.commit()
+        tech2_id = tech2.id
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "WO tech1", "assigned_to_id": tech_id})
+    assert resp.status_code == 201
+    wo1_id = resp.get_json()["id"]
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "WO tech2", "assigned_to_id": tech2_id})
+    assert resp.status_code == 201
+    wo2_id = resp.get_json()["id"]
+
+    tech1_token = _login(client, "tech", "Tech123!")
+    resp = client.get("/api/v1/sync/pull", headers={"Authorization": f"Bearer {tech1_token}"})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    ids = [w.get("id") for w in data.get("work_orders", [])]
+    assert wo1_id in ids
+    assert wo2_id not in ids
+
+
+def test_sync_change_status_rejects_unowned_order(client, app):
+    admin_id, tech_id = _seed(app)
+    disp_token = _login(client, "disp", "Disp123!")
+
+    with app.app_context():
+        tech_role = Role.query.filter_by(name="technician").first()
+        tech2 = User(username="tech2", email="tech2@test.local")
+        tech2.set_password("Tech123!")
+        tech2.roles.append(tech_role)
+        db.session.add(tech2)
+        db.session.commit()
+        tech2_id = tech2.id
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "WO owned", "assigned_to_id": tech_id})
+    assert resp.status_code == 201
+    wo_id = resp.get_json()["id"]
+
+    tech2_token = _login(client, "tech2", "Tech123!")
+    resp = client.post("/api/v1/sync/push", headers={"Authorization": f"Bearer {tech2_token}"}, json={
+        "operations": [{"client_operation_id": "op-unowned", "operation_type": "change_status", "payload": {"work_order_id": wo_id, "to_status": "in_progress"}}]
+    })
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["results"][0]["status"] == "failed"
+
+
+def test_sync_add_observation_rejects_unowned_order(client, app):
+    admin_id, tech_id = _seed(app)
+    disp_token = _login(client, "disp", "Disp123!")
+
+    with app.app_context():
+        tech_role = Role.query.filter_by(name="technician").first()
+        tech2 = User(username="tech2", email="tech2@test.local")
+        tech2.set_password("Tech123!")
+        tech2.roles.append(tech_role)
+        db.session.add(tech2)
+        db.session.commit()
+        tech2_id = tech2.id
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "WO owned", "assigned_to_id": tech_id})
+    assert resp.status_code == 201
+    wo_id = resp.get_json()["id"]
+
+    tech2_token = _login(client, "tech2", "Tech123!")
+    resp = client.post("/api/v1/sync/push", headers={"Authorization": f"Bearer {tech2_token}"}, json={
+        "operations": [{"client_operation_id": "op-obs-unowned", "operation_type": "add_observation", "payload": {"work_order_id": wo_id, "description": "nota"}}]
+    })
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["results"][0]["status"] == "failed"
