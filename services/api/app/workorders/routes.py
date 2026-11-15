@@ -131,6 +131,22 @@ def work_orders_patch(wo_id):
     old_scheduled = wo.scheduled_at
     old_title = wo.title
 
+    # Validación de programación (solape, horario, domingos) si se envía fecha
+    if "scheduled_at" in data or "scheduled_end" in data or "scheduled_end" in data:
+        from app.calendar import service as calendar_service
+        v_roles = roles if "dispatcher" in roles else (roles + ["dispatcher"])
+        vresult, verr = calendar_service.validate_schedule(wo_id, data, v_roles)
+        if verr == "forbidden":
+            return jsonify({"error": "forbidden"}), 403
+        if verr == "not_found":
+            return jsonify({"error": "not found"}), 404
+        if verr:
+            return jsonify({"error": verr}), 400
+        if not vresult.get("ok", True):
+            conflicts = vresult.get("conflicts") or []
+            code = conflicts[0].get("code") if conflicts else "schedule_conflict"
+            return jsonify({"error": code, "conflicts": conflicts}), 409
+
     wo = update_work_order(wo_id, data, request.user_id)
     if not wo:
         return jsonify({"error": "work order not found"}), 404
@@ -267,7 +283,7 @@ def work_orders_schedule(wo_id):
     if not wo:
         return jsonify({"error": "not found"}), 404
     roles = request.user_roles
-    if "dispatcher" not in roles:
+    if "dispatcher" not in roles and "admin" not in roles:
         return jsonify({"error": "forbidden"}), 403
     result, err = calendar_service.schedule_order(wo_id, data, db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id), roles)
     if err == "not_found":
@@ -285,6 +301,8 @@ def work_orders_schedule(wo_id):
         except Exception:
             db.session.rollback()
         return jsonify({"error": "sunday authorization required", "code": "sunday_authorization_required"}), 403
+    if err == "reason_required":
+        return jsonify({"error": "reason required"}), 422
     if err == "stale_version":
         return jsonify({"error": "stale version", "code": "STALE_VERSION"}), 409
     if err == "invalid_transition":
@@ -319,7 +337,7 @@ def work_orders_reschedule(wo_id):
     if not wo:
         return jsonify({"error": "not found"}), 404
     roles = request.user_roles
-    if "dispatcher" not in roles:
+    if "dispatcher" not in roles and "admin" not in roles:
         return jsonify({"error": "forbidden"}), 403
     result, err = calendar_service.schedule_order(wo_id, data, db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id), roles)
     if err == "not_found":
@@ -337,6 +355,8 @@ def work_orders_reschedule(wo_id):
         except Exception:
             db.session.rollback()
         return jsonify({"error": "sunday authorization required", "code": "sunday_authorization_required"}), 403
+    if err == "reason_required":
+        return jsonify({"error": "reason required"}), 422
     if err == "stale_version":
         return jsonify({"error": "stale version", "code": "STALE_VERSION"}), 409
     if err == "invalid_transition":
@@ -361,7 +381,7 @@ def work_orders_reschedule(wo_id):
 def work_orders_assign(wo_id):
     data = request.get_json() or {}
     roles = request.user_roles
-    if "dispatcher" not in roles:
+    if "dispatcher" not in roles and "admin" not in roles:
         return jsonify({"error": "forbidden"}), 403
     result, err = calendar_service.assign_order(wo_id, data, db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id), roles)
     if err == "not_found":
@@ -379,6 +399,8 @@ def work_orders_assign(wo_id):
         except Exception:
             db.session.rollback()
         return jsonify({"error": "sunday authorization required", "code": "sunday_authorization_required"}), 403
+    if err == "reason_required":
+        return jsonify({"error": "reason required"}), 422
     if err == "invalid_transition":
         return jsonify({"error": "invalid transition", "code": "INVALID_TRANSITION"}), 409
     if err == "invalid_technician":

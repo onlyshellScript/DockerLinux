@@ -358,3 +358,52 @@ def test_admin_edit_invalid_ifmatch_returns_400(client, app):
         json={"title": "Cambio", "reason": "Motivo"},
     )
     assert resp.status_code == 400
+
+
+def test_admin_edit_notifies_technician(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    disp_token = _login(client, "disp", "Disp123!")
+    tech_token = _login(client, "tech", "Tech123!")
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden notif"})
+    wo_id = resp.get_json()["id"]
+    version = resp.get_json().get("version", 0)
+
+    from app.notifications.models import Notification
+    before = 0
+    with app.app_context():
+        before = Notification.query.filter_by(user_id=tech_id).count()
+
+    resp = client.patch(
+        f"/api/v1/work-orders/{wo_id}",
+        headers={"Authorization": f"Bearer {admin_token}", "If-Match": str(version)},
+        json={"assigned_to_id": tech_id, "reason": "Cambio admin"},
+    )
+    assert resp.status_code == 200
+
+    with app.app_context():
+        after = Notification.query.filter_by(user_id=tech_id).count()
+    assert after > before
+
+
+def test_admin_edit_appears_in_timeline(client, app):
+    admin_id, disp_id, tech_id = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    disp_token = _login(client, "disp", "Disp123!")
+
+    resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden timeline"})
+    wo_id = resp.get_json()["id"]
+    version = resp.get_json().get("version", 0)
+
+    resp = client.patch(
+        f"/api/v1/work-orders/{wo_id}",
+        headers={"Authorization": f"Bearer {admin_token}", "If-Match": str(version)},
+        json={"title": "Orden timeline editada", "reason": "Motivo timeline"},
+    )
+    assert resp.status_code == 200
+
+    resp = client.get(f"/api/v1/work-orders/{wo_id}/timeline", headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert any("Motivo timeline" in str(item.get("notes", "")) for item in data)

@@ -167,7 +167,7 @@ def schedule_order(order_id, data, user, roles):
     wo = WorkOrder.query.filter_by(id=order_id).with_for_update().first()
     if not wo:
         return None, "not_found"
-    if "dispatcher" not in roles:
+    if "dispatcher" not in roles and "admin" not in roles:
         return None, "forbidden"
     # version check
     if "version" in data and data.get("version") is not None:
@@ -249,7 +249,7 @@ def _conflict_to_error(code):
 
 def validate_schedule(order_id, data, roles):
     roles = roles or []
-    if "dispatcher" not in roles:
+    if "dispatcher" not in roles and "admin" not in roles:
         return None, "forbidden"
     wo = db.session.get(WorkOrder, order_id)
     if not wo:
@@ -276,27 +276,32 @@ def validate_schedule(order_id, data, roles):
         local_start = start.astimezone(tz)
         local_end = end.astimezone(tz)
         work_days = [int(x) for x in str(opset.work_days).split(",") if x.strip()]
-        if local_start.isoweekday() not in work_days:
-            conflicts.append({"code": "invalid_time", "message": "día no laboral"})
-        if local_start.strftime("%H:%M") < opset.work_start or local_end.strftime("%H:%M") > opset.work_end:
-            conflicts.append({"code": "out_of_hours", "message": "fuera del horario operativo"})
-        max_hours = int(data.get("max_hours", 8))
-        if (end - start).total_seconds() > max_hours * 3600:
-            conflicts.append({"code": "duration_too_long", "message": "duración demasiado larga"})
-        # autorización de domingos y festivos (solo admin con motivo)
         try:
             import holidays as _holidays
             co_holidays = _holidays.Colombia()
         except Exception:
             co_holidays = set()
         is_restricted_day = (local_start.weekday() == 6) or (local_start.date() in co_holidays)
+        restricted_conflict = False
         if is_restricted_day:
             if "admin" not in roles:
                 conflicts.append({"code": "sunday_authorization_required", "message": "programación en domingo o festivo requiere autorización del administrador"})
+                restricted_conflict = True
             elif not data.get("authorize_sunday"):
                 conflicts.append({"code": "sunday_authorization_required", "message": "programación en domingo o festivo requiere authorize_sunday=true"})
+                restricted_conflict = True
             elif not data.get("reason"):
                 conflicts.append({"code": "reason_required", "message": "motivo obligatorio para autorización"})
+                restricted_conflict = True
+        skip_work_days = is_restricted_day and "admin" in roles and data.get("authorize_sunday") and data.get("reason")
+        if not restricted_conflict and not skip_work_days:
+            if local_start.isoweekday() not in work_days:
+                conflicts.append({"code": "invalid_time", "message": "día no laboral"})
+        if local_start.strftime("%H:%M") < opset.work_start or local_end.strftime("%H:%M") > opset.work_end:
+            conflicts.append({"code": "out_of_hours", "message": "fuera del horario operativo"})
+        max_hours = int(data.get("max_hours", 8))
+        if (end - start).total_seconds() > max_hours * 3600:
+            conflicts.append({"code": "duration_too_long", "message": "duración demasiado larga"})
         # reason required when reprogramming
         if is_reprogram and not data.get("reason"):
             conflicts.append({"code": "reason_required", "message": "motivo del cambio obligatorio"})

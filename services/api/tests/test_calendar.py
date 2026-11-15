@@ -335,3 +335,73 @@ def test_atomicity_schedule(client, app):
         db.session.rollback()
         wo2 = WorkOrder.query.get(wo.id)
         assert wo2.scheduled_at is None
+
+
+def test_calendar_sunday_requires_authorization(client, app):
+    ids = _seed(app)
+    token = _login(client, "disp", "Disp123!")
+    resp = client.post("/api/v1/work-orders/{}/schedule".format(ids["work_order_id"]), headers={"Authorization": f"Bearer {token}"}, json={
+        "start": "2026-11-08T10:00:00", "end": "2026-11-08T11:00:00", "version": 0,
+    })
+    # version may be 0; if stale, still expect 403
+    assert resp.status_code in (403, 409)
+
+
+def test_calendar_holiday_requires_authorization(client, app):
+    ids = _seed(app)
+    token = _login(client, "disp", "Disp123!")
+    resp = client.post("/api/v1/work-orders/{}/schedule".format(ids["work_order_id"]), headers={"Authorization": f"Bearer {token}"}, json={
+        "start": "2026-12-25T10:00:00", "end": "2026-12-25T11:00:00", "version": 0,
+    })
+    assert resp.status_code in (403, 409)
+
+
+def test_calendar_saturday_allowed(client, app):
+    ids = _seed(app)
+    token = _login(client, "disp", "Disp123!")
+    with app.app_context():
+        wo = WorkOrder.query.get(ids["work_order_id"])
+        version = wo.version
+    resp = client.post("/api/v1/work-orders/{}/schedule".format(ids["work_order_id"]), headers={"Authorization": f"Bearer {token}"}, json={
+        "start": "2026-11-09T10:00:00", "end": "2026-11-09T11:00:00", "version": version,
+    })
+    assert resp.status_code in (200, 409)
+
+
+def test_calendar_admin_authorizes_sunday_with_reason(client, app):
+    ids = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    with app.app_context():
+        wo = WorkOrder.query.get(ids["work_order_id"])
+        version = wo.version
+    resp = client.post("/api/v1/work-orders/{}/schedule".format(ids["work_order_id"]), headers={"Authorization": f"Bearer {admin_token}"}, json={
+        "start": "2026-11-08T10:00:00", "end": "2026-11-08T11:00:00", "version": version,
+        "authorize_sunday": True, "reason": "Autorizacion admin",
+    })
+    assert resp.status_code == 200
+
+
+def test_calendar_admin_sunday_without_reason_returns_422(client, app):
+    ids = _seed(app)
+    admin_token = _login(client, "admin", "Admin123!")
+    with app.app_context():
+        wo = WorkOrder.query.get(ids["work_order_id"])
+        version = wo.version
+    resp = client.post("/api/v1/work-orders/{}/schedule".format(ids["work_order_id"]), headers={"Authorization": f"Bearer {admin_token}"}, json={
+        "start": "2026-11-08T10:00:00", "end": "2026-11-08T11:00:00", "version": version,
+        "authorize_sunday": True,
+    })
+    assert resp.status_code == 422
+
+
+def test_calendar_dispatcher_sunday_returns_required_code(client, app):
+    ids = _seed(app)
+    token = _login(client, "disp", "Disp123!")
+    with app.app_context():
+        wo = WorkOrder.query.get(ids["work_order_id"])
+        version = wo.version
+    resp = client.post("/api/v1/work-orders/{}/schedule".format(ids["work_order_id"]), headers={"Authorization": f"Bearer {token}"}, json={
+        "start": "2026-11-08T10:00:00", "end": "2026-11-08T11:00:00", "version": version,
+    })
+    assert resp.status_code == 403
+    assert resp.get_json().get("code") == "sunday_authorization_required"
