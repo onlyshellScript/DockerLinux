@@ -1,4 +1,6 @@
-﻿import 'package:path/path.dart';
+import 'dart:convert';
+
+import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 class LocalDatabase {
@@ -60,5 +62,26 @@ class LocalDatabase {
   Future<void> close() async {
     await _db?.close();
     _db = null;
+  }
+
+  Future<void> cacheWorkOrders(List<dynamic> orders) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    final batch = db.batch();
+    for (final o in orders) {
+      final m = o as Map<String, dynamic>;
+      batch.insert(
+        'cached_work_orders',
+        {'id': m['id'] as int, 'data': jsonEncode(m), 'synced_at': now},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<Map<String, dynamic>>> cachedWorkOrders() async {
+    final db = await database;
+    final rows = await db.query('cached_work_orders');
+    return rows.map((r) => jsonDecode(r['data'] as String) as Map<String, dynamic>).toList();
   }
 }

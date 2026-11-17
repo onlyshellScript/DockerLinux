@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
@@ -27,10 +27,19 @@ class PendingOperation {
       };
 }
 
-class PendingOperationsStore {
+abstract class PendingOperationsRepository {
+  Future<PendingOperation> add(String operationType, Map<String, dynamic> payload);
+  Future<List<PendingOperation>> pending();
+  Future<void> markSynced(String id);
+  Future<void> markFailed(String id);
+  Future<int> pendingCount();
+}
+
+class PendingOperationsStore implements PendingOperationsRepository {
   final LocalDatabase _db = LocalDatabase.instance;
   final _uuid = const Uuid();
 
+  @override
   Future<PendingOperation> add(String operationType, Map<String, dynamic> payload) async {
     final db = await _db.database;
     final op = PendingOperation(
@@ -49,6 +58,7 @@ class PendingOperationsStore {
     return op;
   }
 
+  @override
   Future<List<PendingOperation>> pending() async {
     final db = await _db.database;
     final rows = await db.query(
@@ -66,16 +76,19 @@ class PendingOperationsStore {
     )).toList();
   }
 
+  @override
   Future<void> markSynced(String id) async {
     final db = await _db.database;
     await db.update('pending_operations', {'status': 'synced'}, where: 'id = ?', whereArgs: [id]);
   }
 
+  @override
   Future<void> markFailed(String id) async {
     final db = await _db.database;
     await db.update('pending_operations', {'status': 'failed'}, where: 'id = ?', whereArgs: [id]);
   }
 
+  @override
   Future<int> pendingCount() async {
     final db = await _db.database;
     final result = await db.rawQuery('SELECT COUNT(*) as c FROM pending_operations WHERE status = ?', ['pending']);
