@@ -1,10 +1,12 @@
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort
 import copy
+import os
+import secrets
 import data
 
 app = Flask(__name__)
-app.secret_key = "cambia-esta-clave-en-produccion"
+app.secret_key = os.environ.get("SIGOS_FLASK_SECRET_KEY") or secrets.token_hex(32)
 
 # Estado en memoria (equivalente a SigosContext). Reemplazar por BD (SQLAlchemy) luego.
 STATE = {

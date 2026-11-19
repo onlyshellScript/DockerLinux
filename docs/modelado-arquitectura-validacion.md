@@ -329,4 +329,4 @@ Fuente detallada: `docs/traceability/design-requirements-matrix.md` (RF-01..RF-3
 ```
 
 Now write file. Then validate mermaid diagrams. Need extract each mermaid block and run mmdc. Let's write first.<|end|><|start|> getWindowRect <|constrain|>xml<|message|><rfl:parameter name="content">
-C:\Users\braya\Documents\SIGOSV\docs\modelado-arquitectura-validacion.md
+docs\modelado-arquitectura-validacion.md

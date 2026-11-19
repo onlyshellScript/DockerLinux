@@ -19,3 +19,24 @@ services/api/salida_sqlserver.txt
 # Salidas de herramientas locales
 .agent/
 .archify/
+
+# Secretos, claves y certificados
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+key.properties
+
+# Bases de datos, respaldos y salidas locales
+*.db
+*.sqlite
+*.sqlite3
+*.bak
+salida_*.txt
+services/api/migrations/versions_backup/
+
+# Documentos y material privado del proyecto
+requerimientos/
+docs/*.docx

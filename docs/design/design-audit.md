@@ -1,9 +1,9 @@
 # SIGOS — Auditoría de diseño actual
 
 ## 1. Alcance y método
-- Repositorio auditado: `C:\Users\braya\Documents\SIGOSV`.
+- Repositorio auditado: `<raíz del repositorio>`.
 - No hay repositorio Git detectado (`git status` falla: not a git repository). No se descartaron ni modificaron cambios preexistentes.
-- Referencia visual: `C:\Users\braya\Downloads\SIGOS ING SW IIIIII-comprimido.pdf` (16 páginas). También se usó `C:\Users\braya\Downloads\Proyecto SIGOS.pdf` para requerimientos, casos de uso y trazabilidad.
+- Referencia visual: `SIGOS ING SW IIIIII-comprimido.pdf` (16 páginas). También se usó `Proyecto SIGOS.pdf` para requerimientos, casos de uso y trazabilidad.
 - No se encontró enlace Figma editable operativo en el entorno; el PDF cita un enlace Figma, pero la referencia disponible para esta auditoría es el PDF.
 - Fuentes de verdad revisadas: README, manifiestos, código fuente, pruebas, OpenAPI, migraciones, compose y CI.
 

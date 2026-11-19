@@ -56,7 +56,7 @@ Ver `README.md` § Base de datos local. Comandos verificados localmente (`sqlcmd
 
 ```powershell
 cd services/api
-$env:DB_URL = "mssql+pyodbc://sigos:Sigos_Dev_2026!@localhost:1433/sigos?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+$env:DB_URL = "mssql+pyodbc://sigos:<DB_PASSWORD>@localhost:1433/sigos?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
 $env:FLASK_APP = "wsgi.py"
 .venv\Scripts\flask db upgrade
 ```

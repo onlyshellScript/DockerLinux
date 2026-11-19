@@ -1,6 +1,6 @@
 # Esquema original de SIGOS (solo lectura)
 
-Base: SIGOS en 100.68.208.125:1433 (SQL Server). Tabla `sysdiagrams` excluida.
+Base: SIGOS en <servidor-sql>:1433 (SQL Server). Tabla `sysdiagrams` excluida.
 Generado automaticamente. NO modificar SIGOS.
 
 ## Tabla: Auditoria
