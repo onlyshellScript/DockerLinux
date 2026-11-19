@@ -176,6 +176,15 @@ step "4/8 Configuracion y secretos"
 umask 077
 new_env=0
 if [[ ! -f "$SIGOS_ENV_FILE" ]]; then
+  # SQL Server fija la contrasena de sa al crear su volumen: con un sigos.env nuevo (secretos nuevos) y un
+  # volumen de una instalacion anterior, la BD rechazaria las credenciales. No se borra nada: se pide decidir.
+  if docker volume inspect "${SIGOS_PROJECT}_sqlserver-data" >/dev/null 2>&1; then
+    die "$EXIT_PREREQ" "Existe el volumen ${SIGOS_PROJECT}_sqlserver-data de una instalacion anterior, pero falta $SIGOS_ENV_FILE con sus contrasenas.
+    - Si tiene datos que quiere conservar: restaure el $SIGOS_ENV_FILE original (o una copia) y repita.
+    - Si es una instalacion de prueba sin datos: borre los volumenes viejos y repita:
+        sudo docker compose -p $SIGOS_PROJECT -f $REPO_ROOT/infra/docker/docker-compose.prod.yaml down -v
+      (si se queja de variables obligatorias: sudo docker volume rm \$(sudo docker volume ls -q --filter label=com.docker.compose.project=$SIGOS_PROJECT))"
+  fi
   new_env=1
   {
     printf '# SIGOS: configuracion de produccion. Generado por install.sh el %s.\n' "$(date -Is)"
