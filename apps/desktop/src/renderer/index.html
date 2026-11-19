@@ -3,18 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; connect-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; img-src 'self' data: blob:; connect-src 'self'">
   <title>SIGOS | Gestión  de Ordenes</title>
+  <script src="theme-init.js"></script>
   <link rel="stylesheet" href="sigos.css">
   <link rel="stylesheet" href="app-sigos.css">
+  <link rel="stylesheet" href="design-system.css">
+  <link rel="stylesheet" href="loader.css">
 </head>
 <body>
   <div id="app"></div>
+  <script src="metaball-loader.js"></script>
+  <script src="loading.js"></script>
   <script src="chart.js"></script>
   <script src="i18n-status.js"></script>
   <script src="common/materials.js"></script>
   <script src="../common/orderDetailRules.js"></script>
-  <script src="askText.js"></script>
+  <script src="transitions.js"></script>
+  <script src="ui-components.js"></script>
+  <script src="export-wizard.js"></script>
   <script src="evidence_admin.js"></script>
   <script src="errorHelper.js"></script>
   <script src="app.js"></script>

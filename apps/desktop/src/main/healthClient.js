@@ -1,4 +1,6 @@
-﻿async function getHealth(baseUrl) {
+﻿// healthClient.js: consulta de salud del API desde el proceso principal.
+// getHealth(baseUrl): obtiene get health; realiza peticiones de red.
+async function getHealth(baseUrl) {
   const url = new URL('/api/v1/health', baseUrl);
   try {
     const response = await fetch(url);

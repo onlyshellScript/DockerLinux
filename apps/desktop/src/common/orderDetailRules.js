@@ -1,3 +1,5 @@
+// orderDetailRules.js: transiciones, acciones visibles y mensajes de error del detalle de orden.
+// Devuelve las transiciones de estado permitidas segun status y role; entrada status, role; salida array; sin efectos secundarios.
 function allowedTransitions(status, role) {
   const base = {
     pending: ['assigned', 'cancelled'],
@@ -12,6 +14,7 @@ function allowedTransitions(status, role) {
   return list;
 }
 
+// Indica que acciones puede ver un role en un status; entrada role, status; salida objeto; sin efectos secundarios.
 function visibleActions(role, status) {
   const isManager = role === 'admin' || role === 'dispatcher';
   const terminal = status === 'completed' || status === 'cancelled';
@@ -24,6 +27,7 @@ function visibleActions(role, status) {
   };
 }
 
+// Traduce un error de backend a mensaje legible para la UI; entrada err; salida str; sin efectos secundarios.
 function backendErrorToMessage(err) {
   const status = err && (err.status || err.statusCode);
   const msg = (err && (err.error || err.message || err.code || (typeof err === 'string' ? err : ''))) || '';
@@ -39,16 +43,19 @@ function backendErrorToMessage(err) {
   return String(msg || 'Error');
 }
 
+// Valida que la cantidad de material sea positiva; entrada qty; salida bool; sin efectos secundarios.
 function validateMaterialQty(qty) {
   return typeof qty === 'number' ? qty > 0 : Number(qty) > 0;
 }
 
+// Valida campos obligatorios de una orden; entrada obj; salida objeto de errores; sin efectos secundarios.
 function validateRequiredFields(obj) {
   const errors = {};
   if (!obj || !String(obj.customer_name || '').trim()) errors.customer_name = 'Cliente obligatorio';
   return errors;
 }
 
+// Normaliza una respuesta de API a lista; entrada resp; salida array; sin efectos secundarios.
 function asList(resp) {
   if (!resp) return [];
   if (Array.isArray(resp)) return resp;

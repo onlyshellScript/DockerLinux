@@ -1,8 +1,10 @@
+// healthClient.test.js: pruebas del cliente de salud.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { getHealth } = require('../src/main/healthClient');
 
+// getHealth reports available API: verifica el comportamiento esperado del caso indicado.
 test('getHealth reports available API', async () => {
   const server = http.createServer((req, res) => {
     res.setHeader('Content-Type', 'application/json');
@@ -16,6 +18,7 @@ test('getHealth reports available API', async () => {
   assert.equal(result.body.status, 'UP');
 });
 
+// getHealth reports unavailable API: verifica el comportamiento esperado del caso indicado.
 test('getHealth reports unavailable API', async () => {
   const server = http.createServer((req, res) => {
     res.statusCode = 503;

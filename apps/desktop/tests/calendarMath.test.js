@@ -1,3 +1,4 @@
+// calendarMath.test.js: pruebas de utilidades del calendario.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
@@ -5,12 +6,14 @@ const {
   coordToTime, layoutOverlapColumns, optimisticApply, optimisticRevert, sameDayEvents,
 } = require('../src/common/calendarMath');
 
+// eventPosition: 09:00-10:00 a 48px de alto: verifica el comportamiento esperado del caso indicado.
 test('eventPosition: 09:00-10:00 a 48px de alto', () => {
   const p = eventPosition('2026-11-04T09:00:00', '2026-11-04T10:00:00');
   assert.equal(p.top, 96);
   assert.equal(p.height, 48);
 });
 
+// snapMinutes 15/30: verifica el comportamiento esperado del caso indicado.
 test('snapMinutes 15/30', () => {
   assert.equal(snapMinutes(14, 30), 0);
   assert.equal(snapMinutes(16, 30), 30);
@@ -18,26 +21,31 @@ test('snapMinutes 15/30', () => {
   assert.equal(snapMinutes(8, 15), 15);
 });
 
+// snapTime: verifica el comportamiento esperado del caso indicado.
 test('snapTime', () => {
   assert.equal(snapTime('09:14', 30), '09:00');
   assert.equal(snapTime('09:16', 30), '09:30');
 });
 
+// crossesDay: verifica el comportamiento esperado del caso indicado.
 test('crossesDay', () => {
   assert.equal(crossesDay('2026-11-04T23:00:00', '2026-11-05T00:00:00'), true);
   assert.equal(crossesDay('2026-11-04T09:00:00', '2026-11-04T10:00:00'), false);
 });
 
+// crossesMonth: verifica el comportamiento esperado del caso indicado.
 test('crossesMonth', () => {
   assert.equal(crossesMonth('2026-10-31', 1), true);
   assert.equal(crossesMonth('2026-10-15', 5), false);
 });
 
+// coordToTime: verifica el comportamiento esperado del caso indicado.
 test('coordToTime', () => {
   // 30px into 48px cell at 09:00 hour => 09:30 with 30 snap
   assert.equal(coordToTime(30, 0, 48, 7, 30), '07:30');
 });
 
+// layoutOverlapColumns: verifica el comportamiento esperado del caso indicado.
 test('layoutOverlapColumns', () => {
   const evs = [
     { start: '2026-11-04T09:00:00', end: '2026-11-04T10:00:00', order_id: 1 },
@@ -47,6 +55,7 @@ test('layoutOverlapColumns', () => {
   assert.equal(cols.length, 2);
 });
 
+// optimisticApply and revert: verifica el comportamiento esperado del caso indicado.
 test('optimisticApply and revert', () => {
   const items = [{ order_id: 1, start: 'a', end: 'b' }];
   const r = optimisticApply(items, 1, 'x', 'y');
@@ -55,6 +64,7 @@ test('optimisticApply and revert', () => {
   assert.equal(reverted[0].start, 'a');
 });
 
+// sameDayEvents includes 09:00-10:00: verifica el comportamiento esperado del caso indicado.
 test('sameDayEvents includes 09:00-10:00', () => {
   const items = [
     { order_id: 1, start: '2026-11-04T09:00:00', end: '2026-11-04T10:00:00' },

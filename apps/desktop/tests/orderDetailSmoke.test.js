@@ -1,3 +1,4 @@
+// orderDetailSmoke.test.js: prueba de humo del detalle de orden.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { classifyError, errorMessage, asList } = require('../src/renderer/errorHelper');
@@ -11,6 +12,7 @@ const mockResponses = [
   { ok: false, status: 500, body: { error: 'server error' } },
 ];
 
+// jsdom smoke: order detail responses do not throw: verifica el comportamiento esperado del caso indicado.
 test('jsdom smoke: order detail responses do not throw', () => {
   for (const res of mockResponses) {
     assert.doesNotThrow(() => {

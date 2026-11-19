@@ -1,3 +1,4 @@
+// evidence.spec.js: prueba visual de la bandeja de evidencias.
 const { _electron: electron } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -10,10 +11,12 @@ const sizes = [
   { width: 1920, height: 1080 },
 ];
 
+// devuelve login; sin efectos secundarios.
 async function login(page) {
-  await page.waitForSelector('.sidebar', { timeout: 30000 });
+  await page.waitForSelector('.app-sidebar', { timeout: 30000 });
 }
 
+// devuelve shot; accede al sistema de archivos.
 async function shot(page, name, size) {
   const dir = path.join(__dirname, 'screenshots');
   fs.mkdirSync(dir, { recursive: true });
@@ -26,11 +29,9 @@ async function shot(page, name, size) {
     const page = await app.firstWindow();
     await page.setViewportSize(size);
     await login(page);
-    // admin inbox
     await page.click('[data-view="evidence-inbox"]');
     await page.waitForTimeout(2000);
     await shot(page, 'evidence-inbox', size);
-    // technician evidence view
     await page.click('[data-view="evidence"]');
     await page.waitForTimeout(2000);
     await shot(page, 'evidence-technician', size);

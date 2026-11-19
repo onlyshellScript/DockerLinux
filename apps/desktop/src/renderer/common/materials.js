@@ -1,4 +1,6 @@
-﻿function formatCOP(value) {
+﻿// materials.js: formato, estado de stock y filtros de materiales.
+// formatCOP(value): formatea format cop; sin efectos secundarios.
+function formatCOP(value) {
   const n = Number(value || 0);
   try {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n).replace(/\u00A0/g, ' ');
@@ -7,19 +9,21 @@
   }
 }
 
+// devuelve material status; sin efectos secundarios.
 function materialStatus(stock, minimum, threshold) {
   const s = Number(stock || 0);
   const m = Number(minimum || 0);
   const t = (threshold == null ? 0.5 : Number(threshold));
   if (m <= 0) {
-    if (s <= 0) return { key: 'critical', label: 'Crítico ⚠', badge: 'badge-cancelled', bar: '#D63B3B' };
+    if (s <= 0) return { key: 'critical', label: 'Crítico', badge: 'badge-cancelled', bar: '#D63B3B' };
     return { key: 'ok', label: 'OK', badge: 'badge-completed', bar: '#22C55E' };
   }
-  if (s <= 0 || s <= m * t) return { key: 'critical', label: 'Crítico ⚠', badge: 'badge-cancelled', bar: '#D63B3B' };
-  if (s <= m) return { key: 'low', label: 'Bajo ▼', badge: 'badge-pending', bar: '#E8A520' };
+  if (s <= 0 || s <= m * t) return { key: 'critical', label: 'Crítico', badge: 'badge-cancelled', bar: '#D63B3B' };
+  if (s <= m) return { key: 'low', label: 'Bajo', badge: 'badge-pending', bar: '#E8A520' };
   return { key: 'ok', label: 'OK', badge: 'badge-completed', bar: '#22C55E' };
 }
 
+// devuelve stock level pct; sin efectos secundarios.
 function stockLevelPct(stock, minimum) {
   const s = Number(stock || 0);
   const m = Number(minimum || 0);
@@ -27,10 +31,12 @@ function stockLevelPct(stock, minimum) {
   return Math.max(0, Math.min(100, Math.round((s / m) * 100)));
 }
 
+// normalize(s): normaliza normalize; sin efectos secundarios.
 function normalize(s) {
   return String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+// filterMaterials(list, q, status, unit): filtra filter materials; sin efectos secundarios.
 function filterMaterials(list, q, status, unit) {
   const nq = normalize(q);
   return (list || []).filter((m) => {
@@ -44,6 +50,7 @@ function filterMaterials(list, q, status, unit) {
   });
 }
 
+// devuelve min stock warning; sin efectos secundarios.
 function minStockWarning(minimum) {
   return Number(minimum || 0) === 0;
 }

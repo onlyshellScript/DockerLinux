@@ -1,3 +1,5 @@
+// askText.js: dialogo modal de texto reutilizable.
+// askText(message): solicita ask text; actualiza el DOM.
 function askText(message) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
@@ -28,6 +30,7 @@ function askText(message) {
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     input.focus();
+    // devuelve cleanup; sin efectos secundarios.
     const cleanup = (val) => { overlay.remove(); resolve(val); };
     cancel.addEventListener('click', () => cleanup(null));
     ok.addEventListener('click', () => cleanup(input.value.trim() || null));

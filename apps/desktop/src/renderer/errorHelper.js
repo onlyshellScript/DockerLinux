@@ -1,4 +1,6 @@
-﻿function classifyError(res) {
+﻿// errorHelper.js: clasificacion y mensajes de error HTTP/transporte.
+// classifyError(res): clasifica classify error; sin efectos secundarios.
+function classifyError(res) {
   if (!res) {
     return { kind: 'transport', status: 0, message: 'Sin conexión con el servidor.', transportError: null };
   }
@@ -37,12 +39,14 @@
   return { kind: 'ok', status, message: null, code: body && body.code };
 }
 
+// devuelve error message; sin efectos secundarios.
 function errorMessage(res, fallback) {
   if (!res) return fallback || 'Sin conexión con el servidor.';
   const info = classifyError(res);
   return (info && info.message) || fallback || 'Error';
 }
 
+// asList(resp): convierte as list; sin efectos secundarios.
 function asList(resp) {
   if (!resp) return [];
   if (Array.isArray(resp)) return resp;

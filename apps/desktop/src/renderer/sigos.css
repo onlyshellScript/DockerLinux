@@ -23,8 +23,8 @@
 
 body {
   font-family: 'DM Sans', sans-serif;
-  color: #1A1F27;
-  background: #F5F2EB;
+  color: var(--c-text);
+  background: var(--c-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
@@ -40,12 +40,12 @@ p { margin: 0; }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #C8C3BB; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #A8A29A; }
+::-webkit-scrollbar-thumb { background: var(--c-scroll); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--c-text-3); }
 
 .sigos-card {
-  background: #fff;
-  border: 1px solid #DDD9D3;
+  background:var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 6px;
   transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
@@ -53,7 +53,7 @@ p { margin: 0; }
 .sigos-card--interactive { cursor: pointer; }
 .sigos-card--interactive:hover {
   box-shadow: 0 8px 22px rgba(22, 48, 40, 0.09);
-  border-color: #CFC9C1;
+  border-color: var(--c-border-strong);
   transform: translateY(-1px);
 }
 
@@ -62,7 +62,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 a:focus-visible {
-  outline: 2px solid #2E7A50;
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 
@@ -71,11 +71,11 @@ a:focus-visible {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.sigos-btn-primary:disabled:hover { background: #2E7A50; }
-.sigos-btn-secondary:disabled:hover { background: transparent; border-color: #DDD9D3; }
+.sigos-btn-primary:disabled:hover { background: var(--c-primary); }
+.sigos-btn-secondary:disabled:hover { background: transparent; border-color: var(--c-border); }
 
 .sigos-btn-primary {
-  background: #2E7A50;
+  background: var(--c-primary);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -89,12 +89,12 @@ a:focus-visible {
   gap: 6px;
   transition: background 0.15s;
 }
-.sigos-btn-primary:hover { background: #245E3E; }
+.sigos-btn-primary:hover { background: var(--c-primary-hover); }
 
 .sigos-btn-secondary {
   background: transparent;
-  color: #3A4552;
-  border: 1px solid #DDD9D3;
+  color: var(--c-text-2);
+  border: 1px solid var(--c-border);
   border-radius: 4px;
   padding: 7px 14px;
   font-family: 'DM Sans', sans-serif;
@@ -106,40 +106,40 @@ a:focus-visible {
   gap: 6px;
   transition: all 0.15s;
 }
-.sigos-btn-secondary:hover { background: #F5F2EB; border-color: #AEA9A2; }
+.sigos-btn-secondary:hover { background: var(--c-bg); border-color: var(--c-border-strong); }
 
 .sigos-input {
-  border: 1px solid #DDD9D3;
+  border: 1px solid var(--c-border);
   border-radius: 4px;
   padding: 8px 12px;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
-  color: #1A1F27;
-  background: #fff;
+  color: var(--c-text);
+  background:var(--c-surface);
   outline: none;
   transition: border-color 0.15s;
   width: 100%;
 }
-.sigos-input:focus { border-color: #2E7A50; box-shadow: 0 0 0 2px rgba(46,122,80,0.12); }
+.sigos-input:focus { border-color: var(--c-primary); box-shadow: 0 0 0 2px rgba(46,122,80,0.12); }
 .cal-toolbar select { width: auto; min-width: 150px; max-width: 200px; flex: 0 0 auto; height: 36px; }
 .cal-expand { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.25s ease, opacity 0.25s ease; }
 .cal-expand.open { max-height: 1200px; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .cal-expand { transition: none; } }
-.sigos-input::placeholder { color: #96908A; }
+.sigos-input::placeholder { color: var(--c-text-3); }
 
 .sigos-select {
-  border: 1px solid #DDD9D3;
+  border: 1px solid var(--c-border);
   border-radius: 4px;
   padding: 7px 30px 7px 12px;
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
-  color: #3A4552;
-  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748B' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color: var(--c-text-2);
+  background:var(--c-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748B' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
   appearance: none;
   outline: none;
   cursor: pointer;
 }
-.sigos-select:focus { border-color: #2E7A50; }
+.sigos-select:focus { border-color: var(--c-primary); }
 
 .badge-pending { background: #FEF3C7; color: #92400E; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; font-family: 'DM Sans'; letter-spacing: 0.02em; }
 .badge-scheduled { background: #DBEAFE; color: #1E40AF; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; font-family: 'DM Sans'; letter-spacing: 0.02em; }
@@ -162,7 +162,7 @@ a:focus-visible {
 .badge-coordinator { background: #DBEAFE; color: #1E40AF; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
 .badge-technician { background: #DCFCE7; color: #166534; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
 
-.tbl-row:hover { background: #FAFAF8; }
+.tbl-row:hover { background: var(--c-surface-2); }
 
 .sidebar-nav-item {
   display: flex;
@@ -184,8 +184,8 @@ a:focus-visible {
 .sidebar-nav-item svg { opacity: 0.7; }
 
 .kpi-card {
-  background: #fff;
-  border: 1px solid #DDD9D3;
+  background:var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 6px;
   padding: 20px;
   display: flex;
@@ -198,7 +198,7 @@ a:focus-visible {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #96908A;
+  color: var(--c-text-3);
   font-family: 'DM Sans';
 }
 
@@ -217,14 +217,14 @@ a:focus-visible {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #F5F2EB;
-  border: 1px solid #EAE6DE;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
   margin-bottom: 14px;
-  color: #A8A29A;
+  color: var(--c-text-3);
 }
 .empty-state__icon svg {
   width: 24px;
@@ -234,12 +234,12 @@ a:focus-visible {
   font-family: 'Outfit', sans-serif;
   font-weight: 600;
   font-size: 15px;
-  color: #3A4552;
+  color: var(--c-text-2);
   margin-bottom: 4px;
 }
 .empty-state__text {
   font-size: 13px;
-  color: #96908A;
+  color: var(--c-text-3);
   max-width: 340px;
   line-height: 1.5;
 }
@@ -290,7 +290,7 @@ a:focus-visible {
   font-family: 'DM Sans', sans-serif;
   font-size: 12px;
   font-weight: 600;
-  color: #2E7A50;
+  color:var(--c-primary-ink);
   cursor: pointer;
 }
 .link-btn:hover { text-decoration: underline; }
@@ -299,7 +299,7 @@ a:focus-visible {
   transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 .sigos-role-option:hover {
-  border-color: #2E7A50 !important;
+  border-color: var(--c-primary) !important;
   box-shadow: 0 6px 16px rgba(22, 48, 40, 0.1);
   transform: translateY(-1px);
 }
@@ -311,7 +311,7 @@ a:focus-visible {
 .sigos-table-head th {
   position: sticky;
   top: 0;
-  background: #FAFAF8;
+  background: var(--c-surface-2);
   z-index: 1;
 }
 
@@ -684,182 +684,3 @@ input[type='time'] {
   }
 }
 
-/* ---------- App shell: sidebar colapsable (Cambio 2) ---------- */
-/* shortcut: 232/72 px fijos según el padding actual de .sidebar-nav-item;
-   revisar si cambia el padding/márgenes de los items. */
-:root {
-  --sidebar-w: 232px;
-  --sidebar-w-collapsed: 72px;
-}
-
-/* La contención (contain:layout) va en el sidebar —el elemento que anima— y
-   NO en el main: contain:layout convierte al ancestro en containing block de
-   los hijos position:fixed y atraparía .modal-overlay (sonda CDP: el fijo
-   queda en la caja del host, no en el viewport). */
-.app-sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  width: var(--sidebar-w);
-  min-width: var(--sidebar-w);
-  z-index: 45;
-  contain: layout;
-  transition:
-    width var(--sigos-dur-fast) var(--sigos-ease-out),
-    min-width var(--sigos-dur-fast) var(--sigos-ease-out);
-}
-.app-sidebar:focus {
-  outline: none;
-}
-.app-sidebar.is-collapsed {
-  width: var(--sidebar-w-collapsed);
-  min-width: var(--sidebar-w-collapsed);
-}
-
-.app-sidebar__head {
-  padding: 20px 20px 16px;
-}
-.app-sidebar.is-collapsed .app-sidebar__head {
-  padding: 20px 10px 16px;
-}
-.app-sidebar.is-collapsed .app-sidebar__head > div {
-  justify-content: center;
-  gap: 0;
-}
-
-.app-sidebar__toggle {
-  position: absolute;
-  top: 18px;
-  right: -12px;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: #2e7a50;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 2;
-}
-.app-sidebar__toggle:hover {
-  background: #256b45;
-}
-.app-sidebar__toggle:focus-visible {
-  outline: 2px solid #a3d4b5;
-  outline-offset: 2px;
-}
-
-/* Colapsado: solo iconos + punto de badge */
-.app-sidebar.is-collapsed .app-sidebar__brand-text,
-.app-sidebar.is-collapsed .app-sidebar__label,
-.app-sidebar.is-collapsed .app-sidebar__section-label,
-.app-sidebar.is-collapsed .app-sidebar__divider,
-.app-sidebar.is-collapsed .app-sidebar__user-text {
-  display: none;
-}
-.app-sidebar.is-collapsed .sidebar-nav-item {
-  justify-content: center;
-  margin: 1px 6px;
-  padding: 9px 8px;
-}
-.app-sidebar.is-collapsed .app-sidebar__user {
-  padding: 12px 8px;
-  gap: 4px;
-  justify-content: space-between;
-}
-
-.app-sidebar__user {
-  padding: 12px 16px;
-  gap: 10px;
-}
-
-.sidebar-nav-item {
-  position: relative;
-}
-.sidebar-nav-item__dot {
-  position: absolute;
-  top: 7px;
-  left: calc(50% + 6px);
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-/* Scrollbar del nav sobre fondo oscuro: el thumb global #C8C3BB deja una
-   barra clara justo encima del bloque de perfil. */
-.app-sidebar__nav {
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
-  scrollbar-width: thin;
-}
-.app-sidebar__nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-/* ---------- Móvil (<768px): drawer superpuesto + TopBar compacto (Cambio 2b) ---------- */
-.topbar-menu-btn {
-  display: none;
-}
-/* El display vive en CSS (no inline) para que el media query lo pueda ocultar. */
-.topbar-search {
-  display: flex;
-}
-
-@media (max-width: 767px) {
-  /* El sidebar sale del flujo y se superpone: el main gana el ancho completo.
-     is-collapsed nunca llega aquí (AppLayout fuerza collapsed=false en móvil). */
-  .app-sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    height: 100vh;
-    width: min(280px, 85vw);
-    min-width: 0;
-    transform: translateX(-100%);
-    visibility: hidden;
-    z-index: 60;
-    transition:
-      transform var(--sigos-dur-fast) var(--sigos-ease-out),
-      visibility 0s linear var(--sigos-dur-fast);
-  }
-  .app-sidebar.is-drawer-open {
-    transform: translateX(0);
-    visibility: visible;
-    transition:
-      transform var(--sigos-dur-fast) var(--sigos-ease-out),
-      visibility 0s;
-  }
-  .app-sidebar__toggle {
-    display: none;
-  }
-
-  .topbar-menu-btn {
-    display: flex;
-  }
-  .sigos-topbar {
-    padding: 0 12px;
-    gap: 10px;
-  }
-  .sigos-topbar .topbar-search,
-  .sigos-topbar .topbar-help,
-  .sigos-topbar .topbar-profile-text {
-    display: none;
-  }
-  .topbar-title {
-    min-width: 0;
-  }
-  .topbar-title > div:first-child {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
-.app-scrim {
-  position: fixed;
-  inset: 0;
-  background: rgba(10, 20, 17, 0.5);
-  z-index: 55;
-}

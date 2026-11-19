@@ -1,3 +1,4 @@
+// i18n-status.js: etiquetas y estilos de estado, prioridad, rol y tecnico.
 const STATUS = {
   pending: { label: 'Pendiente', badge: 'badge-pending', color: '#E8A520', bg: '#FEF3C7', icon: 'schedule' },
   assigned: { label: 'Programada', badge: 'badge-scheduled', color: '#3B82F6', bg: '#DBEAFE', icon: 'event' },
@@ -7,6 +8,7 @@ const STATUS = {
   cancelled: { label: 'Cancelada', badge: 'badge-cancelled', color: '#D63B3B', bg: '#FEE2E2', icon: 'cancel' },
 };
 
+// devuelve status of; sin efectos secundarios.
 function statusOf(value) {
   if (STATUS[value]) return STATUS[value];
   const text = String(value || '').replace(/_/g, ' ');
@@ -20,6 +22,7 @@ const PRIORITY = {
   low: { label: 'Baja', badge: 'badge-low', color: '#64748B' },
 };
 
+// devuelve priority of; sin efectos secundarios.
 function priorityOf(value) {
   if (PRIORITY[value]) return PRIORITY[value];
   const text = String(value || '').replace(/_/g, ' ');
@@ -27,9 +30,9 @@ function priorityOf(value) {
   return { label: capitalized, badge: '', color: '#3A4552' };
 }
 
+// devuelve tech status of; sin efectos secundarios.
 function techStatusOf(value) {
   const map = { available: 'Disponible', busy: 'Ocupado', offduty: 'Fuera de servicio', true: 'Disponible', false: 'Fuera de servicio' };
-  // accept boolean
   let key = value;
   if (typeof value === 'boolean') key = value ? 'available' : 'offduty';
   const label = map[key] || String(value || '');
@@ -41,6 +44,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = { STATUS, statusOf, PRIORITY, priorityOf, techStatusOf, roleOf };
 }
 
+// devuelve role of; sin efectos secundarios.
 function roleOf(value) {
   const map = { admin: 'Administrador', dispatcher: 'Coordinador', technician: 'Técnico', coordinator: 'Coordinador' };
   const key = String(value || '').toLowerCase();

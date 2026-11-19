@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, safeStorage, dialog, shell } = require('electron');
+// index.js: proceso principal de Electron (ventana, IPC, sesion local).
+const { app, BrowserWindow, ipcMain, safeStorage, dialog, shell, nativeTheme } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { getHealth } = require('./healthClient');
@@ -6,6 +7,7 @@ const { getHealth } = require('./healthClient');
 const API_BASE_URL = process.env.SIGOS_API_BASE_URL || 'http://localhost:5000';
 const SESSION_FILE = path.join(app.getPath('userData'), 'sigos-session.bin');
 
+// readSession(): lee read session; accede al sistema de archivos; gestiona la sesion cifrada local.
 function readSession() {
   try {
     if (!fs.existsSync(SESSION_FILE)) return null;
@@ -17,6 +19,7 @@ function readSession() {
   }
 }
 
+// writeSession(session): escribe write session; accede al sistema de archivos; gestiona la sesion cifrada local.
 function writeSession(session) {
   const json = JSON.stringify(session || null);
   const data = safeStorage.isEncryptionAvailable()
@@ -25,10 +28,12 @@ function writeSession(session) {
   fs.writeFileSync(SESSION_FILE, data);
 }
 
+// clearSession(): limpia clear session; accede al sistema de archivos.
 function clearSession() {
   try { fs.unlinkSync(SESSION_FILE); } catch {}
 }
 
+// devuelve api request; realiza peticiones de red.
 async function apiRequest({ method, path: reqPath, body, form, token, headers: extraHeaders }) {
   const url = new URL(reqPath, API_BASE_URL);
   const headers = {};
@@ -59,6 +64,7 @@ async function apiRequest({ method, path: reqPath, body, form, token, headers: e
 }
 
 
+// saveFile(payload): guarda save file; accede al sistema de archivos; muestra dialogos nativos del sistema.
 async function saveFile(payload) {
   try {
     const { defaultName, filters, data } = payload || {};
@@ -82,6 +88,7 @@ async function saveFile(payload) {
 }
 
 
+// exportDownload(payload): exporta export download; realiza peticiones de red; accede al sistema de archivos; muestra dialogos nativos del sistema.
 async function exportDownload(payload) {
   try {
     const { query, defaultName } = payload || {};
@@ -112,10 +119,20 @@ async function exportDownload(payload) {
   }
 }
 
+// windowBackground(): color de fondo de la ventana antes de que cargue el CSS (evita el destello blanco en tema oscuro).
+function windowBackground() {
+  let theme = 'system';
+  try { theme = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'sigos-ui-prefs.json'), 'utf8')).theme || 'system'; } catch { /* sin preferencias */ }
+  const dark = theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors);
+  return dark ? '#0F1513' : '#F7F6F3';
+}
+
+// createWindow(): crea create window; sin efectos secundarios.
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    backgroundColor: windowBackground(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -171,6 +188,66 @@ app.whenReady().then(() => {
   });  ipcMain.handle('sigos:session:load', async () => readSession());
   ipcMain.handle('sigos:session:save', async (_event, session) => { writeSession(session); return true; });
   ipcMain.handle('sigos:session:clear', async () => { clearSession(); return true; });
+  // Fin de sesion (logout o expiracion): ademas del archivo de sesion se descartan la cache HTTP, el almacenamiento
+  // de sesion/IndexedDB/caches y el historial de navegacion, y se recarga el renderer desde cero (sin la ruta
+  // anterior). Asi ningun estado en memoria, vista o dato de la cuenta anterior sobrevive para la siguiente.
+  // localStorage se conserva solo para preferencias de interfaz (tema, sidebar); el renderer borra antes sus claves de datos.
+  ipcMain.handle('sigos:session:end', async (event, payload) => {
+    clearSession();
+    const wc = event.sender;
+    try { await wc.session.clearCache(); } catch { /* sin cache */ }
+    try {
+      await wc.session.clearStorageData({ storages: ['sessionstorage', 'indexdb', 'cachestorage', 'serviceworkers', 'websql', 'shadercache', 'cookies'] });
+    } catch { /* almacenamiento no disponible */ }
+    const reason = payload && payload.reason === 'expired' ? 'expired' : 'logout';
+    const clearHistory = () => {
+      try {
+        if (wc.navigationHistory && typeof wc.navigationHistory.clear === 'function') wc.navigationHistory.clear();
+        else if (typeof wc.clearHistory === 'function') wc.clearHistory();
+      } catch { /* sin historial */ }
+    };
+    wc.once('did-finish-load', clearHistory);
+    await wc.loadFile(path.join(__dirname, '../renderer/index.html'), { query: { ended: reason } });
+    return true;
+  });
+  // Peticion que puede devolver un archivo binario (exportaciones). Solo rutas /api/v1/exports/ del API configurado.
+  ipcMain.handle('sigos:api-binary', async (_event, payload) => {
+    const { method, path: reqPath, body, token } = payload || {};
+    // Se valida la ruta YA normalizada (evita "/api/v1/exports/../../otra-ruta") y el mismo origen del API.
+    let target;
+    try { target = new URL(reqPath, API_BASE_URL); } catch { return { ok: false, status: 0, error: 'ruta no permitida' }; }
+    if (typeof reqPath !== 'string' || target.origin !== new URL(API_BASE_URL).origin || !target.pathname.startsWith('/api/v1/exports/')) {
+      return { ok: false, status: 0, error: 'ruta no permitida' };
+    }
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    try {
+      const res = await fetch(target, { method: method || 'POST', headers, body: body ? JSON.stringify(body) : undefined });
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) return { ok: res.ok, status: res.status, json: await res.json() };
+      const buf = Buffer.from(await res.arrayBuffer());
+      return {
+        ok: res.ok, status: res.status, data: buf.toString('base64'), contentType: ct, size: buf.length,
+        filename: res.headers.get('x-export-filename'), rows: Number(res.headers.get('x-export-rows') || 0), document: res.headers.get('x-export-document'),
+      };
+    } catch (error) {
+      return { ok: false, status: 0, error: String(error) };
+    }
+  });
+  // Preferencias de interfaz (no sensibles): JSON en userData; solo claves conocidas.
+  const PREFS_FILE = path.join(app.getPath('userData'), 'sigos-ui-prefs.json');
+  // Cada clave conocida valida su tipo: sidebarCollapsed (boolean), theme ('light' | 'dark' | 'system').
+  const PREF_VALIDATORS = {
+    sidebarCollapsed: (v) => typeof v === 'boolean',
+    theme: (v) => v === 'light' || v === 'dark' || v === 'system',
+  };
+  const readPrefs = () => { try { return JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8')) || {}; } catch { return {}; } };
+  ipcMain.handle('sigos:prefs:get', async () => readPrefs());
+  ipcMain.handle('sigos:prefs:set', async (_event, patch) => {
+    const next = readPrefs();
+    Object.entries(patch || {}).forEach(([k, v]) => { if (Object.prototype.hasOwnProperty.call(PREF_VALIDATORS, k) && PREF_VALIDATORS[k](v)) next[k] = v; });
+    try { fs.writeFileSync(PREFS_FILE, JSON.stringify(next)); return true; } catch { return false; }
+  });
   ipcMain.handle('sigos:save-file', async (_event, payload) => saveFile(payload || {}));
   ipcMain.handle('sigos:open-folder', async (_event, folderPath) => { try { await shell.openPath(require('node:path').dirname(folderPath)); return { ok: true }; } catch (e) { return { ok: false, error: String(e) }; } });
   ipcMain.handle('sigos:export-download', async (_event, payload) => exportDownload(payload || {}));
