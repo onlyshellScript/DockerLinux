@@ -10,13 +10,13 @@ jobs:
   api-tests:
     runs-on: ubuntu-latest
     env:
-      CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+      CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD || secrets.DOCKER_FILE }}
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-CU16-ubuntu-22.04
         env:
           ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+          MSSQL_SA_PASSWORD: ${{ secrets.CI_DB_PASSWORD || secrets.DOCKER_FILE }}
         ports:
           - "1433:1433"
     steps:
