@@ -15,12 +15,27 @@ def create_app(config_object=None):
         if not app.config.get("JWT_SECRET_KEY"):
             raise RuntimeError("JWT_SECRET_KEY environment variable is required")
 
+# Aplica la configuracion solicitada; recibe response; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     @app.after_request
     def apply_utf8_charset(response):
         ct = response.headers.get("Content-Type", "")
         if "charset" not in ct:
             if ct.startswith("text/") or ct == "application/json":
                 response.headers["Content-Type"] = ct + "; charset=utf-8"
+        return response
+
+    # Todas las respuestas de la API (datos, archivos de evidencia, firmas) son por usuario: ningun cliente ni
+    # proxy debe guardarlas. Asi otra cuenta en el mismo equipo no puede ver respuestas de la sesion anterior.
+    @app.after_request
+    def apply_no_store(response):
+        from flask import request
+        if request.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store, private, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            vary = response.headers.get("Vary", "")
+            if "Authorization" not in vary:
+                response.headers["Vary"] = (vary + ", Authorization").lstrip(", ")
         return response
 
     db.init_app(app)
@@ -65,8 +80,10 @@ def create_app(config_object=None):
     from app.reportes.routes import blueprint as reportes_blueprint
     app.register_blueprint(reportes_blueprint, url_prefix="/api/v1")
 
+    from app.exports.routes import blueprint as exports_blueprint
+    app.register_blueprint(exports_blueprint, url_prefix="/api/v1")
+
     from app.tecnico.routes import blueprint as tecnico_blueprint
     app.register_blueprint(tecnico_blueprint, url_prefix="/api/v1/tecnico")
 
     return app
-
