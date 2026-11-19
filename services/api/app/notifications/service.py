@@ -1,11 +1,14 @@
 ﻿import logging
+import os
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import update
 
 from app.extensions import db
 from app.notifications.models import (
     Notification, CHANNEL_EMAIL, CHANNEL_WHATSAPP,
-    STATUS_PENDING, STATUS_SENT, STATUS_FAILED, MAX_RETRIES,
+    STATUS_PENDING, STATUS_SENT, STATUS_FAILED, STATUS_PROCESSING, MAX_RETRIES,
 )
 from app.notifications.senders import send_notification
 
@@ -34,39 +37,88 @@ def enqueue_notification(user_id, channel, recipient, subject, message):
     return n
 
 
+def _claim_timeout():
+    """Segundos tras los que una reclamacion abandonada (proceso caido) vuelve a pending. Muy superior al
+    timeout de envio (10 s SMTP/WhatsApp) para no devolver a la cola una notificacion que se esta enviando."""
+    try:
+        return max(60, int(os.getenv("NOTIFICATION_CLAIM_TIMEOUT", "600")))
+    except ValueError:
+        return 600
+
+
+def _release_stale_claims(now):
+    """Devuelve a pending las notificaciones reclamadas por un proceso que murio antes de registrar el resultado."""
+    cutoff = now - timedelta(seconds=_claim_timeout())
+    result = db.session.execute(
+        update(Notification)
+        .where(Notification.status == STATUS_PROCESSING, Notification.claimed_at < cutoff)
+        .values(status=STATUS_PENDING, claimed_at=None)
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
+    if result.rowcount:
+        logger.warning("Reclamaciones abandonadas devueltas a pending: %s", result.rowcount)
+
+
+def _claim(notification_id, retry_count, now):
+    """UPDATE condicional atomico: True solo para el procesador que pasa la notificacion de pending a processing.
+    SQL Server bloquea la fila y reevalua el WHERE; SQLite serializa las escrituras. Otro procesador obtiene 0 filas.
+    Exige ademas el retry_count leido: si otro procesador ya la intento en este ciclo (y volvio a pending tras fallar),
+    no se reintenta inmediatamente; queda para el siguiente ciclo, como antes."""
+    result = db.session.execute(
+        update(Notification)
+        .where(Notification.id == notification_id, Notification.status == STATUS_PENDING,
+               Notification.retry_count == retry_count)
+        .values(status=STATUS_PROCESSING, claimed_at=now)
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
+    return result.rowcount == 1
+
+
 def process_pending(limit=50):
-    # Evita que el worker y el endpoint manual procesen simultaneamente.
+    """Envia las notificaciones pendientes. Seguro con varios procesadores a la vez (SIGOS-Worker, el endpoint
+    POST /notifications/process y la API con varios procesos): cada notificacion se reclama de forma atomica y su
+    resultado se confirma por separado, asi que una caida solo puede repetir el envio que estaba en curso
+    (entrega "al menos una vez"), nunca un lote entero, y ninguna notificacion se pierde."""
+    # Evita ciclos solapados dentro del mismo proceso (worker embebido + endpoint manual).
     if not _process_lock.acquire(blocking=False):
         return 0
 
     processed = 0
     try:
-        pending = (
-            Notification.query
-            .filter_by(status=STATUS_PENDING)
-            .order_by(Notification.created_at)
+        _release_stale_claims(datetime.now(timezone.utc))
+        candidates = (
+            db.session.query(Notification.id, Notification.retry_count)
+            .filter(Notification.status == STATUS_PENDING)
+            .order_by(Notification.created_at, Notification.id)
             .limit(limit)
             .all()
         )
 
-        for n in pending:
-            success, error = send_notification(
-                n.channel, n.recipient, n.subject, n.message
-            )
+        for notification_id, retry_count in candidates:
+            if not _claim(notification_id, retry_count, datetime.now(timezone.utc)):
+                continue  # la reclamo (o ya la intento) otro procesador
 
+            n = db.session.get(Notification, notification_id)
+            try:
+                success, error = send_notification(n.channel, n.recipient, n.subject, n.message)
+            except Exception as exc:  # un emisor que lanza no debe dejar la notificacion reclamada
+                logger.exception("Error enviando la notificacion %s", notification_id)
+                success, error = False, f"{type(exc).__name__}: {exc}"
+
+            # Solo este procesador modifica la fila mientras esta reclamada: sin actualizaciones perdidas.
             if success:
                 n.status = STATUS_SENT
                 n.sent_at = datetime.now(timezone.utc)
                 n.error_message = None
             else:
                 n.retry_count += 1
-                n.error_message = error
-                if n.retry_count >= MAX_RETRIES:
-                    n.status = STATUS_FAILED
-
+                n.error_message = (error or "")[:500] or None
+                n.status = STATUS_FAILED if n.retry_count >= MAX_RETRIES else STATUS_PENDING
+            n.claimed_at = None
+            db.session.commit()
             processed += 1
-
-        db.session.commit()
 
     except Exception:
         db.session.rollback()
