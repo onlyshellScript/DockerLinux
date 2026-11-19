@@ -9,7 +9,10 @@ ALL_CHANNELS = [CHANNEL_EMAIL, CHANNEL_WHATSAPP]
 STATUS_PENDING = "pending"
 STATUS_SENT = "sent"
 STATUS_FAILED = "failed"
-ALL_STATUSES = [STATUS_PENDING, STATUS_SENT, STATUS_FAILED]
+# Transitorio: reclamada por un procesador (worker o POST /notifications/process) mientras se envia.
+# Si el proceso muere, process_pending() la devuelve a pending tras NOTIFICATION_CLAIM_TIMEOUT.
+STATUS_PROCESSING = "processing"
+ALL_STATUSES = [STATUS_PENDING, STATUS_SENT, STATUS_FAILED, STATUS_PROCESSING]
 
 MAX_RETRIES = 3
 
@@ -29,6 +32,7 @@ class Notification(db.Model):
     error_message = db.Column("MensajeError", db.String(500))
     created_at = db.Column("CreadoEn", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     sent_at = db.Column("EnviadoEn", db.DateTime(timezone=True))
+    claimed_at = db.Column("ReclamadoEn", db.DateTime(timezone=True))
 
     user = db.relationship("User")
 

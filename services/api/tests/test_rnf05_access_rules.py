@@ -4,7 +4,7 @@ import pytest
 from app.identity.models import User, Role
 from app.extensions import db
 
-EXEMPT = {"auth.login", "auth.refresh", "health.health", "static"}
+EXEMPT = {"auth.login", "auth.refresh", "health.health", "health.live", "static"}
 
 ACCESS_RULES = {
     'auth.change_password_route': 'any',
@@ -84,6 +84,7 @@ ACCESS_RULES = {
     'evidence.signatures_create': 'any',
     'evidence.signatures_list': 'any',
     'health.health': 'public',
+    'health.live': 'public',
     'materials.catalog_create': ['admin'],
     'materials.catalog_list': 'any',
     'materials.categories_list': 'any',

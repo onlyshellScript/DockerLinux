@@ -1,0 +1,4 @@
+# Dependencias del despliegue nativo en Windows.
+# Reutiliza las de la API y añade waitress: gunicorn no funciona en Windows (depende de fork/fcntl).
+-r ../../services/api/requirements.txt
+waitress==3.0.2
