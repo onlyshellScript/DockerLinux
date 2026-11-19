@@ -21,6 +21,10 @@ from urllib.parse import quote_plus
 
 try:
     from dotenv import load_dotenv
+    # SIGOS_ENV_FILE: archivo de entorno fuera del codigo (p. ej. servicio Windows en
+    # C:\ProgramData\SIGOS\config\sigos.env). Se carga primero; load_dotenv no pisa variables ya definidas.
+    if os.environ.get("SIGOS_ENV_FILE"):
+        load_dotenv(os.environ["SIGOS_ENV_FILE"])
     load_dotenv(Path(__file__).resolve().parent.parent / ".env")
     load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 except ImportError:

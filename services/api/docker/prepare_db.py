@@ -35,6 +35,12 @@ def _odbc_conn_str(url, database="master"):
     trust = url.query.get("TrustServerCertificate", "yes")
     host = url.host or "localhost"
     port = url.port or 1433
+    if not url.username and str(url.query.get("trusted_connection", "")).lower() == "yes":
+        # Autenticacion de Windows (instalador nativo: el administrador aprovisiona sin contraseña de sa).
+        return (
+            f"DRIVER={{{driver}}};SERVER={host},{port};DATABASE={database};"
+            f"Trusted_Connection=yes;TrustServerCertificate={trust}"
+        )
     return (
         f"DRIVER={{{driver}}};SERVER={host},{port};DATABASE={database};"
         f"UID={url.username};PWD={{{url.password.replace('}', '}}')}}};TrustServerCertificate={trust}"
