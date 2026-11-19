@@ -16,12 +16,13 @@ class SyncResult {
 
 // Servicio que envia operaciones pendientes (push) y descarga cambios (pull).
 class SyncService {
-  SyncService(this.baseUrl, {http.Client? client})
-      : _client = client ?? http.Client();
+  SyncService(this.baseUrl, {http.Client? client, PendingOperationsRepository? store})
+      : _client = client ?? http.Client(),
+        _store = store ?? PendingOperationsStore();
 
   final String baseUrl;
   final http.Client _client;
-  final _store = PendingOperationsStore();
+  final PendingOperationsRepository _store;
 
   // Envia operaciones pending a /api/v1/sync/push y actualiza su estado segun respuesta.
   Future<SyncResult> pushPending(String token) async {
@@ -31,16 +32,21 @@ class SyncService {
     }
 
     final uri = Uri.parse('$baseUrl/api/v1/sync/push');
-    final response = await _client.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'operations': pending.map((op) => op.toJson()).toList(),
-      }),
-    );
+    http.Response response;
+    try {
+      response = await _client.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'operations': pending.map((op) => op.toJson()).toList(),
+        }),
+      );
+    } catch (_) {
+      return SyncResult(synced: 0, failed: pending.length, duplicates: 0);
+    }
 
     if (response.statusCode != 200) {
       return SyncResult(synced: 0, failed: pending.length, duplicates: 0);

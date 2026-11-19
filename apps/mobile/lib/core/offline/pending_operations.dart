@@ -30,12 +30,22 @@ class PendingOperation {
       };
 }
 
+// Contrato del almacen de operaciones pendientes (permite fakes en pruebas).
+abstract class PendingOperationsRepository {
+  Future<PendingOperation> add(String operationType, Map<String, dynamic> payload);
+  Future<List<PendingOperation>> pending();
+  Future<void> markSynced(String id);
+  Future<void> markFailed(String id);
+  Future<int> pendingCount();
+}
+
 // Almacen CRUD de operaciones pendientes en SQLite con estados pending/synced/failed.
-class PendingOperationsStore {
+class PendingOperationsStore implements PendingOperationsRepository {
   final LocalDatabase _db = LocalDatabase.instance;
   final _uuid = const Uuid();
 
   // Genera UUID, persiste la operacion como pending y la devuelve.
+  @override
   Future<PendingOperation> add(String operationType, Map<String, dynamic> payload) async {
     final db = await _db.database;
     final op = PendingOperation(
@@ -55,6 +65,7 @@ class PendingOperationsStore {
   }
 
   // Lista operaciones con status pending ordenadas por fecha de creacion.
+  @override
   Future<List<PendingOperation>> pending() async {
     final db = await _db.database;
     final rows = await db.query(
@@ -73,18 +84,21 @@ class PendingOperationsStore {
   }
 
   // Marca la operacion indicada como synced en SQLite.
+  @override
   Future<void> markSynced(String id) async {
     final db = await _db.database;
     await db.update('pending_operations', {'status': 'synced'}, where: 'id = ?', whereArgs: [id]);
   }
 
   // Marca la operacion indicada como failed en SQLite.
+  @override
   Future<void> markFailed(String id) async {
     final db = await _db.database;
     await db.update('pending_operations', {'status': 'failed'}, where: 'id = ?', whereArgs: [id]);
   }
 
   // Cuenta operaciones con status pending en SQLite.
+  @override
   Future<int> pendingCount() async {
     final db = await _db.database;
     final result = await db.rawQuery('SELECT COUNT(*) as c FROM pending_operations WHERE status = ?', ['pending']);

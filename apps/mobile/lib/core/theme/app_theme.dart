@@ -13,7 +13,6 @@ class AppTheme {
       primary: primary,
       secondary: primaryDark,
       surface: Colors.white,
-      background: background,
     );
     return ThemeData(
       colorScheme: scheme,

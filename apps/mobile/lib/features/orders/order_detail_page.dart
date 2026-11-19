@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/api/api_client.dart';
+import '../../core/offline/pending_operations.dart';
 
 // Widget con estado para cargar y modificar una orden.
 class OrderDetailPage extends StatefulWidget {
@@ -46,24 +47,29 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       _loading = true;
       _error = null;
     });
-    final results = await Future.wait([
-      widget.client.get('/api/v1/work-orders/${widget.orderId}'),
-      widget.client.get('/api/v1/work-orders/${widget.orderId}/history'),
-    ]);
-    if (!results[0].ok) {
-      // Desactiva carga y guarda el error si falla la consulta de la orden.
+    try {
+      final results = await Future.wait([
+        widget.client.get('/api/v1/work-orders/${widget.orderId}'),
+        widget.client.get('/api/v1/work-orders/${widget.orderId}/history'),
+      ]);
+      if (!results[0].ok) {
+        setState(() {
+          _loading = false;
+          _error = (results[0].body is Map ? results[0].body['error'] : null) ?? 'Error';
+        });
+        return;
+      }
+      setState(() {
+        _order = results[0].body as Map<String, dynamic>;
+        _history = results[1].ok ? (results[1].body as List<dynamic>? ?? []) : [];
+        _loading = false;
+      });
+    } catch (_) {
       setState(() {
         _loading = false;
-        _error = (results[0].body is Map ? results[0].body['error'] : null) ?? 'Error';
+        _error = 'Sin conexión';
       });
-      return;
     }
-    // Guarda orden e historial recibidos y desactiva carga.
-    setState(() {
-      _order = results[0].body as Map<String, dynamic>;
-      _history = results[1].ok ? (results[1].body as List<dynamic>? ?? []) : [];
-      _loading = false;
-    });
   }
 
   // Devuelve los estados permitidos segun el estado actual de la orden.
@@ -82,18 +88,37 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   // Envia el cambio de estado con notas a la API y recarga la orden.
   Future<void> _changeStatus() async {
     if (_newStatus == null) return;
-    final res = await widget.client.post('/api/v1/work-orders/${widget.orderId}/status', body: {
-      'to_status': _newStatus,
-      'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-    });
-    if (!res.ok) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.body is Map ? res.body['error'] ?? 'Error' : 'Error')));
-      return;
+    final notes = _notes.text.trim().isEmpty ? null : _notes.text.trim();
+    try {
+      final res = await widget.client.post('/api/v1/work-orders/${widget.orderId}/status', body: {
+        'to_status': _newStatus,
+        'notes': notes,
+      });
+      if (!res.ok) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.body is Map ? res.body['error'] ?? 'Error' : 'Error')));
+        return;
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado actualizado')));
+      _newStatus = null;
+      _notes.clear();
+      _load();
+    } catch (_) {
+      await PendingOperationsStore().add('change_status', {
+        'work_order_id': widget.orderId,
+        'to_status': _newStatus,
+        'notes': notes,
+      });
+      if (_order != null) {
+        setState(() => _order!['status'] = _newStatus);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Guardado sin conexión, se sincronizará')),
+        );
+      }
+      _newStatus = null;
+      _notes.clear();
     }
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado actualizado')));
-    _newStatus = null;
-    _notes.clear();
-    _load();
   }
 
   // Sube una observacion como evidencia multipart y recarga la orden.
@@ -105,24 +130,39 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     if (widget.client.token != null) req.headers['Authorization'] = 'Bearer ${widget.client.token}';
     req.fields['evidence_type'] = 'observation';
     req.fields['description'] = desc;
-    final streamed = await req.send();
-    final res = await http.Response.fromStream(streamed);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      String msg = 'No se pudo registrar la observación';
-      try {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['code'] == 'technician_signature_required') {
-          msg = 'Registre su firma en la aplicación de escritorio (Mi firma) antes de adjuntar evidencias.';
-        } else if (body is Map && body['error'] is String) {
-          msg = body['error'] as String;
-        }
-      } catch (_) {}
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      return;
+    try {
+      final streamed = await req.send();
+      final res = await http.Response.fromStream(streamed);
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        // Mensaje claro si el tecnico aun no registro su firma (18/11); si no, el error de la API.
+        String msg = 'No se pudo registrar la observación';
+        try {
+          final body = jsonDecode(res.body);
+          if (body is Map && body['code'] == 'technician_signature_required') {
+            msg = 'Registre su firma en la aplicación de escritorio (Mi firma) antes de adjuntar evidencias.';
+          } else if (body is Map && body['error'] is String) {
+            msg = body['error'] as String;
+          }
+        } catch (_) {}
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        return;
+      }
+      _obs.clear();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Observación agregada')));
+      _load();
+    } catch (_) {
+      // Sin conexion: se encola y se sincroniza despues.
+      await PendingOperationsStore().add('add_observation', {
+        'work_order_id': widget.orderId,
+        'description': desc,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Guardado sin conexión, se sincronizará')),
+        );
+      }
+      _obs.clear();
     }
-    _obs.clear();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Observación agregada')));
-    _load();
   }
 
   @override

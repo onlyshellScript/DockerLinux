@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api/api_client.dart';
+import '../../core/offline/local_database.dart';
 import 'order_detail_page.dart';
 
 // Widget con estado que muestra ordenes y permite filtrar.
@@ -37,20 +38,41 @@ class _OrdersPageState extends State<OrdersPage> {
       _error = null;
     });
     final query = _statusFilter.isEmpty ? null : {'status': _statusFilter};
-    final res = await widget.client.get('/api/v1/work-orders', query: query);
-    if (!res.ok) {
-      // Desactiva carga y guarda el error si falla la consulta.
+    try {
+      final res = await widget.client.get('/api/v1/work-orders', query: query);
+      if (!res.ok) {
+        setState(() {
+          _loading = false;
+          _error = (res.body is Map ? res.body['error'] : null) ?? 'Error';
+        });
+        return;
+      }
+      final orders = res.body as List<dynamic>? ?? [];
       setState(() {
+        _orders = orders;
         _loading = false;
-        _error = (res.body is Map ? res.body['error'] : null) ?? 'Error';
       });
-      return;
+      try {
+        await LocalDatabase.instance.cacheWorkOrders(orders);
+      } catch (_) {}
+    } catch (_) {
+      try {
+        final cached = await LocalDatabase.instance.cachedWorkOrders();
+        final filtered = _statusFilter.isEmpty
+            ? cached
+            : cached.where((o) => o['status'] == _statusFilter).toList();
+        setState(() {
+          _orders = filtered;
+          _loading = false;
+          _error = filtered.isEmpty ? 'Sin conexion' : null;
+        });
+      } catch (_) {
+        setState(() {
+          _loading = false;
+          _error = 'Sin conexion';
+        });
+      }
     }
-    // Guarda ordenes recibidas y desactiva carga.
-    setState(() {
-      _orders = res.body as List<dynamic>? ?? [];
-      _loading = false;
-    });
   }
 
   @override
