@@ -1,0 +1,17 @@
+erDiagram
+    users ||--o{ user_roles : tiene
+    roles ||--o{ user_roles : asignado
+    users ||--o{ work_orders : crea
+    users ||--o{ work_orders : asignado_a
+    work_orders ||--o{ work_order_status_history : registra
+    users ||--o{ work_order_status_history : cambia
+    materials ||--o{ stock_movements : genera
+    work_orders ||--o{ stock_movements : consume
+    users ||--o{ stock_movements : registra
+    work_orders ||--o{ evidences : contiene
+    users ||--o{ evidences : sube
+    users ||--o{ notifications : recibe
+    users ||--o{ sync_operations : ejecuta
+    work_orders ||--o{ material_requests : solicita
+    material_requests ||--o{ material_request_items : contiene
+    work_orders ||--o{ visit_evidences : contiene

@@ -1,0 +1,11 @@
+flowchart LR
+  Admin[Administrador] --> Desktop[App Escritorio Electron]
+  Admin --> Mobile[App MÃ³vil Flutter]
+  Tech[TÃ©cnico] --> Desktop
+  Tech --> Mobile
+  Desktop --> API[API Flask]
+  Mobile --> API
+  API --> DB[(SQL Server)]
+  API --> SMTP[SMTP]
+  API --> WA[WhatsApp API]
+  API --> FS[Almacenamiento de evidencias]

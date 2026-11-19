@@ -1,0 +1,22 @@
+flowchart TB
+  subgraph Clientes
+    D[Electron]
+    M[Flutter]
+  end
+  subgraph API[Flask API /api/v1]
+    I[identity]
+    W[workorders]
+    Mat[materials]
+    E[evidence]
+    Cal[calendar]
+    N[notifications]
+    S[sync]
+    Dsh[dashboard]
+    T[technicians]
+    C[catalogs]
+    St[settings]
+  end
+  D --> API
+  M --> API
+  API --> DB[(SQL Server)]
+  API --> FS[(Uploads)]

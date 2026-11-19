@@ -1,5 +1,8 @@
 # Auditoría de migraciones — SIGOSV (services/api)
 
+> **Desactualizada (17/11/2026):** `migrations/versions/` volvió a contener las 21 migraciones antiguas en inglés junto a
+> la cadena española, con dos raíces y una referencia rota. Estado actual y corrección: `docs/database/esquema-espanol-y-orm.md` §4.
+
 Fecha de auditoría: 2026-11-14. Alcance: solo lectura. No se modificaron migraciones ni código.
 
 ## 1. Cadena activa (`services/api/migrations/versions`)

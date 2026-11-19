@@ -1,5 +1,8 @@
 # SIGOS — Design tokens
 
+> **Reemplazado (17/11/2026):** los tokens vigentes están en `apps/desktop/src/renderer/design-system.css` y se documentan
+> en `docs/design/sistema-de-diseno.md`. Este archivo conserva los valores aproximados extraídos del PDF original.
+
 ## 1. Fuente de referencia
 - Referencia visual: PDF `SIGOS ING SW IIIIII-comprimido.pdf`, páginas de interfaces (10-13) y dashboard/login (Fig. 14-15 en `Proyecto SIGOS.pdf`).
 - Los valores de color son aproximaciones extraídas de imágenes y del PDF (`0.098 0.42 0.141`). No son tokens oficiales de Figma; no se encontró archivo editable accesible.

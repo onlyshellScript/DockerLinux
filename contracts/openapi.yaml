@@ -60,6 +60,21 @@ paths:
           description: Token refreshed.
         '401':
           description: Invalid refresh token.
+  /api/v1/auth/logout:
+    post:
+      summary: Cierra la sesion (revoca en el servidor el access y el refresh token de esa sesion)
+      description: Acepta el access token (Authorization Bearer, aunque haya vencido) y/o refresh_token en el cuerpo. Idempotente.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200': { description: 'Sesion cerrada. {"message": "logged out", "revoked": bool}' }
+        '400': { description: Sin token. }
   /api/v1/users:
     get:
       summary: List users (admin only)
@@ -625,6 +640,90 @@ paths:
           description: Insufficient permissions.
         '404':
           description: Not found.
+  /api/v1/work-orders/{wo_id}/cancellation:
+    get:
+      summary: Si la orden puede cancelarse y qué registros asociados se conservan (admin, coordinador)
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: wo_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: '{can_cancel, blocked_code, blocked_reason, impacts: {evidences, approved_evidences, material_consumptions, open_material_requests}}' }
+        '403': { description: Solo admin o coordinador. }
+        '404': { description: Orden inexistente. }
+  /api/v1/work-orders/{wo_id}/cancel:
+    post:
+      summary: Cancelación lógica de una orden (admin, coordinador); no elimina registros
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: wo_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, properties: { reason: { type: string, nullable: true, maxLength: 1000 } } }
+      responses:
+        '200': { description: Orden cancelada. }
+        '403': { description: Solo admin o coordinador. }
+        '409': { description: 'already_cancelled | terminal_order | invalid_transition' }
+  /api/v1/evidences/orders:
+    get:
+      summary: Ordenes con resumen de evidencias (sin archivos), paginado
+      description: Admin y coordinador ven todas; un tecnico solo sus ordenes asignadas (technician_id se ignora para el).
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: 'Numero de orden (12, OS-0012) o texto de titulo/cliente' }
+        - { name: technician_id, in: query, schema: { type: integer } }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: with_evidence, in: query, schema: { type: boolean } }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+      responses:
+        '200': { description: '{items: [{work_order, technician, evidence_count, last_evidence_at, validation_status}], total, page, page_size}' }
+        '400': { description: Fecha invalida. }
+  /api/v1/evidences/{ev_id}/technician-signature:
+    get:
+      summary: Imagen PNG de la firma historica del tecnico con la que se registro la evidencia
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: ev_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: PNG. }
+        '403': { description: Sin acceso a la orden. }
+        '404': { description: La evidencia no tiene firma o el archivo no existe. }
+        '409': { description: El archivo no coincide con la huella registrada (signature_integrity_error). }
+  /api/v1/me/signature:
+    get:
+      summary: Firma de perfil vigente del tecnico autenticado (metadatos)
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200': { description: '{signature: {id, user_id, sha256, version, is_active, created_at} | null}' }
+        '403': { description: Solo tecnicos. }
+    post:
+      summary: Registra una nueva version de la firma de perfil (PNG del recuadro de dibujo)
+      description: El propietario es siempre el usuario del token. Las versiones anteriores se conservan intactas.
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, description: 'data:image/png;base64,...' }
+      responses:
+        '201': { description: Firma registrada. }
+        '400': { description: 'signature_empty | signature_blank | signature_invalid_format | signature_invalid_size | signature_too_large | signature_invalid_image' }
+        '403': { description: Solo tecnicos. }
+  /api/v1/me/signature/image:
+    get:
+      summary: Imagen PNG de la firma de perfil vigente
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200': { description: PNG. }
+        '404': { description: Sin firma registrada. }
   /api/v1/sync/push:
     post:
       summary: Push offline operations (idempotent)

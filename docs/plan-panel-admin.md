@@ -35,6 +35,7 @@ SIGOS ya tiene la mayoría de los campos necesarios; faltan estados de usuario, 
 - Propuesta: nuevo permiso "admin_editor" restringido a edición (no creación) con motivo obligatorio (`reason`) y registro en `AuditLog`/historial.
 - Tests que cambian: `test_admin_cannot_create_work_order` se mantiene (creación sigue solo dispatcher); añadir `test_admin_can_edit_work_order_with_reason` y `test_admin_edit_without_reason_returns_422`.
 - Reglas: `require_role("admin", "dispatcher")` en PATCH/PUT de workorder, pero el servicio exige `reason` si el rol es admin; admin no puede cambiar estado a `cancelled` ni asignar sin motivo.
+  - **Actualizado 18/11/2026:** el administrador sí puede cancelar (cancelación lógica, `POST /work-orders/<id>/cancel`, motivo opcional); ver `docs/architecture/2026-11-18-ajustes-administrativos.md`.
 
 ## c) Estados de usuario
 - Integración con S5: `require_auth`/`require_role` ya verifican existencia y `is_active` (`services/api/app/identity/decorators.py`).

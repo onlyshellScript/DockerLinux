@@ -53,11 +53,23 @@ python -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 cp ../../.env.example .env   # ajustar DB_URL y JWT_SECRET_KEY
-flask --app wsgi db upgrade
+flask --app wsgi db upgrade   # ver nota: la cadena de migraciones debe corregirse primero
 flask --app wsgi run --port 5000
 ```
 
 La API queda disponible en `http://localhost:5000` (health: `GET /api/v1/health`).
+
+> **Migraciones (17/11/2026):** `flask db upgrade` falla mientras `migrations/versions/` contenga las migraciones
+> antiguas en inglés. Una base existente (p. ej. `SIGOS_DEV`, en `615483f3bc21`) funciona sin migrar.
+> Detalle y corrección: `docs/database/esquema-espanol-y-orm.md`.
+
+## Levantar el desktop
+
+```bash
+cd apps/desktop
+npm install
+npm start          # usa SIGOS_API_BASE_URL o http://localhost:5000
+```
 
 ## Ejecutar los tests
 
@@ -76,7 +88,7 @@ DB_URL="mssql+pyodbc://sa:<password>@localhost:1433/master?driver=ODBC+Driver+18
 python -m pytest tests/ -v
 ```
 
-Suite de referencia (Fase 2): 257 passed, 10 skipped, 0 failed.
+Suite de referencia (17/11/2026): ver `docs/revision-2026-11-17.md`. Desktop: `cd apps/desktop && npm test`.
 
 ## Despliegue con Docker
 
@@ -108,6 +120,12 @@ como rol separado; sus funciones (RF-01, RF-04) las cubren `admin` y
 ## Documentación
 
 - Documentación completa: `docs/DOCUMENTACION_COMPLETA.md`.
+- **Revisión y pendientes (17/11/2026): `docs/revision-2026-11-17.md`.**
+- Guía de desarrollo y pruebas: `docs/development/guia-desarrollo-y-pruebas.md`.
+- Exportaciones PDF/XLSX: `docs/architecture/exportaciones.md`.
+- Usuarios, autenticación y autorización: `docs/architecture/usuarios-y-seguridad.md`.
+- Sistema de diseño del desktop: `docs/design/sistema-de-diseno.md`.
+- Esquema en español, ORM y migraciones: `docs/database/esquema-espanol-y-orm.md`.
 - Trazabilidad: `docs/traceability/design-requirements-matrix.md`.
-- Brechas y estado: `docs/analisis-brechas-estado.md`.
-- Migraciones: `docs/architecture/auditoria-migraciones.md`.
+- Brechas y estado (análisis previo): `docs/analisis-brechas-estado.md`.
+- Migraciones (auditoría del 14/11, desactualizada): `docs/architecture/auditoria-migraciones.md`.
