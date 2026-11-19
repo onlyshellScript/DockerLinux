@@ -246,7 +246,7 @@ def _resolve_roles(role_names):
 
 # _active_admin_count: administradores activos, opcionalmente excluyendo uno.
 def _active_admin_count(exclude_id=None):
-    q = User.query.filter(User.is_active.is_(True), User.roles.any(Role.name == "admin"))
+    q = User.query.filter(User.is_active == True, User.roles.any(Role.name == "admin"))
     if exclude_id:
         q = q.filter(User.id != exclude_id)
     return q.count()
@@ -288,9 +288,9 @@ def list_users(q=None, role=None, status=None):
     if role:
         query = query.filter(User.roles.any(Role.name == role))
     if status == "active":
-        query = query.filter(User.is_active.is_(True))
+        query = query.filter(User.is_active == True)
     elif status == "inactive":
-        query = query.filter(User.is_active.is_(False))
+        query = query.filter(User.is_active == False)
     return query.order_by(User.username).all()
 
 

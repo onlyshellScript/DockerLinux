@@ -33,7 +33,7 @@ class SignatureError(Exception):
 def get_active_signature(user_id):
     return (
         TechnicianSignature.query
-        .filter(TechnicianSignature.user_id == user_id, TechnicianSignature.is_active.is_(True))
+        .filter(TechnicianSignature.user_id == user_id, TechnicianSignature.is_active == True)
         .order_by(TechnicianSignature.version.desc(), TechnicianSignature.id.desc())
         .first()
     )
@@ -81,7 +81,7 @@ def register_profile_signature(user_id, data):
     now = datetime.now(timezone.utc)
     try:
         previous = TechnicianSignature.query.filter(
-            TechnicianSignature.user_id == user_id, TechnicianSignature.is_active.is_(True)
+            TechnicianSignature.user_id == user_id, TechnicianSignature.is_active == True
         ).all()
         last_version = db.session.query(db.func.max(TechnicianSignature.version)).filter(
             TechnicianSignature.user_id == user_id
