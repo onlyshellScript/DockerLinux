@@ -1,7 +1,9 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 
 from app.extensions import db
 from app.identity.models import User, Role
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; devuelve el valor correspondiente.
 
 def _seed(app):
     with app.app_context():
@@ -15,6 +17,7 @@ def _seed(app):
         db.session.commit()
         return user.id
 
+# test_rnf04_password_not_stored_plain: valida el escenario rnf04 password not stored plain preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_rnf04_password_not_stored_plain(client, app):
     uid = _seed(app)
@@ -23,6 +26,7 @@ def test_rnf04_password_not_stored_plain(client, app):
         assert u.password_hash != "Admin123!"
         assert u.password_hash.startswith("scrypt:") or "$" in u.password_hash
 
+# test_rnf04_lockout_after_n_failures: valida el escenario rnf04 lockout after n failures preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_rnf04_lockout_after_n_failures(client, app):
     _seed(app)
@@ -34,6 +38,7 @@ def test_rnf04_lockout_after_n_failures(client, app):
     from app.identity import service as _svc
     _svc._login_attempts.clear()
 
+# test_app_does_not_start_without_jwt_secret_in_production: valida el escenario app does not start without jwt secret in production preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_app_does_not_start_without_jwt_secret_in_production(client, app):
     import os
@@ -58,6 +63,7 @@ def test_app_does_not_start_without_jwt_secret_in_production(client, app):
     resp = client.get("/api/v1/users", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code in (401, 403)
 
+# test_rnf04_deactivated_user_token_rejected_all_roles: valida el escenario rnf04 deactivated user token rejected all roles preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_rnf04_deactivated_user_token_rejected_all_roles(client, app):
     from app.identity.models import User, Role

@@ -1,3 +1,4 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 import pytest
 
 from app.identity.models import User, Role
@@ -8,11 +9,23 @@ EXEMPT = {"auth.login", "auth.refresh", "health.health", "static"}
 ACCESS_RULES = {
     'auth.change_password_route': 'any',
     'auth.login': 'public',
+    'auth.logout': 'public',
+    'evidence.evidence_orders_list': 'any',
+    'evidence.evidence_technician_signature': 'any',
+    'evidence.my_signature': ['technician'],
+    'evidence.my_signature_image': ['technician'],
+    'evidence.my_signature_register': ['technician'],
     'auth.refresh': 'public',
     'auth.users_create': ['admin'],
     'auth.users_get': ['admin'],
     'auth.users_list': ['admin'],
     'auth.users_update': ['admin'],
+    'auth.users_reset_password': ['admin'],
+    'auth.roles_list': ['admin'],
+    'exports.templates_list': ['admin', 'dispatcher'],
+    'exports.options': ['admin', 'dispatcher'],
+    'exports.preview': ['admin', 'dispatcher'],
+    'exports.generate': ['admin', 'dispatcher'],
     'calendar.authorize_sunday': ['admin'],
     'calendar.availability': 'any',
     'calendar.events': 'any',
@@ -31,7 +44,7 @@ ACCESS_RULES = {
     'catalogs.list_zones': 'any',
     'catalogs.patch_zone': ['admin'],
     'dashboard.dashboard_summary': ['admin', 'dispatcher'],
-    'dashboard.dashboard_tecnico': ['technician'],
+
     'tecnico.mi_dashboard': ['technician'],
     'tecnico.mis_ordenes': ['technician'],
     'tecnico.mis_orden_detalle': ['technician'],
@@ -147,10 +160,13 @@ ACCESS_RULES = {
     'workorders.work_orders_schedule': 'any',
     'workorders.work_orders_timeline': 'any',
     'workorders.work_orders_transition': 'any',
+    'workorders.work_orders_cancellation_check': ['admin', 'dispatcher'],
+    'workorders.work_orders_cancel': ['admin', 'dispatcher'],
     'workorders.work_orders_update': ['dispatcher'],
 }
 
 ROLES = ["admin", "dispatcher", "technician"]
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; devuelve el valor correspondiente.
 
 def _seed_users(app):
     with app.app_context():
@@ -167,6 +183,7 @@ def _seed_users(app):
                 db.session.add(u)
         db.session.commit()
 
+# Ejecuta la logica de negocio solicitada; recibe app, client; realiza llamadas de red; devuelve el valor correspondiente.
 @pytest.fixture
 def tokens(app, client):
     _seed_users(app)
@@ -176,16 +193,19 @@ def tokens(app, client):
         out[name] = r.get_json()["access_token"]
     return out
 
+# _path: normaliza la ruta de una regla de URL reemplazando parametros por 1 para pruebas de acceso; entrada rule; salida str; sin efectos secundarios.
 def _path(rule):
     p = str(rule.rule)
     for token in ["<int:user_id>","<int:wo_id>","<int:mat_id>","<int:tid>","<int:zid>","<int:profile_id>","<int:req_id>","<int:ev_id>","<int:item_id>"]:
         p = p.replace(token, "1")
     return p
 
+# _method: obtiene el primer metodo HTTP de una regla excluyendo HEAD/OPTIONS; entrada rule; salida str; sin efectos secundarios.
 def _method(rule):
     ms = sorted(m for m in rule.methods if m not in ("HEAD","OPTIONS"))
     return ms[0] if ms else "GET"
 
+# test_rnf05_access_matrix: valida el escenario rnf05 access matrix preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.parametrize("endpoint", sorted(ACCESS_RULES))
 def test_rnf05_access_matrix(client, app, tokens, endpoint):
     assert endpoint in ACCESS_RULES, "ruta sin regla declarada: {}".format(endpoint)
@@ -210,6 +230,7 @@ def test_rnf05_access_matrix(client, app, tokens, endpoint):
                 assert resp.status_code in (401, 403), "{} {} expected 401/403 got {}".format(endpoint, role, resp.status_code)
             else:
                 assert resp.status_code != 401, "{} {} got 401 (posible fuga)".format(endpoint, role)
+# test_rnf05_new_route_must_be_declared: valida el escenario rnf05 new route must be declared preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_rnf05_new_route_must_be_declared(app):
     for rule in app.url_map.iter_rules():

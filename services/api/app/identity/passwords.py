@@ -9,6 +9,7 @@ UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 DIGITS = "23456789"
 
 
+# normalize_username: construye un nombre de usuario base a partir del primer nombre y apellido, normalizando a ASCII y eliminando caracteres no alfanumericos; entradas first_name, last_name; salida str; sin efectos secundarios.
 def normalize_username(first_name, last_name):
     base = (first_name[:1] + last_name).lower()
     base = unicodedata.normalize("NFKD", base).encode("ascii", "ignore").decode("ascii")
@@ -16,6 +17,7 @@ def normalize_username(first_name, last_name):
     return base or "user"
 
 
+# Gestiona generate username; recibe first_name, last_name, existing; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def generate_username(first_name, last_name, existing):
     base = normalize_username(first_name, last_name)
     if base not in existing:
@@ -26,6 +28,7 @@ def generate_username(first_name, last_name, existing):
     return f"{base}{i}"
 
 
+# Gestiona generate temporary password; recibe length; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def generate_temporary_password(length=12):
     while True:
         chars = [
@@ -42,6 +45,7 @@ def generate_temporary_password(length=12):
             return pwd
 
 
+# Gestiona valid password; recibe pwd; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _valid_password(pwd):
     if len(pwd) < 10:
         return False
@@ -54,6 +58,7 @@ def _valid_password(pwd):
     return True
 
 
+# Valida los datos y reglas de negocio; recibe password, username, history; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def validate_password_policy(password, username=None, history=None):
     if len(password) < 10:
         return False, "Mínimo 10 caracteres"
@@ -70,6 +75,7 @@ def validate_password_policy(password, username=None, history=None):
     return True, None
 
 
+# Gestiona password strength; recibe password; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def password_strength(password):
     score = 0
     if len(password) >= 10:
