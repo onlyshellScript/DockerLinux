@@ -1,0 +1,8 @@
+# Construccion local de la imagen de la API (desarrollo o sin acceso a GHCR).
+#   docker compose -f infra/docker/docker-compose.prod.yaml -f infra/docker/docker-compose.build.yaml #     --env-file infra/docker/.env up -d --build
+# api y worker usan la misma imagen (SIGOS_IMAGE:SIGOS_VERSION) que construye migrate.
+services:
+  migrate:
+    build:
+      context: ../../services/api
+      dockerfile: Dockerfile

@@ -511,6 +511,7 @@ function bindLogin() {
     }
     notify('Sesión iniciada', 'success');
     render();
+    enforcePasswordChange();
   });
 }
 
@@ -691,24 +692,29 @@ window.addEventListener('sigos:themechange', () => {
 });
 
 // openChangePassword(): cambio de contrasena propio (POST /auth/change-password, ya existente).
-function openChangePassword() {
+// forced: primer acceso con must_change_password; el dialogo no se puede cerrar sin cambiarla (o cerrar sesion).
+function openChangePassword({ forced = false } = {}) {
+  if (forced && document.getElementById('cpForm')) return;
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="sigos-card modal-card" role="dialog" aria-modal="true" aria-labelledby="cpTitle" style="width:420px">
-      <div class="modal-head"><h3 id="cpTitle">Cambiar contraseña</h3><button type="button" class="icon-btn" data-cp-close aria-label="Cerrar">${icon('close', 18)}</button></div>
+      <div class="modal-head"><h3 id="cpTitle">${forced ? 'Cambie su contraseña para continuar' : 'Cambiar contraseña'}</h3>${forced ? '' : `<button type="button" class="icon-btn" data-cp-close aria-label="Cerrar">${icon('close', 18)}</button>`}</div>
+      ${forced ? '<p class="modal-body" style="margin:0;padding-bottom:0">Es su primer acceso o su contraseña fue restablecida. Debe elegir una nueva antes de usar SIGOS.</p>' : ''}
       <form class="modal-body" id="cpForm" novalidate>
         <div class="fld"><label for="cpCur">Contraseña actual</label><input id="cpCur" type="password" class="sigos-input" autocomplete="current-password"></div>
         <div class="fld"><label for="cpNew">Nueva contraseña</label><input id="cpNew" type="password" class="sigos-input" autocomplete="new-password"><div class="fld-hint">Mínimo 10 caracteres, con mayúscula, minúscula y número.</div></div>
         <div class="fld"><label for="cpRep">Repetir nueva contraseña</label><input id="cpRep" type="password" class="sigos-input" autocomplete="new-password"></div>
         <div class="fld-error" id="cpErr" role="alert"></div>
       </form>
-      <div class="modal-foot"><button type="button" class="sigos-btn-secondary" data-cp-close>Cancelar</button><button type="submit" form="cpForm" class="sigos-btn-primary" id="cpSave">Guardar</button></div>
+      <div class="modal-foot">${forced ? '<button type="button" class="sigos-btn-secondary" data-cp-logout>Cerrar sesión</button>' : '<button type="button" class="sigos-btn-secondary" data-cp-close>Cancelar</button>'}<button type="submit" form="cpForm" class="sigos-btn-primary" id="cpSave">Guardar</button></div>
     </div>`;
   document.body.appendChild(modal);
   const close = () => modal.remove();
   modal.querySelectorAll('[data-cp-close]').forEach((b) => b.addEventListener('click', close));
-  modal.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  modal.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !forced) close(); });
+  const logoutBtn = modal.querySelector('[data-cp-logout]');
+  if (logoutBtn) logoutBtn.addEventListener('click', async () => { close(); await window.sigos.endSession({ reason: 'logout' }); });
   modal.querySelector('#cpCur').focus();
   modal.querySelector('#cpForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -723,8 +729,14 @@ function openChangePassword() {
     btn.disabled = false;
     if (!res.ok) { err.textContent = res.body?.error === 'current password incorrect' ? 'La contraseña actual no es correcta' : (res.body?.error || 'No se pudo cambiar la contraseña'); return; }
     close();
+    if (state.session && state.session.user) { state.session.user.must_change_password = false; await saveSession(); }
     notify('Contraseña actualizada', 'success');
   });
+}
+
+// enforcePasswordChange(): si la sesion exige cambio de contrasena (must_change_password), abre el dialogo obligatorio.
+function enforcePasswordChange() {
+  if (state.session && state.session.user && state.session.user.must_change_password) openChangePassword({ forced: true });
 }
 
 
@@ -4212,6 +4224,7 @@ window.addEventListener('hashchange', () => {
     state.pendingRoute = location.hash;
   }
   render();
+  enforcePasswordChange();
   const ended = new URLSearchParams(location.search).get('ended');
   if (ended && !state.session) notify(ended === 'expired' ? 'La sesión expiró. Inicie sesión de nuevo.' : 'Sesión cerrada.', ended === 'expired' ? 'error' : 'info');
 })();

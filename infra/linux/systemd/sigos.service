@@ -1,0 +1,29 @@
+# SIGOS: arranca el stack Docker Compose de produccion al iniciar el sistema.
+# Lo instala install.sh en /etc/systemd/system/sigos.service ({{DOCKER}}, {{COMPOSE}}, {{ENV}} se sustituyen).
+#
+# Reparto de responsabilidades (sin duplicar mecanismos):
+#   - Esta unidad: orden de arranque (Docker listo -> sqlserver sano -> migrate -> api -> worker/proxy) y
+#     "systemctl start|stop|restart|status sigos". "up -d" es idempotente: si los contenedores ya corren, no hace nada.
+#   - restart: unless-stopped (compose): recuperacion ante caidas de un contenedor mientras el sistema esta encendido.
+[Unit]
+Description=SIGOS (stack Docker: SQL Server, API, worker y proxy)
+Documentation=file:///opt/sigos/README.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/sigos/compose
+ExecStart={{DOCKER}} compose -p sigos --env-file {{ENV}} -f {{COMPOSE}} up -d --wait --wait-timeout 900 --remove-orphans
+ExecStop={{DOCKER}} compose -p sigos --env-file {{ENV}} -f {{COMPOSE}} stop --timeout 60
+ExecReload={{DOCKER}} compose -p sigos --env-file {{ENV}} -f {{COMPOSE}} up -d --wait --wait-timeout 900
+TimeoutStartSec=1000
+TimeoutStopSec=180
+# Si Docker tarda o la BD no queda sana a tiempo, reintentar en lugar de quedarse fallido.
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -1,7 +1,10 @@
 # Despliegue de producción (Linux) de SIGOS API.
 # Uso:
-#   cp infra/docker/.env.prod.example infra/docker/.env   # y rellenar valores
-#   docker compose -f infra/docker/docker-compose.prod.yaml --env-file infra/docker/.env up -d --build
+#   Instalacion completa en Linux (recomendado): sudo infra/linux/install.sh   (ver infra/linux/README.md)
+#   Manual con imagenes publicadas en GHCR (SIGOS_IMAGE/SIGOS_VERSION en el .env):
+#     cp infra/docker/.env.prod.example infra/docker/.env   # y rellenar valores
+#     docker compose -f infra/docker/docker-compose.prod.yaml --env-file infra/docker/.env up -d --wait
+#   Construyendo la imagen localmente (desarrollo): anadir -f infra/docker/docker-compose.build.yaml ... --build
 #
 # Servicios:
 #   proxy     Caddy: único punto publicado (80/443). HTTPS automático (y HSTS) si SIGOS_DOMAIN
@@ -65,9 +68,6 @@ services:
       start_period: 30s
 
   migrate:
-    build:
-      context: ../../services/api
-      dockerfile: Dockerfile
     image: ${SIGOS_IMAGE:-sigos-api}:${SIGOS_VERSION:-latest}
     command: ["migrate"]
     environment:
@@ -140,7 +140,8 @@ services:
       SIGOS_DOMAIN: "${SIGOS_DOMAIN:-:80}"
       PROXY_MAX_BODY: "${PROXY_MAX_BODY:-25MB}"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # z: etiqueta SELinux compartida (no-op sin SELinux); necesaria en openSUSE/Fedora con SELinux activo.
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
       - caddy-data:/data
       - caddy-config:/config
     restart: unless-stopped

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=SIGOS
+GenericName=Gestión de órdenes de servicio
+Comment=Cliente de escritorio de SIGOS
+Exec={{EXEC}} %U
+Icon=sigos-desktop
+Terminal=false
+Categories=Office;ProjectManagement;
+StartupWMClass=SIGOS Desktop
+StartupNotify=true

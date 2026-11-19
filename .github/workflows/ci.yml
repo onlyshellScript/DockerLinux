@@ -228,6 +228,55 @@ jobs:
           name: sigos-desktop-installer
           path: apps/desktop/dist/*.exe
 
+  # Instalador de Linux: ShellCheck + ciclo real (instalar, admin, idempotencia, systemd, caida, actualizacion,
+  # reversion, respaldo/restauracion, desinstalacion) en un runner con systemd y Docker ya instalado.
+  linux-installer:
+    runs-on: ubuntu-latest
+    needs: api-tests
+    steps:
+      - uses: actions/checkout@v5
+      - name: ShellCheck
+        run: shellcheck -x -S warning infra/linux/install.sh infra/linux/update.sh infra/linux/status.sh infra/linux/uninstall.sh infra/linux/sigos infra/linux/lib/common.sh infra/linux/tests/test-installer.sh
+      - name: Build API image
+        run: docker build -t sigos-api:ci services/api
+      - name: Ciclo completo del instalador
+        run: sudo bash infra/linux/tests/test-installer.sh --image sigos-api --version ci
+      - name: Diagnostico si falla
+        if: failure()
+        run: |
+          sudo tail -n 80 /tmp/sigos-*.log || true
+          sudo journalctl -u sigos --no-pager -n 80 || true
+          sudo docker ps -a || true
+
+  # SIGOS Desktop para Linux (AppImage). En main se publica en la release "desktop-latest" junto con el
+  # paquete del instalador, que es lo que descarga install.sh.
+  build-desktop-linux:
+    runs-on: ubuntu-latest
+    needs: [desktop-tests]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Build AppImage
+        run: cd apps/desktop && npm ci && npm run dist:linux -- --publish never
+      - uses: actions/upload-artifact@v6
+        with:
+          name: sigos-desktop-linux
+          path: apps/desktop/dist/*.AppImage
+      - name: Publicar release desktop-latest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tar czf sigos-linux-installer.tar.gz infra/linux infra/docker
+          if ! gh release view desktop-latest >/dev/null 2>&1; then
+            gh release create desktop-latest --prerelease --title "SIGOS para Linux (ultimo build de main)"               --notes "Instalador: descargue sigos-linux-installer.tar.gz, extraigalo y ejecute sudo infra/linux/install.sh. Ver infra/linux/README.md."
+          fi
+          gh release upload desktop-latest apps/desktop/dist/SIGOS-Desktop-x86_64.AppImage sigos-linux-installer.tar.gz --clobber
+
   build-mobile:
     runs-on: ubuntu-latest
     needs: [mobile-tests]

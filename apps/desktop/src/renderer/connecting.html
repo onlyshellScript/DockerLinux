@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>SIGOS · Conectando</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #F7F6F3; --fg: #1d2421; --muted: #5d6662; --accent: #1f6f55; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0F1513; --fg: #e6ebe8; --muted: #9aa5a0; --accent: #4fb38c; } }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+    main { height: 100%; display: grid; place-content: center; text-align: center; padding: 24px; gap: 12px; }
+    .mark { width: 56px; height: 56px; margin: 0 auto; border-radius: 14px; background: var(--accent); color: #fff;
+            display: grid; place-items: center; font: 700 28px/1 system-ui, sans-serif; }
+    h1 { font-size: 18px; margin: 8px 0 0; }
+    p { margin: 0; color: var(--muted); max-width: 440px; }
+    code { font-size: 13px; }
+    button { margin-top: 8px; padding: 8px 18px; border-radius: 8px; border: 1px solid var(--accent); background: transparent;
+             color: var(--fg); font: inherit; cursor: pointer; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px;
+           animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .25; } }
+    @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true">S</div>
+    <h1 id="title"><span class="dot" aria-hidden="true"></span>Conectando con el servidor de SIGOS…</h1>
+    <p id="detail" role="status" aria-live="polite">Si acaba de encender el equipo, los servicios pueden tardar uno o dos minutos en estar listos.</p>
+    <p><code id="url"></code></p>
+    <div><button type="button" id="retry">Reintentar ahora</button></div>
+  </main>
+  <script src="connecting.js"></script>
+</body>
+</html>

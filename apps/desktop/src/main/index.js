@@ -3,8 +3,9 @@ const { app, BrowserWindow, ipcMain, safeStorage, dialog, shell, nativeTheme } =
 const path = require('node:path');
 const fs = require('node:fs');
 const { getHealth } = require('./healthClient');
+const { resolveApiBaseUrl } = require('./apiConfig');
 
-const API_BASE_URL = process.env.SIGOS_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = resolveApiBaseUrl({ userDataDir: app.getPath('userData'), isPackaged: app.isPackaged }).url;
 const SESSION_FILE = path.join(app.getPath('userData'), 'sigos-session.bin');
 
 // readSession(): lee read session; accede al sistema de archivos; gestiona la sesion cifrada local.
@@ -143,11 +144,17 @@ function createWindow() {
 
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  win.loadFile(path.join(__dirname, '../renderer/index.html'));
+  // Primero la pantalla de conexion: espera a que el API (proxy local) responda y entonces abre la app.
+  win.loadFile(path.join(__dirname, '../renderer/connecting.html'));
 }
 
 app.whenReady().then(() => {
   ipcMain.handle('sigos:get-health', async () => getHealth(API_BASE_URL));
+  ipcMain.handle('sigos:get-api-base-url', async () => API_BASE_URL);
+  ipcMain.handle('sigos:open-app', async (event) => {
+    await event.sender.loadFile(path.join(__dirname, '../renderer/index.html'));
+    return true;
+  });
   ipcMain.handle('sigos:api-request', async (_event, payload) => apiRequest(payload || {}));
   ipcMain.handle('sigos:download-file', async (_event, payload) => {
     const { path: reqPath, token } = payload || {};

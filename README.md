@@ -98,12 +98,20 @@ cd infra/docker
 docker compose -f compose.yaml up -d
 ```
 
-Producción (API + SQL Server):
+**Instalación en Linux (recomendada para producción):** un solo comando instala Docker si falta, levanta el
+stack con las imágenes de GHCR, crea el administrador inicial, configura el arranque automático con systemd e
+instala SIGOS Desktop en el menú. Ver [infra/linux/README.md](infra/linux/README.md).
+
+```bash
+sudo infra/linux/install.sh
+```
+
+Producción manual con Docker Compose, construyendo la imagen localmente (API + SQL Server):
 
 ```bash
 cd infra/docker
 # Crear .env con DB_URL, JWT_SECRET_KEY, MSSQL_SA_PASSWORD, etc.
-docker compose -f docker-compose.prod.yaml up -d --build
+docker compose -f docker-compose.prod.yaml -f docker-compose.build.yaml up -d --build
 ```
 
 La imagen de la API se construye desde `services/api/Dockerfile` (instala ODBC Driver 18,

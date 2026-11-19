@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# sigos: administracion de SIGOS en Linux.
+#
+#   sigos status                 estado de servicios, salud y version (sin sudo: resumen; con sudo: detalle)
+#   sudo sigos start|stop|restart
+#   sudo sigos logs [servicio] [-f]   servicios: api worker migrate sqlserver proxy (por defecto todos)
+#   sudo sigos update [--yes]    actualiza a la ultima imagen (respaldo + migraciones + verificacion + reversion)
+#   sudo sigos backup            respaldo de la BD y de los archivos subidos en /var/lib/sigos/backups
+#   sudo sigos restore ARCHIVO.bak [--uploads ARCHIVO.tar.gz]
+#   sudo sigos desktop-install RUTA.AppImage   instala o actualiza SIGOS Desktop
+#   sigos autostart on|off|status   inicio automatico de SIGOS Desktop al iniciar sesion (por usuario, sin sudo)
+#   sudo sigos uninstall [--purge-data]
+#   sigos version
+set -Eeuo pipefail
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+BIN_DIR="$(dirname "$SELF")"
+# shellcheck source=lib/common.sh
+source "$BIN_DIR/../lib/common.sh"
+
+cmd="${1:-help}"; shift || true
+
+autostart() {
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/autostart" f
+  f="$dir/sigos-desktop.desktop"
+  case "${1:-status}" in
+    on)
+      [[ -f /usr/share/applications/sigos-desktop.desktop ]] || die "$EXIT_NOT_INSTALLED" "SIGOS Desktop no esta instalado."
+      mkdir -p "$dir"
+      { sed '/^Exec=/s/ %U$//' /usr/share/applications/sigos-desktop.desktop; printf 'X-GNOME-Autostart-enabled=true\n'; } > "$f"
+      ok "SIGOS se abrira al iniciar sesion ($f)" ;;
+    off) rm -f "$f"; ok "Inicio automatico desactivado" ;;
+    status) [[ -f "$f" ]] && echo "activado ($f)" || echo "desactivado" ;;
+    *) die "$EXIT_USAGE" "Uso: sigos autostart on|off|status" ;;
+  esac
+}
+
+case "$cmd" in
+  status) exec "$BIN_DIR/status.sh" "$@" ;;
+  start|stop|restart)
+    require_root; require_installed
+    systemctl "$cmd" "$SIGOS_UNIT"
+    if [[ "$cmd" != "stop" ]]; then wait_health 240 && ok "SIGOS disponible en $(local_url)" || { diagnose; die "$EXIT_HEALTH" "SIGOS no responde."; }
+    else ok "SIGOS detenido (los datos se conservan)"; fi ;;
+  logs)
+    require_root; require_installed
+    follow=(); svc=()
+    for a in "$@"; do case "$a" in -f|--follow) follow=(-f) ;; *) svc+=("$a") ;; esac; done
+    exec docker compose -p "$SIGOS_PROJECT" --env-file "$SIGOS_ENV_FILE" -f "$SIGOS_COMPOSE" logs --tail 200 "${follow[@]}" "${svc[@]}" ;;
+  update) exec "$BIN_DIR/update.sh" "$@" ;;
+  backup)
+    require_root; require_installed
+    exec "$SIGOS_HOME/backup/backup.sh" -p "$SIGOS_PROJECT" -f "$SIGOS_COMPOSE" -e "$SIGOS_ENV_FILE" -o "$SIGOS_VAR/backups" "$@" ;;
+  restore)
+    require_root; require_installed
+    [[ $# -ge 1 ]] || die "$EXIT_USAGE" "Uso: sudo sigos restore ARCHIVO.bak [--uploads ARCHIVO.tar.gz]"
+    args=(); bak=""
+    while [[ $# -gt 0 ]]; do case "$1" in --uploads) args+=(-u "${2:?}"); shift ;; --yes) args+=(--yes) ;; *) bak="$1" ;; esac; shift; done
+    exec "$SIGOS_HOME/backup/restore.sh" -p "$SIGOS_PROJECT" -f "$SIGOS_COMPOSE" -e "$SIGOS_ENV_FILE" "${args[@]}" "$bak" ;;
+  desktop-install)
+    require_root; require_installed
+    [[ -n "${1:-}" ]] || die "$EXIT_USAGE" "Uso: sudo sigos desktop-install RUTA.AppImage"
+    exec "$SIGOS_HOME/src/infra/linux/install.sh" --yes --no-pull --no-docker-install --no-autostart --desktop-appimage "$(readlink -f "$1")" ;;
+  autostart) autostart "$@" ;;
+  uninstall) exec "$BIN_DIR/uninstall.sh" "$@" ;;
+  version)
+    if [[ -r "$SIGOS_ENV_FILE" ]]; then
+      img="$(env_get "$SIGOS_ENV_FILE" SIGOS_IMAGE):$(env_get "$SIGOS_ENV_FILE" SIGOS_VERSION)"
+      echo "Imagen: $img"
+      docker image inspect --format 'Id: {{.Id}}  Creada: {{.Created}}' "$img" 2>/dev/null || true
+    fi
+    body="$(curl -fsS --max-time 5 "$(local_url)/api/v1/health" 2>/dev/null || true)"; echo "Health: ${body:-sin respuesta}" ;;
+  help|-h|--help) sed -n '2,15p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+  *) printf 'Comando desconocido: %s\n\n' "$cmd" >&2; sed -n '2,15p' "$SELF" | sed 's/^# \{0,1\}//' >&2; exit "$EXIT_USAGE" ;;
+esac

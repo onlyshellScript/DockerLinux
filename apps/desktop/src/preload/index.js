@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('sigos', {
   getHealth: () => ipcRenderer.invoke('sigos:get-health'),
+  getApiBaseUrl: () => ipcRenderer.invoke('sigos:get-api-base-url'),
+  openApp: () => ipcRenderer.invoke('sigos:open-app'),
   apiRequest: (payload) => ipcRenderer.invoke('sigos:api-request', payload),
   uploadFile: (payload) => ipcRenderer.invoke('sigos:upload-file', payload),
   downloadFile: (payload) => ipcRenderer.invoke('sigos:download-file', payload),
