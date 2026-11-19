@@ -7,3 +7,15 @@ dist/
 *.log
 __pycache__/
 .venv/
+
+# Evidencias y firmas reales (datos de usuario): nunca versionar
+services/api/uploads/
+uploads/
+# Artefactos generados
+*.pyc
+apps/desktop/screenshots/
+apps/desktop/tests/visual/screenshots/
+services/api/salida_sqlserver.txt
+# Salidas de herramientas locales
+.agent/
+.archify/
