@@ -19,6 +19,9 @@ jobs:
           MSSQL_SA_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
         ports:
           - "1433:1433"
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' -b || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20 --health-start-period 20s
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -34,25 +37,37 @@ jobs:
           fi
       - name: Install deps
         run: pip install -r services/api/requirements.txt
+      - name: Check CI_DB_PASSWORD
+        run: |
+          if [ -z "$CI_DB_PASSWORD" ]; then echo "::error::El secret CI_DB_PASSWORD esta vacio o no existe"; exit 1; fi
+          echo "CI_DB_PASSWORD presente (${#CI_DB_PASSWORD} caracteres)"
       - name: Wait for SQL Server
         run: |
-          for i in $(seq 1 30); do
-            if python -c "import pyodbc; pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost;UID=sa;PWD=$CI_DB_PASSWORD;TrustServerCertificate=yes')"; then
-              echo "SQL Server is ready"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "SQL Server did not become ready after 30 attempts"
-          exit 1
+          cat > /tmp/sqlwait.py <<'PY'
+          import os, sys, time, pyodbc
+          pwd = os.environ["CI_DB_PASSWORD"].replace("}", "}}")
+          cs = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost,1433;UID=sa;PWD={" + pwd + "};TrustServerCertificate=yes;Encrypt=yes"
+          last = None
+          for i in range(60):
+              try:
+                  c = pyodbc.connect(cs, timeout=5)
+                  if len(sys.argv) > 1:
+                      c.autocommit = True
+                      c.execute("IF DB_ID('sigos_test') IS NULL CREATE DATABASE sigos_test")
+                  c.close(); print("SQL Server listo"); sys.exit(0)
+              except Exception as e:
+                  last = e; time.sleep(3)
+          print("SQL Server no respondio:", last); sys.exit(1)
+          PY
+          python /tmp/sqlwait.py || { docker logs "${{ job.services.sqlserver.id }}" 2>&1 | tail -40; exit 1; }
       - name: Create test database
-        run: |
-          python -c "import pyodbc; c=pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost;UID=sa;PWD=$CI_DB_PASSWORD;TrustServerCertificate=yes'); c.autocommit=True; c.execute(\"IF DB_ID('sigos_test') IS NULL CREATE DATABASE sigos_test\"); c.close()"
+        run: python /tmp/sqlwait.py create
       - name: Run tests
         run: |
           cd services/api
-          DB_URL="mssql+pyodbc://sa:${CI_DB_PASSWORD}@localhost:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes" \
-          TEST_DB_URL="mssql+pyodbc://sa:${CI_DB_PASSWORD}@localhost:1433/sigos_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes" \
+          ENC=$(python -c "import os,urllib.parse;print(urllib.parse.quote_plus(os.environ['CI_DB_PASSWORD']))")
+          DB_URL="mssql+pyodbc://sa:${ENC}@localhost:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes" \
+          TEST_DB_URL="mssql+pyodbc://sa:${ENC}@localhost:1433/sigos_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes" \
           python -m pytest tests/ -v
 
   build-api-image:
