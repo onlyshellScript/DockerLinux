@@ -21,6 +21,7 @@ COPY . .
 
 RUN useradd -u 1000 --create-home --shell /bin/bash sigos \
     && mkdir -p /app/uploads \
+    && chmod 0755 /app/docker/entrypoint.sh \
     && chown -R sigos:sigos /app
 
 USER sigos
