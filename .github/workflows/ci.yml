@@ -62,7 +62,7 @@ jobs:
       - name: Run tests
         run: |
           cd services/api
-          ENC=$(python -c "import os,urllib.parse;print(urllib.parse.quote_plus(os.environ['CI_DB_PASSWORD']))")
+          ENC=$(python -c "import os,urllib.parse;print(urllib.parse.quote(os.environ['CI_DB_PASSWORD'], safe=''))")
           DB_URL="mssql+pyodbc://sa:${ENC}@localhost:1433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes" \
           TEST_DB_URL="mssql+pyodbc://sa:${ENC}@localhost:1433/sigos_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes" \
           python -m pytest tests/ -v
