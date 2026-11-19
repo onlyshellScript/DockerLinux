@@ -125,6 +125,62 @@ jobs:
             docker push "$IMG:$t"
           done
 
+  # Despliegue nativo de Windows (infra/windows). Windows PowerShell 5.1, como en produccion.
+  windows-native:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        id: py
+        with:
+          python-version: "3.12"
+          architecture: x64
+      - name: Pester (sintaxis PS 5.1, BOM, plantillas WinSW, secretos, paquete, versiones)
+        run: |
+          $PSVersionTable.PSVersion
+          $r = Invoke-Pester -Path infra/windows/tests/SigosWindows.Tests.ps1 -PassThru
+          "Pester $((Get-Module Pester).Version): $($r.PassedCount) passed, $($r.FailedCount) failed"
+          if ($r.FailedCount -gt 0 -or $r.PassedCount -eq 0) { exit 1 }
+      - name: Runtime sin administrador (venv, migraciones SQLite, waitress + health, worker + heartbeat)
+        run: |
+          .\infra\windows\tests\Test-SigosRuntime.ps1 -PythonExe '${{ steps.py.outputs.python-path }}'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Paquete de distribucion (ruedas, WinSW, manifiesto SHA-256, deteccion de secretos)
+        run: |
+          .\infra\windows\package\build-package.ps1 -PythonExe '${{ steps.py.outputs.python-path }}'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Paquete extraido fuera del repositorio - integridad y runtime sin conexion
+        run: |
+          $zip = Get-ChildItem dist -Filter 'SIGOS-Windows-v*.zip' | Select-Object -First 1
+          $expected = ((Get-Content "$($zip.FullName).sha256") -split '\s+')[0]
+          if ((Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLower() -ne $expected) { throw 'SHA-256 del zip no coincide' }
+          $x = Join-Path $env:RUNNER_TEMP 'pkg'
+          Expand-Archive $zip.FullName -DestinationPath $x
+          $root = (Get-ChildItem $x -Directory | Select-Object -First 1).FullName
+          & "$root\infra\windows\scripts\verify-package.ps1"; if ($LASTEXITCODE -ne 0) { exit 1 }
+          & "$root\infra\windows\tests\Test-SigosRuntime.ps1" -PythonExe '${{ steps.py.outputs.python-path }}'; if ($LASTEXITCODE -ne 0) { exit 1 }
+          "SIGOS_PKG_ROOT=$root" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Integracion real de servicios Windows desde el paquete (admin; SQLite)
+        run: |
+          & "$env:SIGOS_PKG_ROOT\infra\windows\tests\Invoke-SigosIntegration.ps1" -DbEngine SQLite -PythonExe '${{ steps.py.outputs.python-path }}' -Cleanup
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Diagnostico si falla
+        if: failure()
+        run: |
+          Get-Service SIGOS-* -ErrorAction SilentlyContinue | Format-Table -AutoSize
+          Get-ChildItem C:\ProgramData\SIGOS\logs -Recurse -Filter *.log -ErrorAction SilentlyContinue |
+            ForEach-Object { "===== $($_.FullName)"; Get-Content $_.FullName -Tail 60 }
+      - uses: actions/upload-artifact@v6
+        if: success()
+        with:
+          name: sigos-windows-package
+          path: |
+            dist/SIGOS-Windows-v*.zip
+            dist/SIGOS-Windows-v*.zip.sha256
+
   desktop-tests:
     runs-on: ubuntu-latest
     steps:
