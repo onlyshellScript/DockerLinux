@@ -32,6 +32,8 @@ jobs:
             sudo apt-get update
             sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
           fi
+      - name: Install deps
+        run: pip install -r services/api/requirements.txt
       - name: Wait for SQL Server
         run: |
           for i in $(seq 1 30); do
@@ -46,8 +48,6 @@ jobs:
       - name: Create test database
         run: |
           python -c "import pyodbc; c=pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost;UID=sa;PWD=$CI_DB_PASSWORD;TrustServerCertificate=yes'); c.autocommit=True; c.execute(\"IF DB_ID('sigos_test') IS NULL CREATE DATABASE sigos_test\"); c.close()"
-      - name: Install deps
-        run: pip install -r services/api/requirements.txt
       - name: Run tests
         run: |
           cd services/api
@@ -151,7 +151,7 @@ jobs:
         run: cd apps/desktop && npm install
       - name: Build installer
         run: cd apps/desktop && npm run dist
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: sigos-desktop-installer
           path: apps/desktop/dist/*.exe
@@ -172,7 +172,7 @@ jobs:
           flutter-version: 3.41.5
       - name: Build APK
         run: cd apps/mobile && flutter build apk --release
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: sigos-mobile-apk
           path: apps/mobile/build/app/outputs/flutter-apk/*.apk
