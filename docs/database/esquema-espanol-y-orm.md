@@ -44,7 +44,9 @@ Los tests con SQLite **no** ejecutan este SQL; se verificó contra SQL Server.
 - **18/11/2026:** nueva migración `a7c8e9f0b1d2` (sesiones revocables `SesionesUsuario`, firma del técnico `FirmasTecnico`,
   columnas nullable de firma histórica en `Evidencias`), encadenada a `615483f3bc21`. Equivalente SQL Server manual:
   `docs/database/2026-11-18_sesiones_firmas.sql`. Detalle: `docs/architecture/2026-11-18-sesiones-firmas-evidencias.md`.
-- **Problema:** en `migrations/versions/` conviven además las 21 migraciones antiguas en inglés (`683fd21c4219` …
+- **Resuelto (18/11/2026):** `versions/` contiene solo la cadena española; `SIGOS_DEV` está en `a7c8e9f0b1d2`.
+  Las migraciones inglesas están en `migrations/legacy_en/` (ver `docs/architecture/migration-recovery-plan.md`).
+- *(Histórico)* **Problema:** en `migrations/versions/` convivían además las 21 migraciones antiguas en inglés (`683fd21c4219` …
   `f4a5b6c7d8e9`), duplicadas de `versions_backup/`. Crean una **segunda raíz** y `e5f6a7b8c9d0` apunta a
   `d4e5f6a7b8c9`, que solo existe en `versions_backup/`. Resultado: `flask db upgrade` falla con `KeyError: 'd4e5f6a7b8c9'`.
 - **Corrección propuesta (no aplicada):** dejar en `versions/` solo las 3 migraciones de la cadena española

@@ -3,6 +3,11 @@
 > Fase 0.5 · 18/11/2026 · **Propuesta**: no se ha creado ningún commit, fusión, stash ni movimiento de archivos.
 > Único cambio en el working tree durante esta fase: este documento y `migration-recovery-plan.md`.
 
+> **Estado (18/11/2026, Fase 1): EJECUTADO.** C1–C9, F1, F2 y R1/R2 aplicados en `fix/panel-admin`
+> (`0916226` … `82339c2`). F2 resolvió 6 archivos a mano (cola offline + logout/caché + firma requerida).
+> Pendientes por decisión del usuario: `requerimientos/*.pdf`, `docs/DOCUMENTACION_COMPLETA.docx`, remoto Git y
+> retirada de `migrations/versions_backup/` (sin rastrear; ya no es necesario).
+
 ## 1. Estado inicial (fuente de verdad: `git status`)
 
 | Dato | Valor |

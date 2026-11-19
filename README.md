@@ -53,15 +53,14 @@ python -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 cp ../../.env.example .env   # ajustar DB_URL y JWT_SECRET_KEY
-flask --app wsgi db upgrade   # ver nota: la cadena de migraciones debe corregirse primero
+flask --app wsgi db upgrade   # cadena única: ef3ab0606ef4 -> 3a374aacae1f -> 615483f3bc21 -> a7c8e9f0b1d2
 flask --app wsgi run --port 5000
 ```
 
 La API queda disponible en `http://localhost:5000` (health: `GET /api/v1/health`).
 
-> **Migraciones (17/11/2026):** `flask db upgrade` falla mientras `migrations/versions/` contenga las migraciones
-> antiguas en inglés. Una base existente (p. ej. `SIGOS_DEV`, en `615483f3bc21`) funciona sin migrar.
-> Detalle y corrección: `docs/database/esquema-espanol-y-orm.md`.
+> **Migraciones (18/11/2026):** `migrations/versions/` contiene una sola cadena (en español); las migraciones antiguas en
+> inglés están en `migrations/legacy_en/` y no se aplican. Detalle: `docs/architecture/migration-recovery-plan.md`.
 
 ## Levantar el desktop
 

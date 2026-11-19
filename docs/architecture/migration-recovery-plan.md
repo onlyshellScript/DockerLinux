@@ -6,6 +6,13 @@
 >
 > **Corrige** lo afirmado el 17/11 en `docs/database/esquema-espanol-y-orm.md` §4 (ver §7).
 
+> **Estado (18/11/2026, Fase 1): EJECUTADO.** Pasos 1–6 de §6 aplicados y validados:
+> respaldo `SIGOS_DEV_preR2_20261118_195235.bak` (COPY_ONLY, CHECKSUM, `RESTORE VERIFYONLY` correcto, carpeta de
+> respaldos por defecto de la instancia); cadena española versionada (`7670df7`); inglesa movida a
+> `migrations/legacy_en/` con `d4e5f6a7b8c9` (`82339c2`); `db heads` = `a7c8e9f0b1d2` (única); instalación nueva en
+> `SIGOS_MIGTEST` = 43/43 tablas sin diferencias; `SIGOS_DEV` migrada `615483f3bc21 → a7c8e9f0b1d2`, 43/43 tablas y
+> login 200. Drift M5 (`Leida`, `AsignadoPorId`) sin cambios. `SIGOS_MIGTEST` se conserva (base desechable, sin datos).
+
 ## 1. Entorno consultado
 
 | Dato | Valor |
