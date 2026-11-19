@@ -1,7 +1,27 @@
-﻿.venv/
+# Entornos y caches locales
+.venv/
 __pycache__/
 *.pyc
-uploads/
-tests/
 .pytest_cache/
-.env
+.git
+.gitignore
+
+# Secretos: nunca dentro de la imagen
+.env*
+!.env.example
+*.pem
+*.key
+
+# Datos y artefactos locales
+uploads/
+instance/
+*.db
+*.sqlite*
+*.log
+*.bak
+salida_*.txt
+migrations/versions_backup/
+docker-compose*.y*ml
+
+# Pruebas
+tests/

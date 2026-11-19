@@ -15,6 +15,7 @@ case "${1:-api}" in
       --workers "${GUNICORN_WORKERS:-4}" \
       --timeout "${GUNICORN_TIMEOUT:-120}" \
       --access-logfile - --error-logfile - \
+      --forwarded-allow-ips="${FORWARDED_ALLOW_IPS:-*}" \
       wsgi_prod:app
     ;;
   worker)

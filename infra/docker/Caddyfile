@@ -1,0 +1,42 @@
+# Proxy inverso de SIGOS.
+# SIGOS_DOMAIN (lo inyecta el compose):
+#   ":80"              -> solo HTTP (por defecto, p. ej. detrás de otro balanceador o en LAN)
+#   "sigos.ejemplo.com" -> HTTPS automático (Let's Encrypt); requiere DNS apuntando aquí y 80/443 abiertos.
+# Sin dominio se sirve HTTP plano: solo aceptable detrás de un balanceador que termine TLS.
+# HSTS se emite solo en respuestas servidas por HTTPS (matcher "protocol https"), es decir,
+# cuando hay dominio; en HTTP no se envía (los navegadores lo ignorarían de todos modos).
+{
+	admin 127.0.0.1:2019
+}
+
+{$SIGOS_DOMAIN} {
+	encode zstd gzip
+
+	request_body {
+		# Evidencias: 10 MB por archivo (EVIDENCE_MAX_FILE_SIZE) + margen multipart.
+		max_size {$PROXY_MAX_BODY}
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# API JSON: no carga recursos ni se embebe en marcos.
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		-Server
+		-X-Powered-By
+	}
+
+	@https protocol https
+	header @https Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	reverse_proxy api:5000 {
+		header_up X-Real-IP {remote_host}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

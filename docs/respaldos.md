@@ -31,3 +31,16 @@ Restauracion:
 RESTORE DATABASE sigos FROM DISK = 'C:\backups\sigos_YYYYMMDD.bak' WITH REPLACE;
 ```
 Programar con SQL Server Agent (job diario) o Task Scheduler invocando sqlcmd. Retencion: eliminar archivos mas antiguos a N dias (script PowerShell).
+
+## SQL Server en Docker (producción)
+
+En el despliegue con `infra/docker/docker-compose.prod.yaml` los respaldos se hacen con los scripts de
+[`infra/docker/backup/`](../infra/docker/backup/README.md):
+
+- `backup.sh`: `BACKUP DATABASE` con `CHECKSUM` + `RESTORE VERIFYONLY`, copia del `.bak` al host y tar.gz del
+  volumen de evidencias (`api-uploads`), con retención (`BACKUP_RETENTION_DAYS`, 14 días por defecto).
+  En SQL Server Express no hay `COMPRESSION`; el script la activa solo en ediciones que la soportan.
+- `restore.sh`: detiene `api` y `worker`, restaura con `REPLACE` y vuelve a arrancarlos.
+
+Programación (cron/systemd) y prueba de restauración: ver el README de esa carpeta.
+Los respaldos deben copiarse fuera del servidor (rsync/rclone); los scripts no lo hacen.

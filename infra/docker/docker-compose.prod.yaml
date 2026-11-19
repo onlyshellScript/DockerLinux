@@ -2,10 +2,35 @@
 # Uso:
 #   cp infra/docker/.env.prod.example infra/docker/.env   # y rellenar valores
 #   docker compose -f infra/docker/docker-compose.prod.yaml --env-file infra/docker/.env up -d --build
+#
+# Servicios:
+#   proxy     Caddy: único punto publicado (80/443). HTTPS automático (y HSTS) si SIGOS_DOMAIN
+#             está definido. SIN SIGOS_DOMAIN se sirve HTTP plano en :80: solo es aceptable detrás
+#             de un balanceador que termine TLS (o en una LAN de pruebas).
+#   sqlserver SQL Server, solo en la red interna.
+#   migrate   one-shot con credenciales de sa: crea BD, login/usuario migrador (DB_MIGRATOR_USER,
+#             db_ddladmin) y de aplicación (DB_APP_USER, solo DML + EXECUTE) y migra con el
+#             migrador. Es el ÚNICO servicio que recibe las contraseñas de sa y del migrador.
+#   api       gunicorn, conecta como DB_APP_USER. Sin puertos publicados (diagnóstico directo:
+#             añadir -f infra/docker/docker-compose.debug.yaml).
+#   worker    notificaciones, conecta como DB_APP_USER.
+#
+# Las URLs de BD no se escriben aquí: la app las arma con DB_HOST/DB_NAME/DB_APP_USER/DB_APP_PASSWORD
+# codificando usuario y contraseña, así las contraseñas pueden contener @ : / ? # %.
 name: sigos
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 x-api-env: &api-env
-  DB_URL: "mssql+pyodbc://sa:${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatorio}@sqlserver:1433/${DB_NAME:-sigos}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+  DB_HOST: sqlserver
+  DB_PORT: "1433"
+  DB_NAME: "${DB_NAME:-sigos}"
+  DB_APP_USER: "${DB_APP_USER:-sigos_app}"
+  DB_APP_PASSWORD: "${DB_APP_PASSWORD:?DB_APP_PASSWORD es obligatorio}"
   JWT_SECRET_KEY: "${JWT_SECRET_KEY:?JWT_SECRET_KEY es obligatorio}"
   SMTP_HOST: "${SMTP_HOST:-}"
   SMTP_PORT: "${SMTP_PORT:-587}"
@@ -18,40 +43,64 @@ x-api-env: &api-env
 
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:${MSSQL_IMAGE_TAG:-2022-latest}
+    image: mcr.microsoft.com/mssql/server:${MSSQL_IMAGE_TAG:-2022-CU16-ubuntu-22.04}
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: "${MSSQL_PID:-Express}"
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatorio}"
+      # SQL Server en Linux exige >= 2048 MB; mantener por debajo de mem_limit.
+      MSSQL_MEMORY_LIMIT_MB: "${MSSQL_MEMORY_LIMIT_MB:-2048}"
+    mem_limit: "${SQLSERVER_MEM_LIMIT:-3g}"
     volumes:
       - sqlserver-data:/var/opt/mssql
     # Sin puertos publicados: solo accesible desde la red interna del compose.
     restart: unless-stopped
+    logging: *logging
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -C -b -o /dev/null"]
+      # SQLCMDPASSWORD en lugar de -P: la contraseña no aparece en la línea de comandos (ps).
+      test: ["CMD-SHELL", "SQLCMDPASSWORD=\"$$MSSQL_SA_PASSWORD\" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -Q \"SELECT 1\" -C -b -o /dev/null"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 30s
 
-  api:
+  migrate:
     build:
       context: ../../services/api
       dockerfile: Dockerfile
     image: sigos-api:${SIGOS_VERSION:-latest}
-    command: ["api"]
-    ports:
-      - "${API_BIND:-127.0.0.1}:${API_PORT:-5000}:5000"
+    command: ["migrate"]
     environment:
       <<: *api-env
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatorio}"
+      DB_MIGRATOR_USER: "${DB_MIGRATOR_USER:-sigos_migrator}"
+      DB_MIGRATOR_PASSWORD: "${DB_MIGRATOR_PASSWORD:?DB_MIGRATOR_PASSWORD es obligatorio}"
+      RUN_MIGRATIONS: "true"
+    restart: "no"
+    logging: *logging
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  api:
+    image: sigos-api:${SIGOS_VERSION:-latest}
+    command: ["api"]
+    # Sin puertos publicados: solo el proxy la alcanza (gunicorn confía en X-Forwarded-* por eso).
+    expose:
+      - "5000"
+    mem_limit: "${API_MEM_LIMIT:-1g}"
+    environment:
+      <<: *api-env
+      RUN_MIGRATIONS: "false"
       ENABLE_NOTIFICATION_WORKER: "false"
       GUNICORN_WORKERS: "${GUNICORN_WORKERS:-4}"
     volumes:
       - api-uploads:/app/uploads
     restart: unless-stopped
+    logging: *logging
     depends_on:
-      sqlserver:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/health')"]
       interval: 30s
@@ -65,15 +114,48 @@ services:
     environment:
       <<: *api-env
       NOTIFICATION_WORKER_INTERVAL: "${NOTIFICATION_WORKER_INTERVAL:-30}"
+    mem_limit: "${WORKER_MEM_LIMIT:-512m}"
     volumes:
       - api-uploads:/app/uploads
     restart: unless-stopped
+    logging: *logging
+    depends_on:
+      api:
+        condition: service_healthy
+    # worker.py toca /tmp/worker.heartbeat en cada ciclo; sano si su mtime < 3 * intervalo.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,time; i=int(os.getenv('NOTIFICATION_WORKER_INTERVAL','30')); sys.exit(0 if time.time()-os.path.getmtime('/tmp/worker.heartbeat') < 3*i else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  proxy:
+    image: caddy:2.8.4-alpine
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    environment:
+      SIGOS_DOMAIN: "${SIGOS_DOMAIN:-:80}"
+      PROXY_MAX_BODY: "${PROXY_MAX_BODY:-25MB}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+    logging: *logging
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      disable: true
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   api-uploads:
   sqlserver-data:
+  caddy-data:
+  caddy-config:

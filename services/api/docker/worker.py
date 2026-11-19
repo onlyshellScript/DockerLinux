@@ -14,6 +14,17 @@ from app.config import ProductionConfig  # noqa: E402
 from app.notifications.service import process_pending  # noqa: E402
 
 _running = True
+HEARTBEAT = os.getenv("WORKER_HEARTBEAT_FILE", "/tmp/worker.heartbeat")
+
+
+def _beat():
+    """Toca el archivo de heartbeat; el healthcheck exige mtime < 3 * intervalo."""
+    try:
+        with open(HEARTBEAT, "a"):
+            pass
+        os.utime(HEARTBEAT, None)
+    except OSError as exc:
+        print(f"[worker] No se pudo actualizar el heartbeat: {exc}", flush=True)
 
 
 def _stop(*_):
@@ -28,6 +39,7 @@ def main():
     app = create_app(ProductionConfig)
     print(f"[worker] Notificaciones cada {interval}s", flush=True)
     while _running:
+        _beat()
         with app.app_context():
             try:
                 n = process_pending()

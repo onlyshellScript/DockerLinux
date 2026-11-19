@@ -1,0 +1,13 @@
+# Override OPCIONAL de diagnóstico: publica la API directamente (sin proxy) en loopback.
+# Uso:
+#   docker compose -f infra/docker/docker-compose.prod.yaml -f infra/docker/docker-compose.debug.yaml \
+#     --env-file infra/docker/.env up -d
+# No usar de forma permanente: gunicorn confía en X-Forwarded-* (ProxyFix), por lo que un acceso
+# directo podría falsear la IP de cliente. Con este override se desactiva ProxyFix.
+services:
+  api:
+    ports:
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-5000}:5000"
+    environment:
+      PROXY_FIX_HOPS: "0"
+      FORWARDED_ALLOW_IPS: "127.0.0.1"

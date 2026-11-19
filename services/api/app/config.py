@@ -17,6 +17,7 @@ Alias de compatibilidad: ``Config`` (= DevelopmentConfig), ``TestConfig``
 import os
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import quote_plus
 
 try:
     from dotenv import load_dotenv
@@ -55,6 +56,43 @@ def env_int(name, default):
         raise RuntimeError(f"La variable de entorno {name} debe ser un entero") from exc
 
 
+def env_secret(name, default=None):
+    """Lee NAME o, si no existe, el contenido del archivo NAME_FILE (docker secrets)."""
+    value = env_str(name)
+    if value is not None:
+        return value
+    path = env_str(f"{name}_FILE")
+    if path:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read().strip() or default
+    return default
+
+
+def build_mssql_url(user, password, database, host=None, port=None):
+    """URL SQLAlchemy de SQL Server con usuario y contrasena codificados (admite @ : / ? # %)."""
+    host = host or env_str("DB_HOST", "localhost")
+    port = port or env_str("DB_PORT", "1433")
+    driver = env_str("DB_DRIVER", "ODBC Driver 18 for SQL Server")
+    trust = env_str("DB_TRUST_SERVER_CERTIFICATE", "yes")
+    return (
+        f"mssql+pyodbc://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{quote_plus(database)}"
+        f"?driver={quote_plus(driver)}&TrustServerCertificate={quote_plus(trust)}"
+    )
+
+
+def database_url(name="DB_URL", default=None):
+    """DB_URL (o DB_URL_FILE) si viene; si no, se arma con DB_HOST, DB_NAME, DB_APP_USER y DB_APP_PASSWORD."""
+    url = env_secret(name)
+    if url:
+        return url
+    if env_str("DB_HOST"):
+        user = env_str("DB_APP_USER", "sigos_app")
+        password = env_secret("DB_APP_PASSWORD")
+        if password:
+            return build_mssql_url(user, password, env_str("DB_NAME", "sigos"))
+    return default
+
+
 def resolve_path(raw, default):
     """Devuelve una ruta absoluta; las relativas se resuelven contra API_ROOT."""
     path = Path(raw) if raw else Path(default)
@@ -81,8 +119,8 @@ class BaseConfig:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # --- Base de datos y autenticacion ---
-    SQLALCHEMY_DATABASE_URI = _Env(env_str, "DB_URL")
-    JWT_SECRET_KEY = _Env(env_str, "JWT_SECRET_KEY")
+    SQLALCHEMY_DATABASE_URI = _Env(database_url, "DB_URL")
+    JWT_SECRET_KEY = _Env(env_secret, "JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
 
