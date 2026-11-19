@@ -1,7 +1,9 @@
+// Dashboard con conteos por estado, tecnicos y notificaciones recientes.
 import 'package:flutter/material.dart';
 
 import '../../core/api/api_client.dart';
 
+// Widget con estado para cargar datos del dashboard.
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, required this.client});
 
@@ -11,6 +13,7 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
+// Estado: loading, error y listas de ordenes, perfiles y notificaciones.
 class _DashboardPageState extends State<DashboardPage> {
   bool _loading = true;
   String? _error;
@@ -19,12 +22,15 @@ class _DashboardPageState extends State<DashboardPage> {
   List<dynamic> _notifications = [];
 
   @override
+  // Inicia la carga de ordenes, perfiles y notificaciones al montar.
   void initState() {
     super.initState();
     _load();
   }
 
+  // Consulta en paralelo ordenes, perfiles y notificaciones; actualiza listas o error.
   Future<void> _load() async {
+    // Activa carga y limpia error antes de consultar ordenes, perfiles y notificaciones.
     setState(() {
       _loading = true;
       _error = null;
@@ -35,12 +41,14 @@ class _DashboardPageState extends State<DashboardPage> {
       widget.client.get('/api/v1/notifications'),
     ]);
     if (!results[0].ok) {
+      // Desactiva carga y guarda el error si falla la consulta de ordenes.
       setState(() {
         _loading = false;
         _error = (results[0].body is Map ? results[0].body['error'] : null) ?? 'Error';
       });
       return;
     }
+    // Guarda ordenes, perfiles y notificaciones recibidos y desactiva carga.
     setState(() {
       _orders = results[0].body as List<dynamic>? ?? [];
       _profiles = results[1].ok ? (results[1].body as List<dynamic>? ?? []) : [];
@@ -50,6 +58,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   @override
+  // Construye tarjetas de conteo, lista de tecnicos y notificaciones.
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!));

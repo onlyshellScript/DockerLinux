@@ -1,9 +1,11 @@
-﻿import 'dart:convert';
+﻿// Sincronizacion bidireccional de operaciones pendientes con la API.
+import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import '../offline/pending_operations.dart';
 
+// Resultado de sincronizacion: contadores de sincronizados, fallidos y duplicados.
 class SyncResult {
   final int synced;
   final int failed;
@@ -12,6 +14,7 @@ class SyncResult {
   SyncResult({required this.synced, required this.failed, required this.duplicates});
 }
 
+// Servicio que envia operaciones pendientes (push) y descarga cambios (pull).
 class SyncService {
   SyncService(this.baseUrl, {http.Client? client})
       : _client = client ?? http.Client();
@@ -20,6 +23,7 @@ class SyncService {
   final http.Client _client;
   final _store = PendingOperationsStore();
 
+  // Envia operaciones pending a /api/v1/sync/push y actualiza su estado segun respuesta.
   Future<SyncResult> pushPending(String token) async {
     final pending = await _store.pending();
     if (pending.isEmpty) {
@@ -63,6 +67,7 @@ class SyncService {
     return SyncResult(synced: synced, failed: failed, duplicates: duplicates);
   }
 
+  // Descarga cambios desde /api/v1/sync/pull con filtro opcional since.
   Future<Map<String, dynamic>> pull(String token, {String? since}) async {
     var uri = Uri.parse('$baseUrl/api/v1/sync/pull');
     if (since != null) {
@@ -78,5 +83,6 @@ class SyncService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  // Delega el conteo de operaciones pending al store local.
   Future<int> pendingCount() => _store.pendingCount();
 }

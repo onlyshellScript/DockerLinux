@@ -1,10 +1,14 @@
+// Pantalla de detalle de una orden: datos, historial y acciones.
 
+
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/api/api_client.dart';
 
+// Widget con estado para cargar y modificar una orden.
 class OrderDetailPage extends StatefulWidget {
   const OrderDetailPage({super.key, required this.client, required this.orderId, required this.user});
 
@@ -16,6 +20,7 @@ class OrderDetailPage extends StatefulWidget {
   State<OrderDetailPage> createState() => _OrderDetailPageState();
 }
 
+// Estado: loading, error, orden, historial, estado nuevo y controladores.
 class _OrderDetailPageState extends State<OrderDetailPage> {
   bool _loading = true;
   String? _error;
@@ -28,12 +33,15 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   static const _baseUrl = String.fromEnvironment('SIGOS_API_BASE_URL', defaultValue: 'http://10.0.2.2:5000');
 
   @override
+  // Inicia la carga de la orden e historial al montar el widget.
   void initState() {
     super.initState();
     _load();
   }
 
+  // Consulta en paralelo la orden y su historial; actualiza estado o error.
   Future<void> _load() async {
+    // Activa carga y limpia error antes de consultar orden e historial.
     setState(() {
       _loading = true;
       _error = null;
@@ -43,12 +51,14 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       widget.client.get('/api/v1/work-orders/${widget.orderId}/history'),
     ]);
     if (!results[0].ok) {
+      // Desactiva carga y guarda el error si falla la consulta de la orden.
       setState(() {
         _loading = false;
         _error = (results[0].body is Map ? results[0].body['error'] : null) ?? 'Error';
       });
       return;
     }
+    // Guarda orden e historial recibidos y desactiva carga.
     setState(() {
       _order = results[0].body as Map<String, dynamic>;
       _history = results[1].ok ? (results[1].body as List<dynamic>? ?? []) : [];
@@ -56,6 +66,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     });
   }
 
+  // Devuelve los estados permitidos segun el estado actual de la orden.
   List<String> _allowed(String status) {
     const t = {
       'pending': ['assigned', 'cancelled'],
@@ -68,6 +79,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     return t[status] ?? <String>[];
   }
 
+  // Envia el cambio de estado con notas a la API y recarga la orden.
   Future<void> _changeStatus() async {
     if (_newStatus == null) return;
     final res = await widget.client.post('/api/v1/work-orders/${widget.orderId}/status', body: {
@@ -84,6 +96,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     _load();
   }
 
+  // Sube una observacion como evidencia multipart y recarga la orden.
   Future<void> _addObs() async {
     final desc = _obs.text.trim();
     if (desc.isEmpty) return;
@@ -95,7 +108,16 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     final streamed = await req.send();
     final res = await http.Response.fromStream(streamed);
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${res.body}')));
+      String msg = 'No se pudo registrar la observación';
+      try {
+        final body = jsonDecode(res.body);
+        if (body is Map && body['code'] == 'technician_signature_required') {
+          msg = 'Registre su firma en la aplicación de escritorio (Mi firma) antes de adjuntar evidencias.';
+        } else if (body is Map && body['error'] is String) {
+          msg = body['error'] as String;
+        }
+      } catch (_) {}
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       return;
     }
     _obs.clear();
@@ -104,6 +126,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 
   @override
+  // Construye detalle, cambio de estado, historial y observacion.
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (_error != null) return Scaffold(appBar: AppBar(title: const Text('Detalle')), body: Center(child: Text(_error!)));

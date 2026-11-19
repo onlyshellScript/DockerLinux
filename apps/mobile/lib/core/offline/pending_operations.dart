@@ -1,10 +1,12 @@
-﻿import 'dart:convert';
+﻿// Cola local de operaciones pendientes de sincronizacion con el servidor.
+import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 import 'local_database.dart';
 
+// Operacion pendiente: id, tipo, payload, estado y fecha de creacion.
 class PendingOperation {
   final String id;
   final String operationType;
@@ -20,6 +22,7 @@ class PendingOperation {
     required this.createdAt,
   });
 
+  // Serializa la operacion para enviarla al endpoint de sync push.
   Map<String, dynamic> toJson() => {
         'client_operation_id': id,
         'operation_type': operationType,
@@ -27,10 +30,12 @@ class PendingOperation {
       };
 }
 
+// Almacen CRUD de operaciones pendientes en SQLite con estados pending/synced/failed.
 class PendingOperationsStore {
   final LocalDatabase _db = LocalDatabase.instance;
   final _uuid = const Uuid();
 
+  // Genera UUID, persiste la operacion como pending y la devuelve.
   Future<PendingOperation> add(String operationType, Map<String, dynamic> payload) async {
     final db = await _db.database;
     final op = PendingOperation(
@@ -49,6 +54,7 @@ class PendingOperationsStore {
     return op;
   }
 
+  // Lista operaciones con status pending ordenadas por fecha de creacion.
   Future<List<PendingOperation>> pending() async {
     final db = await _db.database;
     final rows = await db.query(
@@ -66,16 +72,19 @@ class PendingOperationsStore {
     )).toList();
   }
 
+  // Marca la operacion indicada como synced en SQLite.
   Future<void> markSynced(String id) async {
     final db = await _db.database;
     await db.update('pending_operations', {'status': 'synced'}, where: 'id = ?', whereArgs: [id]);
   }
 
+  // Marca la operacion indicada como failed en SQLite.
   Future<void> markFailed(String id) async {
     final db = await _db.database;
     await db.update('pending_operations', {'status': 'failed'}, where: 'id = ?', whereArgs: [id]);
   }
 
+  // Cuenta operaciones con status pending en SQLite.
   Future<int> pendingCount() async {
     final db = await _db.database;
     final result = await db.rawQuery('SELECT COUNT(*) as c FROM pending_operations WHERE status = ?', ['pending']);

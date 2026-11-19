@@ -1,18 +1,22 @@
-﻿import 'package:path/path.dart';
+﻿// Base de datos SQLite local para cache y operaciones pendientes.
+import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+// Singleton de base de datos; crea tablas pending_operations, cached_*, sync_meta.
 class LocalDatabase {
   LocalDatabase._();
   static final LocalDatabase instance = LocalDatabase._();
 
   Database? _db;
 
+  // Devuelve la instancia abierta, abriendola la primera vez.
   Future<Database> get database async {
     if (_db != null) return _db!;
     _db = await _open();
     return _db!;
   }
 
+  // Abre sigos.db en el directorio de bases de datos y ejecuta _onCreate en version 1.
   Future<Database> _open() async {
     final path = join(await getDatabasesPath(), 'sigos.db');
     return openDatabase(
@@ -22,6 +26,7 @@ class LocalDatabase {
     );
   }
 
+  // Crea las tablas pending_operations, cached_work_orders, cached_materials y sync_meta.
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE pending_operations (
@@ -57,6 +62,7 @@ class LocalDatabase {
     ''');
   }
 
+  // Cierra la base de datos abierta y libera la instancia en memoria.
   Future<void> close() async {
     await _db?.close();
     _db = null;

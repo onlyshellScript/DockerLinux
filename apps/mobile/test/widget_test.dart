@@ -1,3 +1,4 @@
+// Pruebas del cliente de salud y de la pagina de salud.
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -8,7 +9,9 @@ import 'package:http/testing.dart';
 import 'package:sigos_mobile/core/api/health_client.dart';
 import 'package:sigos_mobile/features/health/health_page.dart';
 
+// Suite de pruebas de HealthClient y HealthPage con API simulada.
 void main() {
+  // Verifica que HealthClient reporta API disponible cuando el endpoint responde UP.
   test('HealthClient reports available API', () async {
     final client = MockClient((request) async {
       return http.Response(
@@ -22,6 +25,7 @@ void main() {
     expect(result.isUp, isTrue);
   });
 
+  // Verifica que HealthPage muestra el texto API disponible tras consultar.
   testWidgets('HealthPage shows available API', (tester) async {
     final client = MockClient((request) async {
       return http.Response(

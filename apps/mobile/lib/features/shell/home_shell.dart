@@ -1,3 +1,4 @@
+// Shell principal con barra inferior de navegacion entre secciones.
 import 'package:flutter/material.dart';
 
 import '../../core/api/api_client.dart';
@@ -5,6 +6,7 @@ import '../dashboard/dashboard_page.dart';
 import '../orders/orders_page.dart';
 import '../notifications/notifications_page.dart';
 
+// Widget con estado que contiene las pestanas principales.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.client, required this.user, required this.onLogout});
 
@@ -16,10 +18,12 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
+// Estado: indice de pestana seleccionada.
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
   @override
+  // Construye AppBar, cuerpo segun pestana y barra inferior.
   Widget build(BuildContext context) {
     final pages = [
       DashboardPage(client: widget.client),

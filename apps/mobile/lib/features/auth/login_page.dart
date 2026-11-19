@@ -1,8 +1,10 @@
+// Pantalla de inicio de sesion con usuario y contrasena.
 import 'package:flutter/material.dart';
 
 import '../../core/api/api_client.dart';
 
 
+// Widget publico de la pagina de login.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.onLogin});
 
@@ -12,6 +14,7 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
+// Estado: controladores, carga y error; envia credenciales a la API.
 class _LoginPageState extends State<LoginPage> {
   final _username = TextEditingController();
   final _password = TextEditingController();
@@ -20,7 +23,9 @@ class _LoginPageState extends State<LoginPage> {
 
   static const _baseUrl = String.fromEnvironment('SIGOS_API_BASE_URL', defaultValue: 'http://10.0.2.2:5000');
 
+  // Envia credenciales a /api/v1/auth/login y, si OK, entrega sesion al padre.
   Future<void> _submit() async {
+    // Marca carga activa y limpia el error previo antes de enviar credenciales.
     setState(() {
       _loading = true;
       _error = null;
@@ -31,6 +36,7 @@ class _LoginPageState extends State<LoginPage> {
       'password': _password.text,
     });
     if (!res.ok) {
+      // Desactiva carga y guarda el mensaje de error tras login fallido.
       setState(() {
         _loading = false;
         _error = (res.body is Map ? res.body['error'] : null) ?? 'Credenciales inválidas';
@@ -44,6 +50,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   @override
+  // Construye el formulario centrado con campos y boton ingresar.
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
