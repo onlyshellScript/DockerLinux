@@ -4,13 +4,27 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 
+# _setting: valor centralizado en app.config cuando hay contexto de aplicacion; fuera de el (hilos
+# sin contexto) se recurre a la variable de entorno para conservar el comportamiento anterior.
+def _setting(name, default=None):
+    try:
+        from flask import current_app
+        if name in current_app.config:
+            value = current_app.config[name]
+            return default if value is None else value
+    except RuntimeError:
+        pass
+    value = os.getenv(name)
+    return default if value in (None, "") else value
+
+
 # Envia la informacion al destino; recibe recipient, subject, message; accede al sistema de archivos; devuelve el valor correspondiente.
 def send_email(recipient, subject, message):
-    smtp_host = os.getenv("SMTP_HOST")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_pass = os.getenv("SMTP_PASS")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user)
+    smtp_host = _setting("SMTP_HOST")
+    smtp_port = int(_setting("SMTP_PORT", 587))
+    smtp_user = _setting("SMTP_USER")
+    smtp_pass = _setting("SMTP_PASS")
+    smtp_from = _setting("SMTP_FROM", smtp_user)
 
     if not smtp_host:
         return False, "SMTP_HOST not configured"
@@ -34,9 +48,9 @@ def send_email(recipient, subject, message):
 
 # Envia la informacion al destino; recibe recipient, message; realiza llamadas de red; accede al sistema de archivos; devuelve el valor correspondiente.
 def send_whatsapp(recipient, message):
-    api_url = os.getenv("WHATSAPP_API_URL")
-    api_token = os.getenv("WHATSAPP_API_TOKEN")
-    phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+    api_url = _setting("WHATSAPP_API_URL")
+    api_token = _setting("WHATSAPP_API_TOKEN")
+    phone_number_id = _setting("WHATSAPP_PHONE_NUMBER_ID")
 
     if not api_url:
         return False, "WHATSAPP_API_URL not configured"

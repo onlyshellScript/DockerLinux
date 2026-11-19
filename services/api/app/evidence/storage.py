@@ -64,21 +64,36 @@ def _read_input(file_input, original_name=None):
     return data, name
 
 
+# _app_config: configuracion de la app activa, o {} fuera de contexto de aplicacion.
+def _app_config():
+    try:
+        from flask import current_app
+        return current_app.config
+    except RuntimeError:
+        return {}
+
+
 # LocalStorage: clase auxiliar para LocalStorage.
 class LocalStorage:
 # Gestiona init; recibe base_dir, max_file_size, allowed_mime_types; accede al sistema de archivos; devuelve el valor correspondiente.
     def __init__(self, base_dir=None, max_file_size=None, allowed_mime_types=None):
-        raw = base_dir or os.getenv("EVIDENCE_UPLOAD_DIR") or os.getenv("UPLOAD_DIR", "uploads")
-        self.base_dir = Path(raw).resolve()
+        cfg = _app_config()
+        if base_dir:
+            self.base_dir = Path(base_dir).resolve()
+        elif cfg.get("UPLOAD_DIR"):
+            self.base_dir = Path(cfg["UPLOAD_DIR"])
+        else:
+            from app.config import BaseConfig
+            self.base_dir = Path(BaseConfig().UPLOAD_DIR)
         self.originals_dir = self.base_dir / "originals"
         self.derivatives_dir = self.base_dir / "derivatives"
         self.originals_dir.mkdir(parents=True, exist_ok=True)
         self.derivatives_dir.mkdir(parents=True, exist_ok=True)
         if max_file_size is None:
-            max_file_size = int(os.getenv("EVIDENCE_MAX_FILE_SIZE", str(10 * 1024 * 1024)))
+            max_file_size = cfg.get("EVIDENCE_MAX_FILE_SIZE") or int(os.getenv("EVIDENCE_MAX_FILE_SIZE", str(10 * 1024 * 1024)))
         self.max_file_size = int(max_file_size)
         if allowed_mime_types is None:
-            env = os.getenv("EVIDENCE_ALLOWED_MIME_TYPES")
+            env = cfg.get("EVIDENCE_ALLOWED_MIME_TYPES") or os.getenv("EVIDENCE_ALLOWED_MIME_TYPES")
             if env:
                 allowed_mime_types = {x.strip() for x in env.split(",") if x.strip()}
             else:

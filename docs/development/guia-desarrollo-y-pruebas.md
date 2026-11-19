@@ -82,3 +82,7 @@ Para revisar PDFs generados se renderizaron a PNG con `pypdfium2` instalado en u
 - Errores de validación: `422 {error, code, field}`; conflictos: `409 {error, code}`.
 - Rutas nuevas: decorar con `require_role`/`require_auth`, declarar en la matriz de acceso y cubrir con tests.
 - Auditoría: `AuditoriaEventos` para cuentas de usuario; `Auditoria` (`settings.service.audit`) para configuración y exportaciones.
+
+## Configuración por entorno (Fase 2)
+
+`SIGOS_ENV` = `development` (predeterminado) | `production` | `testing`. Detalle de clases, variables y rutas en [`docs/architecture/configuracion.md`](../architecture/configuracion.md).

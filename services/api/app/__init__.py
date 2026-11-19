@@ -1,19 +1,28 @@
 from flask import Flask
 
-from app.config import Config
+from app.config import get_config_class
 from app.extensions import db, migrate
 
 
 # -*- coding: utf-8 -*-
+# create_app: fabrica de la aplicacion. Sin argumento, la configuracion se elige con SIGOS_ENV
+# (development por defecto). Una clase se instancia para leer el entorno en este momento.
 def create_app(config_object=None):
     app = Flask(__name__)
-    app.config.from_object(config_object or Config)
+    config = config_object or get_config_class()
+    if isinstance(config, type):
+        config = config()
+    app.config.from_object(config)
+    app.config.setdefault("ENV_NAME", "development")
 
     if not app.config.get("TESTING"):
         if not app.config.get("SQLALCHEMY_DATABASE_URI"):
             raise RuntimeError("DB_URL environment variable is required")
         if not app.config.get("JWT_SECRET_KEY"):
             raise RuntimeError("JWT_SECRET_KEY environment variable is required")
+
+    from app.logging_config import setup_logging
+    setup_logging(app)
 
 # Aplica la configuracion solicitada; recibe response; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     @app.after_request

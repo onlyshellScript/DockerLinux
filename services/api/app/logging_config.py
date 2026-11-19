@@ -32,6 +32,10 @@ def setup_logging(app):
     else:
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
 
+    if app.config.get("TESTING"):
+        # En pruebas se conserva la configuracion de Flask/pytest (caplog depende de la propagacion).
+        app.logger.setLevel(level)
+        return
     app.logger.handlers = [handler]
     app.logger.setLevel(level)
     app.logger.propagate = False
