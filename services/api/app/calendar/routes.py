@@ -8,6 +8,7 @@ from app.calendar import service
 blueprint = Blueprint("calendar", __name__)
 
 
+# GET /calendar/events (roles: autenticado): events; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/calendar/events")
 @require_auth
 def events():
@@ -23,7 +24,6 @@ def events():
         "zone_id": request.args.get("zone_id"),
         "include_cancelled": request.args.get("include_cancelled", "false").lower() == "true",
     }
-    # technician role scoping
     for_user_id = None
     if "admin" not in roles and "dispatcher" not in roles:
         for_user_id = request.user_id
@@ -35,6 +35,7 @@ def events():
     return jsonify({"items": items}), 200
 
 
+# GET /calendar/unassigned (roles: autenticado): unassigned; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/calendar/unassigned")
 @require_auth
 def unassigned():
@@ -48,6 +49,7 @@ def unassigned():
     return jsonify(data), 200
 
 
+# POST /calendar/validate (roles: autenticado): validate; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/calendar/validate")
 @require_auth
 def validate():
@@ -68,6 +70,7 @@ def validate():
     return jsonify(result), 200
 
 
+# POST /calendar/authorize-sunday (roles: admin): authorize sunday; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/calendar/authorize-sunday")
 @require_role("admin")
 def authorize_sunday():
@@ -93,6 +96,7 @@ def authorize_sunday():
     if err:
         return jsonify({"error": err}), 400
     return jsonify(result.to_dict() if hasattr(result, "to_dict") else result), 200
+# GET /technicians/<int:tid>/availability (roles: autenticado): availability; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/technicians/<int:tid>/availability")
 @require_auth
 def availability(tid):
@@ -111,4 +115,3 @@ def availability(tid):
     if err:
         return jsonify({"error": err}), 422
     return jsonify(data), 200
-

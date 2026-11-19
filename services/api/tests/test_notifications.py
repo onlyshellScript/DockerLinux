@@ -1,7 +1,9 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 from app.extensions import db
 from app.identity.models import User, Role
 from app.notifications.models import Notification, STATUS_PENDING
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; devuelve el valor correspondiente.
 
 def _seed(app):
     with app.app_context():
@@ -23,10 +25,12 @@ def _seed(app):
         return admin.id, tech.id
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
+# test_create_notification: valida el escenario create notification preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_create_notification(client, app):
     admin_id, tech_id = _seed(app)
@@ -41,6 +45,7 @@ def test_create_notification(client, app):
     assert data["status"] == "pending"
     assert data["channel"] == "email"
 
+# test_invalid_channel: valida el escenario invalid channel preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_invalid_channel(client, app):
     admin_id, tech_id = _seed(app)
@@ -52,6 +57,7 @@ def test_invalid_channel(client, app):
     )
     assert resp.status_code == 400
 
+# test_technician_cannot_create: valida el escenario technician cannot create preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_technician_cannot_create(client, app):
     admin_id, tech_id = _seed(app)
@@ -63,6 +69,7 @@ def test_technician_cannot_create(client, app):
     )
     assert resp.status_code == 403
 
+# test_list_own_notifications: valida el escenario list own notifications preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_list_own_notifications(client, app):
     admin_id, tech_id = _seed(app)
@@ -85,6 +92,7 @@ def test_list_own_notifications(client, app):
     assert len(notifications) == 1
     assert notifications[0]["message"] == "For tech"
 
+# test_admin_sees_all: valida el escenario admin sees all preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_sees_all(client, app):
     admin_id, tech_id = _seed(app)
@@ -99,6 +107,7 @@ def test_admin_sees_all(client, app):
     resp = client.get("/api/v1/notifications", headers={"Authorization": f"Bearer {token}"})
     assert len(resp.get_json()) >= 1
 
+# test_process_pending_no_smtp: valida el escenario process pending no smtp preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_process_pending_no_smtp(client, app):
     admin_id, tech_id = _seed(app)

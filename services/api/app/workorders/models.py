@@ -23,48 +23,48 @@ ALL_STATUSES = [
 TRANSITIONS = {
     STATUS_PENDING: {STATUS_ASSIGNED, STATUS_CANCELLED},
     STATUS_ASSIGNED: {STATUS_IN_PROGRESS, STATUS_CANCELLED},
-    STATUS_IN_PROGRESS: {STATUS_COMPLETED},
-    STATUS_COMPLETED: {STATUS_CLOSED},
+    STATUS_IN_PROGRESS: {STATUS_COMPLETED, STATUS_CANCELLED},    STATUS_COMPLETED: {STATUS_CLOSED},
     STATUS_CLOSED: set(),
     STATUS_CANCELLED: set(),
 }
 
 
+# WorkOrder: modelo de base de datos que representa la entidad WorkOrder.
 class WorkOrder(db.Model):
-    __tablename__ = "work_orders"
+    __tablename__ = "OrdenesTrabajo"
 
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text)
-    status = db.Column(db.String(20), nullable=False, default=STATUS_PENDING, index=True)
-    priority = db.Column(db.String(10), nullable=False, default="medium")
-    customer_name = db.Column(db.String(120))
-    customer_phone = db.Column(db.String(30))
-    address = db.Column(db.String(250))
-    zone = db.Column(db.String(60), index=True)
-    legacy_zone = db.Column(db.String(60), index=True)
-    city_id = db.Column(db.Integer, db.ForeignKey("cities.id", ondelete="NO ACTION"), index=True)
-    zone_id = db.Column(db.Integer, db.ForeignKey("zones.id", ondelete="NO ACTION"), index=True)
-    installation_type = db.Column(db.String(80))
-    installation_type_code = db.Column(db.String(60), db.ForeignKey("installation_types.code", ondelete="NO ACTION"))
-    scheduled_at = db.Column(db.DateTime(timezone=True), index=True)
-    scheduled_end = db.Column(db.DateTime(timezone=True))
-    schedule_notes = db.Column(db.Text)
-    version = db.Column(db.Integer, nullable=False, default=0, server_default=sa.text("0"))
-    cancel_reason = db.Column(db.Text)
-    assigned_to_id = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
-    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(
+    id = db.Column("IdOrden", db.Integer, primary_key=True)
+    title = db.Column("Titulo", db.String(200), nullable=False)
+    description = db.Column("Descripcion", db.Text)
+    status = db.Column("Estado", db.String(20), nullable=False, default=STATUS_PENDING, index=True)
+    priority = db.Column("Prioridad", db.String(10), nullable=False, default="medium")
+    customer_name = db.Column("NombreCliente", db.String(120))
+    customer_phone = db.Column("TelefonoCliente", db.String(30))
+    address = db.Column("Direccion", db.String(250))
+    zone = db.Column("Zona", db.String(60), index=True)
+    legacy_zone = db.Column("ZonaLegado", db.String(60), index=True)
+    city_id = db.Column("IdCiudad", db.Integer, db.ForeignKey("Ciudades.IdCiudad", ondelete="NO ACTION"), index=True)
+    zone_id = db.Column("IdZona", db.Integer, db.ForeignKey("Zonas.IdZona", ondelete="NO ACTION"), index=True)
+    installation_type = db.Column("TipoInstalacion", db.String(80))
+    installation_type_code = db.Column("CodigoTipoInstalacion", db.String(60), db.ForeignKey("TiposInstalacion.Codigo", ondelete="NO ACTION"))
+    scheduled_at = db.Column("ProgramadoDesde", db.DateTime(timezone=True), index=True)
+    scheduled_end = db.Column("ProgramadoHasta", db.DateTime(timezone=True))
+    schedule_notes = db.Column("NotasProgramacion", db.Text)
+    version = db.Column("Version", db.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    cancel_reason = db.Column("MotivoCancelacion", db.Text)
+    assigned_to_id = db.Column("IdAsignadoA", db.Integer, db.ForeignKey("Usuarios.IdUsuario"), index=True)
+    created_by_id = db.Column("IdCreadoPor", db.Integer, db.ForeignKey("Usuarios.IdUsuario"), nullable=False)
+    created_at = db.Column("CreadoEn", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column("ActualizadoEn", 
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
-    completed_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column("FechaCompletado", db.DateTime(timezone=True))
 
     __table_args__ = (
-        db.CheckConstraint("status IN ('pending','assigned','in_progress','completed','closed','cancelled')", name="ck_wo_status"),
-        db.CheckConstraint("priority IN ('high','medium','low')", name="ck_wo_priority"),
+        db.CheckConstraint("Estado IN ('pending','assigned','in_progress','completed','closed','cancelled')", name="ck_wo_status"),
+        db.CheckConstraint("Prioridad IN ('high','medium','low')", name="ck_wo_priority"),
     )
 
     city = db.relationship("City", foreign_keys=[city_id])
@@ -73,6 +73,7 @@ class WorkOrder(db.Model):
     created_by = db.relationship("User", foreign_keys=[created_by_id])
     history = db.relationship("WorkOrderStatusHistory", backref="work_order", lazy="selectin", order_by="WorkOrderStatusHistory.created_at")
 
+# Convierte el valor al formato interno; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def to_dict(self):
         return {
             "id": self.id,
@@ -101,19 +102,21 @@ class WorkOrder(db.Model):
         }
 
 
+# WorkOrderStatusHistory: modelo de base de datos que representa la entidad WorkOrderStatusHistory.
 class WorkOrderStatusHistory(db.Model):
-    __tablename__ = "work_order_status_history"
+    __tablename__ = "HistorialEstadoOrden"
 
-    id = db.Column(db.Integer, primary_key=True)
-    work_order_id = db.Column(db.Integer, db.ForeignKey("work_orders.id"), nullable=False, index=True)
-    from_status = db.Column(db.String(20), nullable=False)
-    to_status = db.Column(db.String(20), nullable=False)
-    changed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    id = db.Column("IdHistorial", db.Integer, primary_key=True)
+    work_order_id = db.Column("IdOrden", db.Integer, db.ForeignKey("OrdenesTrabajo.IdOrden"), nullable=False, index=True)
+    from_status = db.Column("EstadoAnterior", db.String(20), nullable=False)
+    to_status = db.Column("EstadoNuevo", db.String(20), nullable=False)
+    changed_by_id = db.Column("IdCambiadoPor", db.Integer, db.ForeignKey("Usuarios.IdUsuario"), nullable=False)
+    notes = db.Column("Notas", db.Text)
+    created_at = db.Column("CreadoEn", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     changed_by = db.relationship("User")
 
+# Convierte el valor al formato interno; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def to_dict(self):
         return {
             "id": self.id,

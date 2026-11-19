@@ -24,13 +24,14 @@ UNIT_MAP = {
     "rollo": ("rollo", "Rollo", True),
 }
 
-STAGE_MAP = {}  # passthrough
 
 
+# _unit_code: devuelve el codigo normalizado de una unidad a partir de su nombre crudo usando UNIT_MAP; entrada raw; salida str; sin efectos secundarios.
 def _unit_code(raw):
     return UNIT_MAP[raw][0]
 
 
+# Carga los datos indicados; recibe app, path; interactua con la base de datos; accede al sistema de archivos; escribe en consola; devuelve el valor correspondiente.
 def load_into_app(app, path):
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
@@ -38,7 +39,6 @@ def load_into_app(app, path):
     with app.app_context():
         inserted = updated = skipped = 0
 
-        # units
         for raw, (code, name, allows) in UNIT_MAP.items():
             u = MaterialUnit.query.filter_by(code=code).first()
             if not u:
@@ -50,7 +50,6 @@ def load_into_app(app, path):
                 u.allows_decimal = allows
         db.session.commit()
 
-        # categories
         cats = {}
         for row in data:
             cat_name = row["category"]
@@ -64,7 +63,6 @@ def load_into_app(app, path):
             cats[cat_name] = cat
         db.session.commit()
 
-        # catalog items
         for row in data:
             code = row["code"]
             name = row["name"]
@@ -75,7 +73,6 @@ def load_into_app(app, path):
 
             existing = MaterialCatalog.query.filter_by(code=code).first()
             if existing:
-                # update mutable fields
                 existing.name = name
                 existing.name_norm = name_norm
                 existing.category_id = cat.id
@@ -86,7 +83,6 @@ def load_into_app(app, path):
                 existing.is_active = True
                 updated += 1
             else:
-                # duplicate name_norm check
                 dup = MaterialCatalog.query.filter_by(name_norm=name_norm).first()
                 if dup:
                     print(f"SKIP duplicate name_norm: {name}")
@@ -113,6 +109,7 @@ def load_into_app(app, path):
 
 
 
+# load: crea la app y carga el catalogo de materiales desde un archivo JSON; entrada path; salida resultado de load_into_app; efecto secundario puebla la base de datos.
 def load(path):
     app = create_app()
     return load_into_app(app, path)

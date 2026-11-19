@@ -10,6 +10,7 @@ from app.catalogs.models import City, Zone, TechnicianZone, Department, Municipa
 from app.common.normalize import normalize_text
 
 
+# Aplica la configuracion solicitada; recibe profile, coverage_list; interactua con la base de datos; devuelve el valor correspondiente.
 def _apply_coverage(profile, coverage_list):
     if coverage_list is None:
         return None
@@ -19,7 +20,6 @@ def _apply_coverage(profile, coverage_list):
         return "coverage_required"
     if len(coverage_list) > 20:
         return "too_many_coverages"
-    # clear existing
     TechnicianZone.query.filter_by(technician_id=profile.id).delete()
     primary_seen = False
     seen = set()
@@ -38,7 +38,6 @@ def _apply_coverage(profile, coverage_list):
                 return "multiple_primary"
             primary_seen = True
         if zone_ids is None:
-            # whole city
             key = (city_id, None)
             if key in seen:
                 return "duplicate_coverage"
@@ -77,15 +76,18 @@ def _apply_coverage(profile, coverage_list):
     return None
 
 
+# _role_technician: obtiene el rol "technician" desde la base de datos; sin parametros; salida Role o None; lee la base de datos.
 def _role_technician():
     return Role.query.filter_by(name="technician").first()
 
 
+# _audit: registra un evento de auditoria para un tecnico; entradas actor_id, target_user_id, action, changes; efecto secundario agrega AuditEvent a la sesion.
 def _audit(actor_id, target_user_id, action, changes=None):
     ev = AuditEvent(actor_id=actor_id, target_user_id=target_user_id, action=action, changes=changes)
     db.session.add(ev)
 
 
+# Lista los registros que cumplen los filtros indicados; recibe q, status, zone, city_id, zone_id, specialty, active, page, page_size; interactua con la base de datos; devuelve el valor correspondiente.
 def list_technicians(q=None, status=None, zone=None, city_id=None, zone_id=None, specialty=None, active=None, page=1, page_size=20):
     query = TechnicianProfile.query
     if active is not None:
@@ -135,6 +137,7 @@ def list_technicians(q=None, status=None, zone=None, city_id=None, zone_id=None,
     return {"items": items, "total": total, "counts": counts}
 
 
+# Gestiona concat names; recibe first, second; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _concat_names(first, second):
     first = (first or "").strip()
     second = (second or "").strip()
@@ -142,6 +145,7 @@ def _concat_names(first, second):
         return (first + " " + second).strip()
     return first
 
+# Crea el registro solicitado con los datos recibidos; recibe data, actor_id; interactua con la base de datos; accede al sistema de archivos; devuelve el valor correspondiente.
 def create_technician(data, actor_id):
     first_name = _concat_names(data.get("first_name"), data.get("second_name") or data.get("middle_name") or data.get("segundo_nombre"))
     last_name = _concat_names(data.get("last_name"), data.get("second_last_name") or data.get("second_surname") or data.get("segundo_apellido"))
@@ -154,10 +158,8 @@ def create_technician(data, actor_id):
     allowed_doc_types = {"CC", "CE", "TI", "PPT", "PASAPORTE"}
     if document_type not in allowed_doc_types:
         return None, "invalid_document_type"
-    # uniqueness (type, number)
     if TechnicianProfile.query.filter_by(document_type=document_type, document_number=document_number).first():
         return None, "document_taken"
-    # specialty optional
     spec_code = data.get("specialty_code") or data.get("specialty")
     from app.catalogs.models import Specialty
     spec_label = None
@@ -167,7 +169,6 @@ def create_technician(data, actor_id):
             return None, "invalid_specialty"
         spec_code = sp.code
         spec_label = sp.label
-    # department/municipality validation
     dep_code = data.get("department_code") or data.get("department")
     mun_code = data.get("municipality_code") or data.get("municipality")
     legacy_zone = data.get("legacy_zone") or data.get("zones")
@@ -183,7 +184,6 @@ def create_technician(data, actor_id):
         if mun.department_code != dep.code:
             return None, "municipality_not_in_department"
         legacy_zone = f"{dep.code}-{mun.code}"
-    # username
     existing = {u.username for u in User.query.all()}
     if data.get("username"):
         username = data["username"].lower()
@@ -230,10 +230,12 @@ def create_technician(data, actor_id):
     return {"profile": profile, "user": user, "username": username}, None
 
 
+# get_technician: obtiene un perfil de tecnico por su id; entrada tid; salida TechnicianProfile o None; lee la base de datos.
 def get_technician(tid):
     return TechnicianProfile.query.get(tid)
 
 
+# Actualiza los campos indicados del registro; recibe tid, data, actor_id; interactua con la base de datos; devuelve el valor correspondiente.
 def update_technician(tid, data, actor_id):
     profile = TechnicianProfile.query.get(tid)
     if not profile:
@@ -241,7 +243,6 @@ def update_technician(tid, data, actor_id):
     user = profile.user
     if any(k in data for k in ("password", "new_password", "temporary_password", "initial_password")):
         return None, "password_not_allowed"
-    # second names concatenation
     if "first_name" in data or "second_name" in data or "middle_name" in data or "segundo_nombre" in data:
         fn = data.get("first_name", profile.first_name)
         sn = data.get("second_name") or data.get("middle_name") or data.get("segundo_nombre")
@@ -280,12 +281,10 @@ def update_technician(tid, data, actor_id):
         profile.document_type = dt
     if "document_number" in data or "document" in data:
         dn = data.get("document_number") or data.get("document")
-        # uniqueness check
         if dn is not None and dn != profile.document_number:
             if TechnicianProfile.query.filter(TechnicianProfile.id != profile.id, TechnicianProfile.document_type == (data.get("document_type") or profile.document_type), TechnicianProfile.document_number == dn).first():
                 return None, "document_taken"
         profile.document_number = dn
-    # department/municipality validation
     dep_code = data.get("department_code") or data.get("department")
     mun_code = data.get("municipality_code") or data.get("municipality")
     if dep_code or mun_code:
@@ -321,6 +320,7 @@ def update_technician(tid, data, actor_id):
     return profile, None
 
 
+# Gestiona set availability; recibe tid, value, actor_id; interactua con la base de datos; devuelve el valor correspondiente.
 def set_availability(tid, value, actor_id):
     profile = TechnicianProfile.query.get(tid)
     if not profile:
@@ -331,6 +331,7 @@ def set_availability(tid, value, actor_id):
     return profile, None
 
 
+# Gestiona deactivate technician; recibe tid, actor_id, reason; interactua con la base de datos; devuelve el valor correspondiente.
 def deactivate_technician(tid, actor_id, reason=None):
     profile = TechnicianProfile.query.get(tid)
     if not profile:
@@ -350,6 +351,7 @@ def deactivate_technician(tid, actor_id, reason=None):
     return profile, None
 
 
+# Gestiona activate technician; recibe tid, actor_id; interactua con la base de datos; devuelve el valor correspondiente.
 def activate_technician(tid, actor_id):
     profile = TechnicianProfile.query.get(tid)
     if not profile:
@@ -362,6 +364,7 @@ def activate_technician(tid, actor_id):
     return profile, None
 
 
+# Gestiona reset password; recibe tid, actor_id; interactua con la base de datos; devuelve el valor correspondiente.
 def reset_password(tid, actor_id):
     profile = TechnicianProfile.query.get(tid)
     if not profile or not profile.user:
@@ -376,6 +379,7 @@ def reset_password(tid, actor_id):
     return password, profile.user.username
 
 
+# Gestiona unlock technician; recibe tid, actor_id; interactua con la base de datos; devuelve el valor correspondiente.
 def unlock_technician(tid, actor_id):
     profile = TechnicianProfile.query.get(tid)
     if not profile or not profile.user:
@@ -387,5 +391,6 @@ def unlock_technician(tid, actor_id):
     return profile, None
 
 
+# username_available: indica si un nombre de usuario esta disponible (no existe); entrada username; salida bool; lee la base de datos.
 def username_available(username):
     return User.query.filter_by(username=username.lower()).first() is None

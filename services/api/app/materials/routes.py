@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 
 from app.extensions import db
 from app.settings import service as settings_service
-from app.common.normalize import normalize_text
+from app.common.normalize import normalize_text, normalize_upper
 from app.identity.decorators import require_auth, require_role
 from app.identity.models import User
 from app.workorders.models import WorkOrder
@@ -39,9 +39,8 @@ from app.materials.service import (
 blueprint = Blueprint("materials", __name__)
 
 
-# ---- Materials ----
 
-# ---- Catalog (read) ----
+# GET /material-categories (roles: autenticado): categories list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 
 @blueprint.get("/material-categories")
 @require_auth
@@ -51,6 +50,7 @@ def categories_list():
     return jsonify([r.to_dict() for r in rows]), 200
 
 
+# GET /material-units (roles: autenticado): units list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/material-units")
 @require_auth
 def units_list():
@@ -59,6 +59,7 @@ def units_list():
     return jsonify([r.to_dict() for r in rows]), 200
 
 
+# GET /material-catalog (roles: autenticado): catalog list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/material-catalog")
 @require_auth
 def catalog_list():
@@ -74,12 +75,13 @@ def catalog_list():
         if cat:
             query = query.filter_by(category_id=cat.id)
     if stage:
-        query = query.filter_by(stage=stage)
+        query = query.filter_by(stage=normalize_upper(stage))
     if applies_to:
-        query = query.filter_by(applies_to=applies_to)
+        query = query.filter_by(applies_to=normalize_upper(applies_to))
     if q:
+        # NombreNormalizado ya está sin mayúsculas ni acentos: búsqueda insensible a la escritura.
         nq = normalize_text(q)
-        query = query.filter(db.func.lower(MaterialCatalog.name).contains(nq) | db.func.lower(MaterialCatalog.code).contains(nq))
+        query = query.filter(MaterialCatalog.name_norm.contains(nq) | db.func.lower(MaterialCatalog.code).contains(nq))
     rows = query.order_by(MaterialCatalog.name).all()
     if available is not None:
         avail = available.lower() == "true"
@@ -93,6 +95,7 @@ def catalog_list():
     return jsonify([r.to_dict() for r in rows]), 200
 
 
+# POST /material-catalog (roles: admin): catalog create; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/material-catalog")
 @require_role("admin")
 def catalog_create():
@@ -100,7 +103,6 @@ def catalog_create():
     data = request.get_json() or {}
     if not data.get("category_id") or not data.get("code") or not data.get("name") or not data.get("unit_id"):
         return jsonify({"error": "category_id, code, name, unit_id required", "message": "category_id, code, name, unit_id required"}), 422
-    # duplicate normalized name
     nn = normalize_text(data["name"])
     if MaterialCatalog.query.filter_by(name_norm=nn).first():
         return jsonify({"error": "duplicate name", "message": "duplicate name", "code": "DUPLICATE_NAME"}), 409
@@ -127,6 +129,7 @@ def catalog_create():
     return jsonify(resp), 201
 
 
+# GET /materials (roles: autenticado): materials list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/materials")
 @require_auth
 def materials_list():
@@ -157,11 +160,11 @@ def materials_list():
     }), 200
 
 
+# POST /materials (roles: admin, dispatcher): materials create; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/materials")
 @require_role("admin", "dispatcher")
 def materials_create():
     data = request.get_json() or {}
-    # reject free-text fields
     if any(k in data for k in ("name", "code", "unit")):
         return jsonify({"error": "free-text fields not allowed; use catalog_item_id",
                        "message": "free-text fields not allowed; use catalog_item_id", "code": "FREE_TEXT_NOT_ALLOWED"}), 422
@@ -183,6 +186,7 @@ def materials_create():
     return jsonify(d), 201
 
 
+# GET /materials/export (roles: admin, dispatcher): materials export; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/materials/export")
 @require_role("admin", "dispatcher")
 def materials_export():
@@ -209,6 +213,7 @@ def materials_export():
 # ---- Export (Fase 3) ----
 import base64
 
+# _export_params: Expone el endpoint HTTP correspondiente y delega la logica en el servicio; recibe los parametros de la peticion HTTP; responde por HTTP; devuelve la respuesta JSON.
 def _export_params():
     is_active = request.args.get("is_active")
     if is_active is not None:
@@ -233,6 +238,7 @@ def _export_params():
     return filters, columns, fmt, separator, orientation
 
 
+# GET /materials/export/preview (roles: admin, dispatcher): materials export preview; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/materials/export/preview")
 @require_role("admin", "dispatcher")
 def materials_export_preview():
@@ -259,6 +265,7 @@ def materials_export_preview():
     return jsonify({"error": "invalid format", "message": "invalid format"}), 422
 
 
+# GET /materials/export/download (roles: admin, dispatcher): materials export download; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/materials/export/download")
 @require_role("admin", "dispatcher")
 def materials_export_download():
@@ -266,7 +273,6 @@ def materials_export_download():
     filters, columns, fmt, separator, orientation = _export_params()
     user = db.session.get(User, request.user_id)
     ds = ExportDataset(filters=filters, columns=columns, user=user, limit=None)
-    # row cap
     cap = 5000
     if ds.total_rows > cap:
         ds = ExportDataset(filters=filters, columns=columns, user=user, limit=cap)
@@ -287,7 +293,6 @@ def materials_export_download():
         ext = "pdf"
     else:
         return jsonify({"error": "invalid format", "message": "invalid format"}), 422
-    # audit
     try:
         settings_service.audit(request.user_id, user.username if user else None, "materials_export", fmt, None,
                               f"rows={ds.total_rows};cols={','.join(ds.columns)};truncated={truncated}", "applied",
@@ -301,6 +306,7 @@ def materials_export_download():
                              "X-Export-Rows": str(ds.total_rows),
                              "X-Export-Truncated": "1" if truncated else "0"})
 
+# GET /materials/<int:mat_id> (roles: autenticado): materials get; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/materials/<int:mat_id>")
 @require_auth
 def materials_get(mat_id):
@@ -310,6 +316,7 @@ def materials_get(mat_id):
     return jsonify(m.to_dict()), 200
 
 
+# PUT /materials/<int:mat_id> (roles: admin, dispatcher): materials update; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.put("/materials/<int:mat_id>")
 @require_role("admin", "dispatcher")
 def materials_update(mat_id):
@@ -320,7 +327,7 @@ def materials_update(mat_id):
         m = update_material(mat_id, data)
     except ValueError as e:
         msg = str(e)
-        if msg in ("duplicate_code", "already_inventoried"):
+        if msg in ("duplicate_code", "duplicate_name", "already_inventoried"):
             return jsonify({"error": msg, "message": msg, "code": msg.upper()}), 409
         return jsonify({"error": msg, "message": msg}), 422
     if not m:
@@ -330,7 +337,7 @@ def materials_update(mat_id):
     return jsonify(d), 200
 
 
-# ---- Stock movements ----
+# POST /materials/<int:mat_id>/movements (roles: admin, dispatcher): materials movement; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 
 @blueprint.post("/materials/<int:mat_id>/movements")
 @require_role("admin", "dispatcher")
@@ -369,6 +376,7 @@ def materials_movement(mat_id):
     return jsonify(mv.to_dict()), 201
 
 
+# GET /materials/<int:mat_id>/movements (roles: autenticado): materials movements list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/materials/<int:mat_id>/movements")
 @require_auth
 def materials_movements_list(mat_id):
@@ -376,7 +384,7 @@ def materials_movements_list(mat_id):
     return jsonify([m.to_dict() for m in movements]), 200
 
 
-# ---- Technician profiles ----
+# GET /technician-profiles (roles: autenticado): profiles list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 
 @blueprint.get("/technician-profiles")
 @require_auth
@@ -388,6 +396,7 @@ def profiles_list():
     return jsonify([p.to_dict() for p in profiles]), 200
 
 
+# POST /technician-profiles (roles: admin): profiles create; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/technician-profiles")
 @require_role("admin")
 def profiles_create():
@@ -401,6 +410,7 @@ def profiles_create():
     return jsonify(p.to_dict()), 201
 
 
+# GET /technician-profiles/<int:profile_id> (roles: autenticado): profiles get; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/technician-profiles/<int:profile_id>")
 @require_auth
 def profiles_get(profile_id):
@@ -410,6 +420,7 @@ def profiles_get(profile_id):
     return jsonify(p.to_dict()), 200
 
 
+# PUT /technician-profiles/<int:profile_id> (roles: admin, dispatcher): profiles update; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.put("/technician-profiles/<int:profile_id>")
 @require_role("admin", "dispatcher")
 def profiles_update(profile_id):
@@ -422,7 +433,7 @@ def profiles_update(profile_id):
     return jsonify(p.to_dict()), 200
 
 
-# ---- Transfers / technician stock ----
+# POST /materials/transfer (roles: admin, dispatcher): materials transfer; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 
 @blueprint.post("/materials/transfer")
 @require_role("admin", "dispatcher")
@@ -446,6 +457,7 @@ def materials_transfer():
     return jsonify({"ok": True}), 201
 
 
+# POST /materials/consume (roles: admin, dispatcher, technician): materials consume; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/materials/consume")
 @require_role("admin", "dispatcher", "technician")
 def materials_consume():
@@ -465,6 +477,7 @@ def materials_consume():
     return jsonify(mv.to_dict()), 201
 
 
+# GET /technician-stock (roles: autenticado): technician stock list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/technician-stock")
 @require_auth
 def technician_stock_list():
@@ -474,7 +487,7 @@ def technician_stock_list():
     items = get_technician_stock(tech_id)
     return jsonify([i.to_dict() for i in items]), 200
 
-# ---- Material requests ----
+# GET /material-requests (roles: autenticado): material requests list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 
 @blueprint.get("/material-requests")
 @require_auth
@@ -493,6 +506,7 @@ def material_requests_list():
     return jsonify({"items": [r.to_dict() for r in items], "total": total, "page": page, "page_size": page_size}), 200
 
 
+# POST /material-requests (roles: autenticado): material requests create; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/material-requests")
 @require_auth
 def material_requests_create():
@@ -515,6 +529,7 @@ def material_requests_create():
     return jsonify(req.to_dict()), 201
 
 
+# GET /material-requests/<int:req_id> (roles: autenticado): material requests get; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/material-requests/<int:req_id>")
 @require_auth
 def material_requests_get(req_id):
@@ -525,6 +540,7 @@ def material_requests_get(req_id):
     return jsonify(req.to_dict()), 200
 
 
+# PATCH /material-requests/<int:req_id> (roles: autenticado): material requests update; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/material-requests/<int:req_id>")
 @require_auth
 def material_requests_update(req_id):
@@ -544,6 +560,7 @@ def material_requests_update(req_id):
     return jsonify(req.to_dict()), 200
 
 
+# POST /material-requests/<int:req_id>/submit (roles: autenticado): material requests submit; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/material-requests/<int:req_id>/submit")
 @require_auth
 def material_requests_submit(req_id):
@@ -562,6 +579,7 @@ def material_requests_submit(req_id):
     return jsonify(req.to_dict()), 200
 
 
+# POST /material-requests/<int:req_id>/approve (roles: admin, dispatcher): material requests approve; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/material-requests/<int:req_id>/approve")
 @require_role("admin", "dispatcher")
 def material_requests_approve(req_id):
@@ -581,6 +599,7 @@ def material_requests_approve(req_id):
     return jsonify(req.to_dict()), 200
 
 
+# POST /material-requests/<int:req_id>/reject (roles: admin, dispatcher): material requests reject; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/material-requests/<int:req_id>/reject")
 @require_role("admin", "dispatcher")
 def material_requests_reject(req_id):
@@ -598,6 +617,7 @@ def material_requests_reject(req_id):
     return jsonify(req.to_dict()), 200
 
 
+# POST /material-requests/<int:req_id>/deliver (roles: admin, dispatcher): material requests deliver; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/material-requests/<int:req_id>/deliver")
 @require_role("admin", "dispatcher")
 def material_requests_deliver(req_id):
@@ -619,6 +639,7 @@ def material_requests_deliver(req_id):
     return jsonify(req.to_dict()), 200
 
 
+# POST /material-requests/<int:req_id>/cancel (roles: autenticado): material requests cancel; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/material-requests/<int:req_id>/cancel")
 @require_auth
 def material_requests_cancel(req_id):
@@ -636,6 +657,7 @@ def material_requests_cancel(req_id):
     return jsonify(req.to_dict()), 200
 
 
+# GET /material-requests/<int:req_id>/events (roles: autenticado): material requests events; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/material-requests/<int:req_id>/events")
 @require_auth
 def material_requests_events(req_id):
@@ -646,18 +668,19 @@ def material_requests_events(req_id):
     return jsonify([e.to_dict() for e in list_request_events(req_id)]), 200
 
 
+# GET /work-orders/<int:wo_id>/material-requests (roles: autenticado): work order material requests; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/work-orders/<int:wo_id>/material-requests")
 @require_auth
 def work_order_material_requests(wo_id):
     roles = getattr(request, "user_roles", [])
     items, total = list_requests_filtered(work_order_id=wo_id, mine=("admin" not in roles and "dispatcher" not in roles),
                                           user_id=request.user_id, roles=roles, page=1, page_size=100)
-    # technicians only own
     if "admin" not in roles and "dispatcher" not in roles:
         items = [r for r in items if r.requester_id == request.user_id]
     return jsonify({"items": [r.to_dict() for r in items], "total": total}), 200
 
 
+# POST /work-orders/<int:wo_id>/materials (roles: admin, dispatcher, technician): consume work order material; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/work-orders/<int:wo_id>/materials")
 @require_role("admin", "dispatcher", "technician")
 def consume_work_order_material(wo_id):

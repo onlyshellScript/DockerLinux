@@ -26,6 +26,7 @@ ALLOWED_COLUMNS = {
 DEFAULT_COLUMNS = ["codigo", "nombre", "categoria", "unidad", "stock", "minimo", "estado", "precio", "valor"]
 
 
+# _org_name: obtiene el nombre de la empresa desde settings, con fallback a SIGOS si falla; sin parametros; salida str; lee configuracion.
 def _org_name():
     try:
         return settings_service.get_organization().company_name or "SIGOS"
@@ -33,7 +34,9 @@ def _org_name():
         return "SIGOS"
 
 
+# ExportDataset: modelo de base de datos que representa la entidad ExportDataset.
 class ExportDataset:
+# Gestiona init; recibe filters, columns, user, limit; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def __init__(self, filters=None, columns=None, user=None, limit=None):
         self.filters = filters or {}
         self.columns = [c for c in (columns or DEFAULT_COLUMNS) if c in ALLOWED_COLUMNS]
@@ -48,6 +51,7 @@ class ExportDataset:
         self.truncated = False
         self._build()
 
+# Gestiona build; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def _build(self):
         f = self.filters
         is_active = f.get("is_active")
@@ -89,7 +93,6 @@ class ExportDataset:
                 "valor": stock * price,
                 "activo": "Sí" if m.is_active else "No",
             }
-            # nivel as percentage
             mn = float(m.min_stock or 0)
             if mn > 0:
                 row["nivel"] = round(min(100, (stock / mn) * 100))
@@ -100,21 +103,24 @@ class ExportDataset:
         self.total_rows = len(self.rows)
         self.filters_applied = {k: v for k, v in f.items() if v not in (None, "", False)}
 
+# column_headers: devuelve las etiquetas visibles de las columnas seleccionadas del dataset; sin parametros; salida list[str]; sin efectos secundarios.
     def column_headers(self):
         return [ALLOWED_COLUMNS[c] for c in self.columns]
 
+# row_values: extrae de una fila los valores en el orden de las columnas seleccionadas; entrada row dict; salida list; sin efectos secundarios.
     def row_values(self, row):
         return [row[c] for c in self.columns]
 
 
+# _sanitize_csv: sanea un valor para CSV evitando inyeccion de formulas (prefija apostrofe si empieza con =,+,-,@,tab,CR); entrada value; salida str; sin efectos secundarios.
 def _sanitize_csv(value):
-    # prevent formula injection
     s = str(value)
     if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
         return "'" + s
     return s
 
 
+# Gestiona render csv; recibe dataset, separator; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def render_csv(dataset, separator=";"):
     buf = io.StringIO()
     writer = csv.writer(buf, delimiter=separator, quoting=csv.QUOTE_MINIMAL, lineterminator="\r\n")
@@ -125,6 +131,7 @@ def render_csv(dataset, separator=";"):
     return content.encode("utf-8")
 
 
+# Gestiona render excel; recibe dataset; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def render_excel(dataset):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -155,7 +162,6 @@ def render_excel(dataset):
             if headers[idx - 1] in money_cols:
                 cell.number_format = '"$ "#,##0'
                 cell.alignment = Alignment(horizontal="right")
-    # totals row
     if dataset.rows:
         tr = len(dataset.rows) + 2
         ws.cell(row=tr, column=1, value="TOTAL").font = Font(bold=True)
@@ -175,7 +181,6 @@ def render_excel(dataset):
     for idx in range(1, len(headers) + 1):
         ws.column_dimensions[get_column_letter(idx)].width = 16
 
-    # Resumen sheet
     rs = wb.create_sheet("Resumen")
     rs["A1"] = "Resumen de inventario"
     rs["A1"].font = Font(bold=True, size=14)
@@ -200,6 +205,7 @@ def render_excel(dataset):
     return buf.getvalue()
 
 
+# Gestiona render pdf; recibe dataset, orientation; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def render_pdf(dataset, orientation="landscape"):
     from reportlab.lib.pagesizes import A4, landscape, portrait
     from reportlab.lib import colors
@@ -220,7 +226,6 @@ def render_pdf(dataset, orientation="landscape"):
 
     headers = dataset.column_headers()
     data = [headers] + [dataset.row_values(r) for r in dataset.rows]
-    # format numbers
     for row in data[1:]:
         for idx, h in enumerate(headers):
             if h in ("Precio", "Valor"):

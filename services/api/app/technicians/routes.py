@@ -9,12 +9,14 @@ from app.technicians import service
 blueprint = Blueprint("technicians", __name__)
 
 
+# _profile_to_dict: enriquece el diccionario de un perfil de tecnico con el conteo de ordenes abiertas; entrada p; salida dict; sin efectos secundarios.
 def _profile_to_dict(p):
     d = p.to_dict()
     d["open_orders_count"] = p.open_orders
     return d
 
 
+# GET /technicians (roles: autenticado): list technicians; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/technicians")
 @require_auth
 def list_technicians():
@@ -42,6 +44,7 @@ def list_technicians():
     }), 200
 
 
+# GET /technicians/username-available (roles: autenticado): username available; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/technicians/username-available")
 @require_auth
 def username_available():
@@ -52,6 +55,7 @@ def username_available():
     return jsonify({"available": service.username_available(username)}), 200
 
 
+# POST /technicians (roles: admin): create technician; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/technicians")
 @require_role("admin")
 def create_technician():
@@ -79,6 +83,7 @@ def create_technician():
     }), 201
 
 
+# GET /technicians/<int:tid> (roles: autenticado): get technician; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/technicians/<int:tid>")
 @require_auth
 def get_technician(tid):
@@ -92,6 +97,7 @@ def get_technician(tid):
     return jsonify(_profile_to_dict(p)), 200
 
 
+# PATCH /technicians/<int:tid> (roles: admin): patch technician; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/technicians/<int:tid>")
 @require_role("admin")
 def patch_technician(tid):
@@ -112,6 +118,7 @@ def patch_technician(tid):
     return jsonify(_profile_to_dict(profile)), 200
 
 
+# PATCH /technicians/<int:tid>/availability (roles: autenticado): patch availability; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/technicians/<int:tid>/availability")
 @require_auth
 def patch_availability(tid):
@@ -131,6 +138,7 @@ def patch_availability(tid):
     return jsonify(_profile_to_dict(profile)), 200
 
 
+# POST /technicians/<int:tid>/deactivate (roles: admin): deactivate; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/technicians/<int:tid>/deactivate")
 @require_role("admin")
 def deactivate(tid):
@@ -143,6 +151,7 @@ def deactivate(tid):
     return jsonify(_profile_to_dict(profile)), 200
 
 
+# POST /technicians/<int:tid>/activate (roles: admin): activate; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/technicians/<int:tid>/activate")
 @require_role("admin")
 def activate(tid):
@@ -152,6 +161,7 @@ def activate(tid):
     return jsonify(_profile_to_dict(profile)), 200
 
 
+# POST /technicians/<int:tid>/reset-password (roles: admin): reset password; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/technicians/<int:tid>/reset-password")
 @require_role("admin")
 def reset_password(tid):
@@ -161,6 +171,7 @@ def reset_password(tid):
     return jsonify({"username": username, "temporary_password": password}), 200
 
 
+# POST /technicians/<int:tid>/unlock (roles: admin): unlock; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/technicians/<int:tid>/unlock")
 @require_role("admin")
 def unlock(tid):

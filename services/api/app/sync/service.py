@@ -7,6 +7,7 @@ from app.workorders.service import change_status, get_work_order
 from app.identity.models import User
 
 
+# Gestiona push operations; recibe user_id, operations; interactua con la base de datos; devuelve el valor correspondiente.
 def push_operations(user_id, operations):
     results = []
     for op in operations:
@@ -110,6 +111,7 @@ def push_operations(user_id, operations):
     return results
 
 
+# Gestiona pull changes; recibe user_id, since; interactua con la base de datos; devuelve el valor correspondiente.
 def pull_changes(user_id, since=None):
     from app.workorders.models import WorkOrder
     from app.materials.models import Material

@@ -1,3 +1,4 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 import threading
 import io
 
@@ -9,6 +10,7 @@ from app.extensions import db
 from app.identity.models import User, Role
 
 
+# genera un PNG minimo de 1x1 en bytes para pruebas de carga de evidencia; sin parametros; salida bytes; sin efectos secundarios adicionales.
 def _png():
     img = Image.new("RGB", (1, 1), "white")
     buf = io.BytesIO()
@@ -16,6 +18,7 @@ def _png():
     return buf.getvalue()
 
 
+# test_concurrent_approve: valida el escenario concurrent approve preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 def test_concurrent_approve(sqlserver_client, sqlserver_app):
     client = sqlserver_client
@@ -90,6 +93,7 @@ def test_concurrent_approve(sqlserver_client, sqlserver_app):
         assert evs == 1
 
 
+# test_concurrent_approve_vs_correction: valida el escenario concurrent approve vs correction preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 def test_concurrent_approve_vs_correction(sqlserver_client, sqlserver_app):
     client = sqlserver_client

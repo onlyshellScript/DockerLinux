@@ -34,7 +34,6 @@ EVIDENCE_TRANSITIONS = {
     EVIDENCE_REJECTED: set(),
 }
 
-# Categories
 CATEGORY_BEFORE = "BEFORE"
 CATEGORY_DURING = "DURING"
 CATEGORY_AFTER = "AFTER"
@@ -43,40 +42,52 @@ CATEGORY_ADDITIONAL = "ADDITIONAL"
 EVIDENCE_CATEGORIES = [CATEGORY_BEFORE, CATEGORY_DURING, CATEGORY_AFTER, CATEGORY_ADDITIONAL]
 
 
+# VisitEvidence: modelo de base de datos que representa la entidad VisitEvidence.
 class VisitEvidence(db.Model):
-    __tablename__ = "visit_evidences"
+    __tablename__ = "Evidencias"
 
-    id = db.Column(db.Integer, primary_key=True)
-    work_order_id = db.Column(db.Integer, db.ForeignKey("work_orders.id"), nullable=False, index=True)
-    category = db.Column(db.String(20), nullable=False, default=CATEGORY_ADDITIONAL, server_default=CATEGORY_ADDITIONAL)
-    original_name = db.Column(db.String(250))
-    storage_key = db.Column(db.String(120), unique=True, index=True)
-    mime_type = db.Column(db.String(100))
-    size_bytes = db.Column(db.Integer)
-    sha256 = db.Column(db.String(64), index=True)
-    declared_capture_at = db.Column(db.DateTime(timezone=True))
-    received_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    uploaded_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    description = db.Column(db.Text)
-    status = db.Column(db.String(30), nullable=False, default=EVIDENCE_DRAFT, server_default=EVIDENCE_DRAFT)
-    previous_evidence_id = db.Column(db.Integer, db.ForeignKey("visit_evidences.id"))
-    version_number = db.Column(db.Integer, nullable=False, default=1, server_default=sa.text("1"))
-    duplicate_of_id = db.Column(db.Integer, db.ForeignKey("visit_evidences.id"))
-    client_operation_id = db.Column(db.String(36), index=True)
+    id = db.Column("IdEvidencia", db.Integer, primary_key=True)
+    work_order_id = db.Column("IdOrden", db.Integer, db.ForeignKey("OrdenesTrabajo.IdOrden"), nullable=False, index=True)
+    category = db.Column("TipoEvidencia", db.String(20), nullable=False, default=CATEGORY_ADDITIONAL, server_default=CATEGORY_ADDITIONAL)
+    original_name = db.Column("NombreArchivo", db.String(250))
+    storage_key = db.Column("NombreAlmacenado", db.String(120), unique=True, index=True)
+    mime_type = db.Column("TipoArchivo", db.String(100))
+    size_bytes = db.Column("TamanoArchivo", db.Integer)
+    sha256 = db.Column("Sha256", db.String(64), index=True)
+    declared_capture_at = db.Column("FechaCapturaDeclarada", db.DateTime(timezone=True))
+    received_at = db.Column("FechaRecepcion", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    uploaded_by_id = db.Column("IdSubidoPor", db.Integer, db.ForeignKey("Usuarios.IdUsuario"), nullable=False)
+    description = db.Column("Descripcion", db.Text)
+    status = db.Column("Estado", db.String(30), nullable=False, default=EVIDENCE_DRAFT, server_default=EVIDENCE_DRAFT)
+    previous_evidence_id = db.Column("EvidenciaAnteriorId", db.Integer, db.ForeignKey("Evidencias.IdEvidencia"))
+    version_number = db.Column("NumeroVersion", db.Integer, nullable=False, default=1, server_default=sa.text("1"))
+    duplicate_of_id = db.Column("DuplicadoDeId", db.Integer, db.ForeignKey("Evidencias.IdEvidencia"))
+    client_operation_id = db.Column("OperacionClienteId", db.String(36), index=True)
+    # Firma historica del tecnico: referencia a la version de FirmasTecnico vigente al registrar la evidencia,
+    # mas una copia de su huella (sha256), del firmante y del momento. Se fija al insertar y nunca cambia
+    # (ver _guard_evidence_signature). Las evidencias anteriores a esta funcion quedan con estos campos en NULL.
+    technician_signature_id = db.Column("IdFirmaTecnico", db.Integer, db.ForeignKey("FirmasTecnico.IdFirmaTecnico"), index=True)
+    technician_signature_sha256 = db.Column("FirmaTecnicoSha256", db.String(64))
+    technician_signature_user_id = db.Column("IdTecnicoFirmante", db.Integer, db.ForeignKey("Usuarios.IdUsuario"))
+    technician_signed_at = db.Column("FechaFirmaTecnico", db.DateTime(timezone=True))
 
     # Compatibility columns retained for existing records/APIs
-    file_name = db.Column(db.String(250))
-    stored_name = db.Column(db.String(250))
-    file_type = db.Column(db.String(50))
-    file_size = db.Column(db.Integer)
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    # Alias heredados: la tabla Evidencias no tiene columnas propias para estos campos.
+    file_name = sa.orm.synonym("original_name")
+    stored_name = sa.orm.synonym("storage_key")
+    file_type = sa.orm.synonym("mime_type")
+    file_size = sa.orm.synonym("size_bytes")
+    created_at = db.Column("CreadoEn", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     work_order = db.relationship("WorkOrder")
-    uploaded_by = db.relationship("User")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
+    technician_signature = db.relationship("TechnicianSignature", foreign_keys=[technician_signature_id])
+    technician_signer = db.relationship("User", foreign_keys=[technician_signature_user_id])
     previous_evidence = db.relationship("VisitEvidence", remote_side=[id], foreign_keys=[previous_evidence_id])
     duplicate_of = db.relationship("VisitEvidence", remote_side=[id], foreign_keys=[duplicate_of_id])
     reviews = db.relationship("EvidenceReview", backref="evidence", cascade="all, delete-orphan", order_by="EvidenceReview.created_at")
 
+# Convierte el valor al formato interno; recibe sin parametros; accede al sistema de archivos; devuelve el valor correspondiente.
     def to_dict(self):
         return {
             "id": self.id,
@@ -101,29 +112,119 @@ class VisitEvidence(db.Model):
             "file_type": self.file_type or self.mime_type,
             "file_size": self.file_size if self.file_size is not None else self.size_bytes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "technician_signature": self.signature_summary(),
+        }
+
+# signature_summary: datos de la firma historica del tecnico (sin la clave de almacenamiento); None si no tiene.
+    def signature_summary(self):
+        if not self.technician_signature_id:
+            return None
+        signer = self.technician_signer
+        return {
+            "signature_id": self.technician_signature_id,
+            "technician_id": self.technician_signature_user_id,
+            "technician_username": signer.username if signer else None,
+            "signed_at": self.technician_signed_at.isoformat() if self.technician_signed_at else None,
+            "sha256": self.technician_signature_sha256,
+            "version": self.technician_signature.version if self.technician_signature else None,
         }
 
 
-class VisitSignature(db.Model):
-    __tablename__ = "visit_signatures"
+# TechnicianSignature: firma de perfil de un usuario (tecnico). Cada registro es una version inmutable:
+# registrar una firma nueva crea otra fila y desactiva la anterior, nunca sobrescribe su archivo ni su huella.
+# Asi las evidencias que referencian una version antigua conservan exactamente la firma con la que se firmaron.
+class TechnicianSignature(db.Model):
+    __tablename__ = "FirmasTecnico"
 
-    id = db.Column(db.Integer, primary_key=True)
-    work_order_id = db.Column(db.Integer, db.ForeignKey("work_orders.id"), nullable=False, index=True)
-    storage_key = db.Column(db.String(120))
-    signer_name = db.Column(db.String(120))
-    signer_role = db.Column(db.String(120))
-    received_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    acceptance_text = db.Column(db.Text)
-    consent_version = db.Column(db.String(40))
-    technician_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    refused = db.Column(db.Boolean, nullable=False, default=False, server_default=sa.text("0"))
-    refusal_reason = db.Column(db.Text)
-    client_operation_id = db.Column(db.String(36), index=True)
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    id = db.Column("IdFirmaTecnico", db.Integer, primary_key=True)
+    user_id = db.Column("IdUsuario", db.Integer, db.ForeignKey("Usuarios.IdUsuario"), nullable=False, index=True)
+    storage_key = db.Column("ClaveAlmacenamiento", db.String(120), nullable=False, unique=True)
+    mime_type = db.Column("TipoArchivo", db.String(100), nullable=False)
+    size_bytes = db.Column("TamanoArchivo", db.Integer, nullable=False)
+    sha256 = db.Column("Sha256", db.String(64), nullable=False)
+    version = db.Column("Version", db.Integer, nullable=False, default=1, server_default=sa.text("1"))
+    is_active = db.Column("EsActiva", db.Boolean, nullable=False, default=True, server_default=sa.text("1"))
+    created_at = db.Column("CreadaEn", db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    replaced_at = db.Column("ReemplazadaEn", db.DateTime(timezone=True))
+
+    user = db.relationship("User")
+
+# to_dict: metadatos publicos de la firma (sin la clave de almacenamiento).
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "mime_type": self.mime_type,
+            "size_bytes": self.size_bytes,
+            "sha256": self.sha256,
+            "version": self.version,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "replaced_at": self.replaced_at.isoformat() if self.replaced_at else None,
+        }
+
+
+# ImmutableRecordError: intento de modificar o borrar datos de firma que deben conservarse tal cual.
+class ImmutableRecordError(Exception):
+    pass
+
+
+_EVIDENCE_SIGNATURE_FIELDS = ("technician_signature_id", "technician_signature_sha256", "technician_signature_user_id", "technician_signed_at")
+_SIGNATURE_IMMUTABLE_FIELDS = ("user_id", "storage_key", "mime_type", "size_bytes", "sha256", "version", "created_at")
+
+
+# Barrera en la capa de datos (ademas de la del servicio): ninguna ruta, presente o futura, puede reescribir la firma
+# historica de una evidencia ni el contenido de una version de firma, ni borrar una version de firma.
+@sa.event.listens_for(VisitEvidence, "before_update")
+def _guard_evidence_signature(mapper, connection, target):
+    state = sa.inspect(target)
+    for field in _EVIDENCE_SIGNATURE_FIELDS:
+        # Se fija solo al insertar: ni se reemplaza, ni se borra, ni se agrega despues a una evidencia ya registrada.
+        if state.attrs[field].history.has_changes():
+            raise ImmutableRecordError(f"la firma de la evidencia {target.id} es inmutable")
+
+
+@sa.event.listens_for(VisitEvidence, "before_delete")
+def _guard_signed_evidence_delete(mapper, connection, target):
+    if target.technician_signature_id is not None:
+        raise ImmutableRecordError(f"la evidencia {target.id} esta firmada y no puede eliminarse")
+
+
+@sa.event.listens_for(TechnicianSignature, "before_update")
+def _guard_signature_content(mapper, connection, target):
+    state = sa.inspect(target)
+    for field in _SIGNATURE_IMMUTABLE_FIELDS:
+        if state.attrs[field].history.has_changes():
+            raise ImmutableRecordError(f"la version de firma {target.id} es inmutable")
+
+
+@sa.event.listens_for(TechnicianSignature, "before_delete")
+def _guard_signature_delete(mapper, connection, target):
+    raise ImmutableRecordError(f"la version de firma {target.id} no puede eliminarse")
+
+
+# VisitSignature: modelo de base de datos que representa la entidad VisitSignature.
+class VisitSignature(db.Model):
+    __tablename__ = "FirmasVisita"
+
+    id = db.Column("IdFirma", db.Integer, primary_key=True)
+    work_order_id = db.Column("IdOrden", db.Integer, db.ForeignKey("OrdenesTrabajo.IdOrden"), nullable=False, index=True)
+    storage_key = db.Column("ClaveAlmacenamiento", db.String(120))
+    signer_name = db.Column("NombreFirmante", db.String(120))
+    signer_role = db.Column("RolFirmante", db.String(120))
+    received_at = db.Column("FechaRecepcion", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    acceptance_text = db.Column("TextoAceptacion", db.Text)
+    consent_version = db.Column("VersionConsentimiento", db.String(40))
+    technician_id = db.Column("IdTecnico", db.Integer, db.ForeignKey("Usuarios.IdUsuario"))
+    refused = db.Column("Rechazado", db.Boolean, nullable=False, default=False, server_default=sa.text("0"))
+    refusal_reason = db.Column("MotivoRechazo", db.Text)
+    client_operation_id = db.Column("OperacionClienteId", db.String(36), index=True)
+    created_at = db.Column("CreadoEn", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     work_order = db.relationship("WorkOrder")
     technician = db.relationship("User")
 
+# Convierte el valor al formato interno; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def to_dict(self):
         return {
             "id": self.id,
@@ -141,45 +242,50 @@ class VisitSignature(db.Model):
         }
 
 
+# EvidenceReview: modelo de base de datos que representa la entidad EvidenceReview.
 class EvidenceReview(db.Model):
-    __tablename__ = "evidence_reviews"
+    __tablename__ = "RevisionesEvidencia"
 
-    id = db.Column(db.Integer, primary_key=True)
-    evidence_id = db.Column(db.Integer, db.ForeignKey("visit_evidences.id"), nullable=False, index=True)
-    reviewer_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    decision = db.Column(db.String(30), nullable=False)
-    notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    id = db.Column("IdRevision", db.Integer, primary_key=True)
+    evidence_id = db.Column("IdEvidencia", db.Integer, db.ForeignKey("Evidencias.IdEvidencia"), nullable=False, index=True)
+    reviewer_id = db.Column("IdRevisor", db.Integer, db.ForeignKey("Usuarios.IdUsuario"), nullable=False)
+    decision = db.Column("Decision", db.String(30), nullable=False)
+    notes = db.Column("Notas", db.Text)
+    created_at = db.Column("CreadoEn", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     reviewer = db.relationship("User")
 
+# Convierte el valor al formato interno; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def to_dict(self):
         return {
             "id": self.id,
             "evidence_id": self.evidence_id,
             "reviewer_id": self.reviewer_id,
+            "reviewer_username": self.reviewer.username if self.reviewer else None,
             "decision": self.decision,
             "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
+# EvidenceEvent: modelo de base de datos que representa la entidad EvidenceEvent.
 class EvidenceEvent(db.Model):
-    __tablename__ = "evidence_events"
+    __tablename__ = "EventosEvidencia"
 
-    id = db.Column(db.Integer, primary_key=True)
-    work_order_id = db.Column(db.Integer, db.ForeignKey("work_orders.id"), index=True)
-    evidence_id = db.Column(db.Integer, db.ForeignKey("visit_evidences.id"), index=True)
-    actor_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    action = db.Column(db.String(40), nullable=False)
-    from_status = db.Column(db.String(30))
-    to_status = db.Column(db.String(30))
-    details = db.Column(db.Text)
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    id = db.Column("IdEvento", db.Integer, primary_key=True)
+    work_order_id = db.Column("IdOrden", db.Integer, db.ForeignKey("OrdenesTrabajo.IdOrden"), index=True)
+    evidence_id = db.Column("IdEvidencia", db.Integer, db.ForeignKey("Evidencias.IdEvidencia"), index=True)
+    actor_id = db.Column("IdActor", db.Integer, db.ForeignKey("Usuarios.IdUsuario"))
+    action = db.Column("Accion", db.String(40), nullable=False)
+    from_status = db.Column("EstadoAnterior", db.String(30))
+    to_status = db.Column("EstadoNuevo", db.String(30))
+    details = db.Column("Detalles", db.Text)
+    created_at = db.Column("CreadoEn", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
 
     actor = db.relationship("User")
     evidence = db.relationship("VisitEvidence")
 
+# Convierte el valor al formato interno; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def to_dict(self):
         return {
             "id": self.id,
@@ -194,19 +300,21 @@ class EvidenceEvent(db.Model):
         }
 
 
+# VisitChecklistItem: modelo de base de datos que representa la entidad VisitChecklistItem.
 class VisitChecklistItem(db.Model):
-    __tablename__ = "visit_checklist_items"
+    __tablename__ = "ListaVerificacionVisita"
 
-    id = db.Column(db.Integer, primary_key=True)
-    work_order_id = db.Column(db.Integer, db.ForeignKey("work_orders.id"), nullable=False, index=True)
-    label = db.Column(db.String(250), nullable=False)
-    result = db.Column(db.String(30))
-    notes = db.Column(db.Text)
-    checked_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    id = db.Column("IdItem", db.Integer, primary_key=True)
+    work_order_id = db.Column("IdOrden", db.Integer, db.ForeignKey("OrdenesTrabajo.IdOrden"), nullable=False, index=True)
+    label = db.Column("Etiqueta", db.String(250), nullable=False)
+    result = db.Column("Resultado", db.String(30))
+    notes = db.Column("Notas", db.Text)
+    checked_by_id = db.Column("IdVerificadoPor", db.Integer, db.ForeignKey("Usuarios.IdUsuario"))
+    created_at = db.Column("CreadoEn", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     checked_by = db.relationship("User")
 
+# Convierte el valor al formato interno; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def to_dict(self):
         return {
             "id": self.id,
@@ -219,6 +327,5 @@ class VisitChecklistItem(db.Model):
         }
 
 
-# Backwards-compatible alias
 Evidence = VisitEvidence
 ALL_TYPES = ["photo", "document", "observation"]

@@ -15,6 +15,7 @@ _locks = {}
 _locks_guard = threading.Lock()
 
 
+# _lock_for: obtiene (o crea bajo guardia) el threading.Lock asociado a un tecnico para serializar programaciones concurrentes de ese tecnico; entrada tech_id; salida Lock; efecto secundario registra el lock en el diccionario global _locks.
 def _lock_for(tech_id):
     with _locks_guard:
         if tech_id not in _locks:
@@ -22,6 +23,7 @@ def _lock_for(tech_id):
         return _locks[tech_id]
 
 
+# Normaliza un datetime a timezone-aware en UTC; entrada dt; salida datetime o None; sin efectos secundarios.
 def _ensure_aware(dt):
     if dt is None:
         return None
@@ -29,6 +31,7 @@ def _ensure_aware(dt):
         return dt.replace(tzinfo=timezone.utc)
     return dt
 
+# Parsea un valor a datetime UTC aplicando zona horaria por defecto; entrada value, default_tz; salida datetime o None; sin efectos secundarios.
 def _parse_dt(value, default_tz="America/Bogota"):
     if not value:
         return None
@@ -43,6 +46,7 @@ def _parse_dt(value, default_tz="America/Bogota"):
     return dt.astimezone(timezone.utc)
 
 
+# Convierte un datetime a cadena ISO-8601 UTC terminada en Z; entrada dt; salida str o None; sin efectos secundarios.
 def _to_iso(dt):
     if not dt:
         return None
@@ -53,6 +57,7 @@ def _to_iso(dt):
 BOGOTA = "America/Bogota"
 
 
+# Lista eventos del calendario en un rango con filtros y alcance por usuario; entrada from_dt, to_dt, filters, for_user_id, for_user_roles; salida (lista, error); consulta WorkOrder en BD.
 def list_events(from_dt, to_dt, filters=None, for_user_id=None, for_user_roles=None):
     filters = filters or {}
     f = _parse_dt(from_dt)
@@ -117,6 +122,7 @@ def list_events(from_dt, to_dt, filters=None, for_user_id=None, for_user_roles=N
     return out, None
 
 
+# Lista ordenes sin asignar ni programar, paginadas; entrada page, page_size, for_user_id, for_user_roles; salida (dict, error); consulta WorkOrder en BD.
 def list_unassigned(page=1, page_size=20, for_user_id=None, for_user_roles=None):
     roles = for_user_roles or []
     q = WorkOrder.query.filter(db.or_(WorkOrder.scheduled_at.is_(None), WorkOrder.assigned_to_id.is_(None)))
@@ -128,6 +134,7 @@ def list_unassigned(page=1, page_size=20, for_user_id=None, for_user_roles=None)
     return {"items": [wo.to_dict() for wo in items], "total": total, "page": page, "page_size": page_size}, None
 
 
+# Obtiene intervalos ocupados de un tecnico en un rango; entrada tech_id, from_dt, to_dt; salida (dict, error); consulta WorkOrder en BD.
 def technician_availability(tech_id, from_dt, to_dt):
     f = _parse_dt(from_dt)
     t = _parse_dt(to_dt)
@@ -153,6 +160,7 @@ def technician_availability(tech_id, from_dt, to_dt):
     return {"technician_id": int(tech_id), "occupied": occupied}, None
 
 
+# Verifica si el estado de la orden permite programar o reprogramar segun roles; entrada wo, is_reprogram, roles; salida bool; sin efectos secundarios.
 def _state_allows_schedule(wo, is_reprogram=False, roles=None):
     roles = roles or []
     if wo.status in ("completed", "cancelled"):
@@ -162,6 +170,7 @@ def _state_allows_schedule(wo, is_reprogram=False, roles=None):
     return wo.status in ("pending", "assigned", "in_progress")
 
 
+# Programa o reprograma una orden con validaciones y bloqueo por tecnico; entrada order_id, data, user, roles; salida (wo, error); actualiza BD y WorkOrderStatusHistory.
 def schedule_order(order_id, data, user, roles):
     from app.identity.models import User as U
     wo = WorkOrder.query.filter_by(id=order_id).with_for_update().first()
@@ -169,12 +178,10 @@ def schedule_order(order_id, data, user, roles):
         return None, "not_found"
     if "dispatcher" not in roles and "admin" not in roles:
         return None, "forbidden"
-    # version check
     if "version" in data and data.get("version") is not None:
         if int(data["version"]) != int(wo.version or 0):
             return None, "stale_version"
     is_reprogram = wo.scheduled_at is not None
-    # validate first
     vresult, verr = validate_schedule(order_id, data, roles)
     if verr:
         return None, verr
@@ -203,7 +210,6 @@ def schedule_order(order_id, data, user, roles):
         if "version" in data and data.get("version") is not None:
             if int(data["version"]) != int(wo.version or 0):
                 return None, "stale_version"
-        # re-validate inside lock
         vresult2, verr2 = validate_schedule(order_id, data, roles)
         if verr2:
             return None, verr2
@@ -233,6 +239,7 @@ def schedule_order(order_id, data, user, roles):
             lk.release()
 
 
+# Mapea codigo de conflicto de validacion a mensaje de error; entrada code; salida str; sin efectos secundarios.
 def _conflict_to_error(code):
     return {
         "invalid_transition": "invalid_transition",
@@ -247,6 +254,7 @@ def _conflict_to_error(code):
     }.get(code, "invalid_time")
 
 
+# Valida reglas de negocio para programar una orden (horario, dias, solapes, tecnico); entrada order_id, data, roles; salida (result, error); consulta BD.
 def validate_schedule(order_id, data, roles):
     roles = roles or []
     if "dispatcher" not in roles and "admin" not in roles:
@@ -332,7 +340,6 @@ def validate_schedule(order_id, data, roles):
                         break
                 if not covered:
                     warnings.append({"code": "zone_not_covered", "message": "no cubre la zona", "technician_id": tid})
-            # overlap check
             others = WorkOrder.query.filter(
                 WorkOrder.assigned_to_id == tid,
                 WorkOrder.id != wo.id,
@@ -355,6 +362,7 @@ def validate_schedule(order_id, data, roles):
     return result, None
 
 
+# Asigna o desasigna tecnicos a una orden, validando conflictos si esta programada; entrada order_id, data, user, roles; salida (wo, error); actualiza BD.
 def assign_order(order_id, data, user, roles):
     if "dispatcher" not in roles:
         return None, "forbidden"
@@ -369,7 +377,6 @@ def assign_order(order_id, data, user, roles):
     if tech_ids is None and data.get("assigned_to_id") is not None:
         tech_ids = [data.get("assigned_to_id")]
     if not tech_ids:
-        # unassign
         wo.assigned_to_id = None
         wo.assigned_by_id = None
         if wo.status == "assigned":
@@ -425,4 +432,3 @@ def assign_order(order_id, data, user, roles):
         wo.version = (wo.version or 0) + 1
         db.session.commit()
         return wo, None
-

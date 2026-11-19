@@ -36,6 +36,7 @@ INSTALLATION_TYPES = [
 ]
 
 
+# Carga los datos indicados; recibe sin parametros; accede al sistema de archivos; devuelve el valor correspondiente.
 def _load_cities():
     json_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "seeds", "colombia_divipola.json"))
     if not os.path.exists(json_path):
@@ -45,14 +46,13 @@ def _load_cities():
     return json.load(open(json_path, encoding="utf-8"))
 
 
+# Inserta datos iniciales en la base; recibe sin parametros; interactua con la base de datos; escribe en consola; devuelve el valor correspondiente.
 def seed():
-    # country
     if not Country.query.filter_by(iso2="CO").first():
         db.session.add(Country(iso2="CO", name="Colombia", name_norm=normalize_text("Colombia"), active=True))
     db.session.flush()
     country = Country.query.filter_by(iso2="CO").first()
 
-    # cities from JSON
     for item in _load_cities():
         code = item["dane_code"].zfill(5)
         if City.query.filter_by(dane_code=code).first():
@@ -67,17 +67,14 @@ def seed():
         ))
     db.session.flush()
 
-    # specialties
     for code, label in SPECIALTIES:
         if not Specialty.query.get(code):
             db.session.add(Specialty(code=code, label=label, name_norm=normalize_text(label), active=True))
 
-    # installation types
     for code, label in INSTALLATION_TYPES:
         if not InstallationType.query.get(code):
             db.session.add(InstallationType(code=code, label=label, name_norm=normalize_text(label), active=True))
 
-    # bogota zones
     bogota = City.query.filter_by(dane_code="11001").first()
     if bogota:
         for loc in BOGOTA_LOCALITIES:

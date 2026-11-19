@@ -4,7 +4,9 @@ import sys
 from datetime import datetime, timezone
 
 
+# JsonFormatter: clase auxiliar para JsonFormatter.
 class JsonFormatter(logging.Formatter):
+# Gestiona format; recibe record; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def format(self, record):
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -19,6 +21,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(log_entry)
 
 
+# Gestiona setup logging; recibe app; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def setup_logging(app):
     level = getattr(logging, app.config.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
     fmt = app.config.get("LOG_FORMAT", "json")

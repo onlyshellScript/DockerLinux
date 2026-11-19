@@ -1,7 +1,9 @@
-﻿from app.extensions import db
+﻿# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
+from app.extensions import db
 from app.identity.models import User, Role
 from app.materials.models import MaterialCatalog
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; accede al sistema de archivos; devuelve el valor correspondiente.
 
 def _seed(app):
     import os, sys
@@ -31,10 +33,12 @@ def _seed(app):
         return admin.id
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
+# test_export_csv_preview_bom: valida el escenario export csv preview bom preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_export_csv_preview_bom(client, app):
     _seed(app)
@@ -45,6 +49,7 @@ def test_export_csv_preview_bom(client, app):
     assert data["content"].startswith("\ufeff")
     assert "Codigo" in data["content"] or "Código" in data["content"]
 
+# test_export_download_excel: valida el escenario export download excel preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_export_download_excel(client, app):
     _seed(app)
@@ -53,6 +58,7 @@ def test_export_download_excel(client, app):
     assert resp.status_code == 200
     assert "spreadsheetml" in resp.content_type
 
+# test_export_forbidden: valida el escenario export forbidden preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_export_forbidden(client, app):
     _seed(app)

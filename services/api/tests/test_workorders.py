@@ -1,10 +1,11 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 import json
 
 from app.extensions import db
 from app.identity.models import User, Role
 from app.workorders.models import WorkOrder
 
-
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; devuelve el valor correspondiente.
 def _seed(app):
     with app.app_context():
         admin_role = Role(name="admin", description="Administrador")
@@ -28,13 +29,14 @@ def _seed(app):
         db.session.add_all([admin, disp, tech])
         db.session.commit()
         return admin.id, disp.id, tech.id
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
+def _login(client, username, password):
+
+    resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+
+    return resp.get_json()["access_token"]
 
-
-def _login(client, username, password):
-    resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
-    return resp.get_json()["access_token"]
-
-
+# test_create_work_order: valida el escenario create work order preparando datos, ejecutando la accion y comprobando el resultado esperado.
 def test_create_work_order(client, app):
     admin_id, disp_id, tech_id = _seed(app)
     token = _login(client, "disp", "Disp123!")
@@ -48,7 +50,7 @@ def test_create_work_order(client, app):
     assert data["title"] == "Reparación AC"
     assert data["status"] == "pending"
 
-
+# test_technician_cannot_create: valida el escenario technician cannot create preparando datos, ejecutando la accion y comprobando el resultado esperado.
 def test_technician_cannot_create(client, app):
     admin_id, disp_id, tech_id = _seed(app)
     token = _login(client, "tech", "Tech123!")
@@ -59,19 +61,17 @@ def test_technician_cannot_create(client, app):
     )
     assert resp.status_code == 403
 
+# test_timeline_per_field_on_admin_edit: valida el escenario timeline per field on admin edit preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_timeline_per_field_on_admin_edit(client, app):
     admin_id, disp_id, tech_id = _seed(app)
     disp_tok = _login(client, "disp", "Disp123!")
     admin_tok = _login(client, "admin", "Admin123!")
-    # create work order
     r = client.post("/api/v1/work-orders", headers={"Authorization": "Bearer " + disp_tok}, json={"title": "WO1", "description": "d", "priority": "high"})
     assert r.status_code == 201
     wo_id = r.get_json()["id"]
-    # assign technician
     r2 = client.patch("/api/v1/work-orders/{}".format(wo_id), headers={"Authorization": "Bearer " + disp_tok, "If-Match": str(r.get_json()["version"])}, json={"assigned_to_id": tech_id})
     # admin edit: technician, installation_type, scheduled_at
-    # get current version
     g = client.get("/api/v1/work-orders/{}".format(wo_id), headers={"Authorization": "Bearer " + admin_tok})
     ver = g.get_json()["version"]
     r3 = client.patch("/api/v1/work-orders/{}".format(wo_id), headers={"Authorization": "Bearer " + admin_tok, "If-Match": str(ver)}, json={
@@ -97,6 +97,7 @@ def test_timeline_per_field_on_admin_edit(client, app):
         assert e.get("actor") is not None
         assert e.get("created_at") is not None
 
+# test_timeline_technician_forbidden_other: valida el escenario timeline technician forbidden other preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_timeline_technician_forbidden_other(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -109,13 +110,13 @@ def test_timeline_technician_forbidden_other(client, app):
     tl = client.get("/api/v1/work-orders/{}/timeline".format(wo_id), headers={"Authorization": "Bearer " + tech_tok})
     assert tl.status_code == 403
 
-
+# test_assign_and_transition: valida el escenario assign and transition preparando datos, ejecutando la accion y comprobando el resultado esperado.
 def test_assign_and_transition(client, app):
     admin_id, disp_id, tech_id = _seed(app)
     admin_token = _login(client, "disp", "Disp123!")
     tech_token = _login(client, "tech", "Tech123!")
 
-    # Create
+
     resp = client.post(
         "/api/v1/work-orders",
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -123,7 +124,7 @@ def test_assign_and_transition(client, app):
     )
     wo_id = resp.get_json()["id"]
 
-    # Assign
+
     resp = client.put(
         f"/api/v1/work-orders/{wo_id}",
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -132,7 +133,7 @@ def test_assign_and_transition(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["status"] == "pending"
 
-    # Change to assigned
+
     resp = client.post(
         f"/api/v1/work-orders/{wo_id}/status",
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -149,7 +150,6 @@ def test_assign_and_transition(client, app):
     )
     assert resp.status_code == 200
     assert resp.get_json()["status"] == "in_progress"
-    # Technician completes
     resp = client.post(
         f"/api/v1/work-orders/{wo_id}/status",
         headers={"Authorization": f"Bearer {tech_token}"},
@@ -157,6 +157,7 @@ def test_assign_and_transition(client, app):
     )
     assert resp.status_code == 200
     assert resp.get_json()["status"] == "completed"
+# test_invalid_transition: valida el escenario invalid transition preparando datos, ejecutando la accion y comprobando el resultado esperado.
 def test_invalid_transition(client, app):
 
     admin_id, disp_id, tech_id = _seed(app)
@@ -175,7 +176,7 @@ def test_invalid_transition(client, app):
         headers={"Authorization": f"Bearer {token}"},
         json={"to_status": "in_progress"},
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 409# test_history: valida el escenario history preparando datos, ejecutando la accion y comprobando el resultado esperado.
 def test_history(client, app):
 
     admin_id, disp_id, tech_id = _seed(app)
@@ -193,7 +194,7 @@ def test_history(client, app):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
-    history = resp.get_json()
+    history = resp.get_json()# test_work_order_edit_patch_and_put: valida el escenario work order edit patch and put preparando datos, ejecutando la accion y comprobando el resultado esperado.
 def test_work_order_edit_patch_and_put(client, app):
     admin_id, disp_id, tech_id = _seed(app)
     token = _login(client, "disp", "Disp123!")
@@ -209,7 +210,6 @@ def test_work_order_edit_patch_and_put(client, app):
     wo_id = wo["id"]
     version = wo.get("version", 0)
 
-    # PATCH updates title
     resp = client.patch(
         f"/api/v1/work-orders/{wo_id}",
         headers={"Authorization": f"Bearer {token}"},
@@ -218,7 +218,6 @@ def test_work_order_edit_patch_and_put(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["title"] == "Orden editada PATCH"
 
-    # PUT updates title
     resp = client.put(
         f"/api/v1/work-orders/{wo_id}",
         headers={"Authorization": f"Bearer {token}"},
@@ -243,6 +242,7 @@ def test_work_order_edit_patch_and_put(client, app):
     )
     assert resp.status_code == 400
 
+# test_work_orders_list_filters_and_pagination: valida el escenario work orders list filters and pagination preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_work_orders_list_filters_and_pagination(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -270,6 +270,7 @@ def test_work_orders_list_filters_and_pagination(client, app):
     assert data["total"] >= 3
     assert all(item["status"] == "pending" for item in data["items"])
 
+# test_work_orders_calendar_range_and_empty_technician: valida el escenario work orders calendar range and empty technician preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_work_orders_calendar_range_and_empty_technician(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -305,6 +306,7 @@ def test_work_orders_calendar_range_and_empty_technician(client, app):
     assert resp.status_code == 200
     data = resp.get_json()
     assert isinstance(data.get("items"), list)
+# test_admin_cannot_create_work_order: valida el escenario admin cannot create work order preparando datos, ejecutando la accion y comprobando el resultado esperado.
 def test_admin_cannot_create_work_order(client, app):
     admin_id, disp_id, tech_id = _seed(app)
     admin_token = _login(client, "admin", "Admin123!")
@@ -318,6 +320,7 @@ def test_admin_cannot_create_work_order(client, app):
     assert resp.status_code == 403
 
 
+# test_admin_can_edit_work_order_with_reason: valida el escenario admin can edit work order with reason preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_can_edit_work_order_with_reason(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -338,6 +341,7 @@ def test_admin_can_edit_work_order_with_reason(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["title"] == "Orden editada por admin"
 
+# test_admin_edit_without_reason_returns_422: valida el escenario admin edit without reason returns 422 preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_edit_without_reason_returns_422(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -355,6 +359,7 @@ def test_admin_edit_without_reason_returns_422(client, app):
     )
     assert resp.status_code == 422
 
+# test_admin_cannot_edit_terminal_order: valida el escenario admin cannot edit terminal order preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_cannot_edit_terminal_order(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -376,6 +381,7 @@ def test_admin_cannot_edit_terminal_order(client, app):
     )
     assert resp.status_code in (403, 409)
 
+# test_technician_cannot_edit_work_order: valida el escenario technician cannot edit work order preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_technician_cannot_edit_work_order(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -393,6 +399,7 @@ def test_technician_cannot_edit_work_order(client, app):
     )
     assert resp.status_code == 403
 
+# test_admin_edit_invalid_ifmatch_returns_400: valida el escenario admin edit invalid ifmatch returns 400 preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_edit_invalid_ifmatch_returns_400(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -409,6 +416,7 @@ def test_admin_edit_invalid_ifmatch_returns_400(client, app):
     )
     assert resp.status_code == 400
 
+# test_admin_edit_notifies_technician: valida el escenario admin edit notifies technician preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_edit_notifies_technician(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -436,6 +444,7 @@ def test_admin_edit_notifies_technician(client, app):
         after = Notification.query.filter_by(user_id=tech_id).count()
     assert after > before
 
+# test_admin_edit_appears_in_timeline: valida el escenario admin edit appears in timeline preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_edit_appears_in_timeline(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -458,6 +467,7 @@ def test_admin_edit_appears_in_timeline(client, app):
     data = resp.get_json()
     assert any(item.get("reason") == "Motivo timeline" for item in data)
 
+# test_admin_changes_technician_validates_rf09: valida el escenario admin changes technician validates rf09 preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_changes_technician_validates_rf09(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -476,7 +486,6 @@ def test_admin_changes_technician_validates_rf09(client, app):
     )
     assert resp.status_code in (400, 404)
 
-    # valid technician
     resp = client.patch(
         f"/api/v1/work-orders/{wo_id}",
         headers={"Authorization": f"Bearer {admin_token}", "If-Match": str(version)},
@@ -485,6 +494,7 @@ def test_admin_changes_technician_validates_rf09(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["assigned_to"]["id"] == tech_id
 
+# test_admin_changes_installation_type: valida el escenario admin changes installation type preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_changes_installation_type(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -503,13 +513,13 @@ def test_admin_changes_installation_type(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["installation_type"] == "Residencial"
 
+# test_admin_adds_materials: valida el escenario admin adds materials preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_adds_materials(client, app):
     admin_id, disp_id, tech_id = _seed(app)
     admin_token = _login(client, "admin", "Admin123!")
     disp_token = _login(client, "disp", "Disp123!")
 
-    # create material
     # create material via API
     resp = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {admin_token}"}, json={"name": "MatAdmin", "category_id": 1, "unit_id": 1, "current_stock": 10, "min_stock": 1})
     # if category/unit missing, skip
@@ -528,6 +538,7 @@ def test_admin_adds_materials(client, app):
     )
     assert resp.status_code == 200
 
+# test_admin_postpones_date: valida el escenario admin postpones date preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_postpones_date(client, app):
     admin_id, disp_id, tech_id = _seed(app)
@@ -546,20 +557,18 @@ def test_admin_postpones_date(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["scheduled_at"].startswith("2026-11-10")
 
+# test_admin_edit_date_overlap_rejected: valida el escenario admin edit date overlap rejected preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_edit_date_overlap_rejected(client, app):
     admin_id, disp_id, tech_id = _seed(app)
     admin_token = _login(client, "admin", "Admin123!")
     disp_token = _login(client, "disp", "Disp123!")
 
-    # base order
     resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden base", "assigned_to_id": tech_id})
     wo_id = resp.get_json()["id"]
     version = resp.get_json().get("version", 0)
-    # schedule it
     client.post(f"/api/v1/work-orders/{wo_id}/schedule", headers={"Authorization": f"Bearer {disp_token}"}, json={"start": "2026-11-10T10:00:00", "end": "2026-11-10T11:00:00", "version": version})
 
-    # second order
     resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {disp_token}"}, json={"title": "Orden solape", "assigned_to_id": tech_id})
     wo2_id = resp.get_json()["id"]
     version2 = resp.get_json().get("version", 0)
@@ -571,6 +580,7 @@ def test_admin_edit_date_overlap_rejected(client, app):
     )
     assert resp.status_code == 409
 
+# test_admin_edit_stores_old_and_new_in_timeline: valida el escenario admin edit stores old and new in timeline preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_edit_stores_old_and_new_in_timeline(client, app):
     admin_id, disp_id, tech_id = _seed(app)

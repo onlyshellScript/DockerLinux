@@ -6,6 +6,7 @@ from app.sync.service import push_operations, pull_changes
 blueprint = Blueprint("sync", __name__)
 
 
+# POST /sync/push (roles: autenticado): sync push; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/sync/push")
 @require_auth
 def sync_push():
@@ -19,6 +20,7 @@ def sync_push():
     return jsonify({"results": results}), 200
 
 
+# GET /sync/pull (roles: autenticado): sync pull; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/sync/pull")
 @require_auth
 def sync_pull():

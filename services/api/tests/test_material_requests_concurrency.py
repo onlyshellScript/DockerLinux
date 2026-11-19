@@ -1,4 +1,5 @@
-﻿import os, sys, threading, time
+﻿# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
+import os, sys, threading, time
 
 base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if base not in sys.path:
@@ -10,6 +11,7 @@ from app.extensions import db
 from app.identity.models import User, Role
 from app.materials.models import Material, MaterialCatalog, MaterialRequest, MaterialRequestItem, StockMovement, TechnicianStock, MaterialRequestDelivery
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; accede al sistema de archivos; devuelve el valor correspondiente.
 
 def _seed(app):
     with app.app_context():
@@ -31,7 +33,6 @@ def _seed(app):
         m = Material(name=ci.name, code=ci.code, unit="pza", current_stock=10, min_stock=2, unit_price=1000, catalog_item_id=ci.id)
         db.session.add(m)
         db.session.commit()
-        # technician profile
         from app.materials.models import TechnicianProfile
         prof = TechnicianProfile(user_id=tech.id, is_available=True)
         db.session.add(prof)
@@ -39,11 +40,13 @@ def _seed(app):
         return admin.id, tech.id, tech.id, m.id, prof.id
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
 
+# test_concurrent_deliveries_same_item: valida el escenario concurrent deliveries same item preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 def test_concurrent_deliveries_same_item(sqlserver_client, sqlserver_app):
     admin_id, tech_user_id, tech_id_unused, mat_id, prof_id = _seed(sqlserver_app)
@@ -53,7 +56,6 @@ def test_concurrent_deliveries_same_item(sqlserver_client, sqlserver_app):
     r = sqlserver_client.post("/api/v1/material-requests", headers={"Authorization": f"Bearer {tech_token}"}, json={"items": [{"material_id": mat_id, "quantity": 4}], "technician_id": prof_id})
     rid = r.get_json()["id"]
     iid = r.get_json()["items"][0]["id"]
-    # approve 4
     sqlserver_client.post(f"/api/v1/material-requests/{rid}/approve", headers={"Authorization": f"Bearer {admin_token}"}, json={"items": [{"item_id": iid, "quantity_approved": 4}]})
     results = []
 
@@ -78,6 +80,7 @@ def test_concurrent_deliveries_same_item(sqlserver_client, sqlserver_app):
     assert sorted(results) == [200, 409] or sorted(results) == [409, 200]
 
 
+# test_idempotent_replay: valida el escenario idempotent replay preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 def test_idempotent_replay(sqlserver_client, sqlserver_app):
     admin_id, tech_user_id, tech_id_unused, mat_id, prof_id = _seed(sqlserver_app)
@@ -98,6 +101,7 @@ def test_idempotent_replay(sqlserver_client, sqlserver_app):
         assert dels == 1
 
 
+# test_exceeds_approved: valida el escenario exceeds approved preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 def test_exceeds_approved(sqlserver_client, sqlserver_app):
     admin_id, tech_user_id, tech_id_unused, mat_id, prof_id = _seed(sqlserver_app)

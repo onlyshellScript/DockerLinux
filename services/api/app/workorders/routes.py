@@ -20,6 +20,7 @@ from app.calendar import service as calendar_service
 blueprint = Blueprint("workorders", __name__)
 
 
+# GET /work-orders (roles: autenticado): work orders list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/work-orders")
 @require_auth
 def work_orders_list():
@@ -69,6 +70,7 @@ def work_orders_list():
     }), 200
 
 
+# POST /work-orders (roles: dispatcher): work orders create; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/work-orders")
 @require_role("dispatcher")
 def work_orders_create():
@@ -81,19 +83,20 @@ def work_orders_create():
     return jsonify(wo.to_dict()), 201
 
 
+# GET /work-orders/<int:wo_id> (roles: autenticado): work orders get; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/work-orders/<int:wo_id>")
 @require_auth
 def work_orders_get(wo_id):
     wo = get_work_order(wo_id)
     if not wo:
         return jsonify({"error": "work order not found"}), 404
-    # technician scoping
     roles = request.user_roles
     if "admin" not in roles and "dispatcher" not in roles and wo.assigned_to_id != request.user_id:
         return jsonify({"error": "insufficient permissions"}), 403
     return jsonify(wo.to_dict()), 200
 
 
+# PATCH /work-orders/<int:wo_id> (roles: autenticado): work orders patch; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/work-orders/<int:wo_id>")
 @require_auth
 def work_orders_patch(wo_id):
@@ -123,7 +126,7 @@ def work_orders_patch(wo_id):
         if not reason:
             return jsonify({"error": "reason required"}), 422
         if "status" in data and data.get("status") == "cancelled":
-            return jsonify({"error": "admin cannot cancel orders"}), 403
+            return jsonify({"error": "use POST /work-orders/<id>/cancel to cancel an order"}), 422
     if is_dispatcher and wo.assigned_to_id != request.user_id and "dispatcher" not in roles:
         pass
 
@@ -203,6 +206,7 @@ def work_orders_patch(wo_id):
     return jsonify(wo.to_dict()), 200
 
 
+# PUT /work-orders/<int:wo_id> (roles: dispatcher): work orders update; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.put("/work-orders/<int:wo_id>")
 @require_role("dispatcher")
 def work_orders_update(wo_id):
@@ -219,6 +223,7 @@ def work_orders_update(wo_id):
     return jsonify(wo.to_dict()), 200
 
 
+# POST /work-orders/<int:wo_id>/status (roles: autenticado): work orders change status; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/work-orders/<int:wo_id>/status")
 @require_auth
 def work_orders_change_status(wo_id):
@@ -238,7 +243,8 @@ def work_orders_change_status(wo_id):
     is_assigned = wo.assigned_to_id == request.user_id
     if to_status in ("assigned", "in_progress", "completed") and not (is_dispatcher or is_assigned):
         return jsonify({"error": "insufficient permissions"}), 403
-    if to_status == "cancelled" and not is_dispatcher:
+    # Cancelar: coordinador y administrador (cancelación administrativa). El resto de transiciones no cambia.
+    if to_status == "cancelled" and not (is_dispatcher or "admin" in roles):
         return jsonify({"error": "insufficient permissions"}), 403
 
     user = db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id)
@@ -252,6 +258,7 @@ def work_orders_change_status(wo_id):
     return jsonify(result.to_dict()), 200
 
 
+# POST /work-orders/<int:wo_id>/transitions (roles: autenticado): work orders transition; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/work-orders/<int:wo_id>/transitions")
 @require_auth
 def work_orders_transition(wo_id):
@@ -267,7 +274,9 @@ def work_orders_transition(wo_id):
     is_dispatcher = "dispatcher" in roles
     is_assigned = wo.assigned_to_id == request.user_id
     # permission checks by action
-    if action in ("assign", "cancel") and not is_dispatcher:
+    if action == "assign" and not is_dispatcher:
+        return jsonify({"error": "insufficient permissions"}), 403
+    if action == "cancel" and not (is_dispatcher or "admin" in roles):
         return jsonify({"error": "insufficient permissions"}), 403
     if action in ("start", "complete") and not (is_dispatcher or is_assigned):
         return jsonify({"error": "insufficient permissions"}), 403
@@ -293,6 +302,7 @@ def work_orders_transition(wo_id):
     return jsonify(result.to_dict()), 200
 
 
+# POST /work-orders/<int:wo_id>/schedule (roles: autenticado): work orders schedule; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/work-orders/<int:wo_id>/schedule")
 @require_auth
 def work_orders_schedule(wo_id):
@@ -345,6 +355,7 @@ def work_orders_schedule(wo_id):
     return jsonify(result.to_dict()), 200
 
 
+# PATCH /work-orders/<int:wo_id>/schedule (roles: autenticado): work orders reschedule; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/work-orders/<int:wo_id>/schedule")
 @require_auth
 def work_orders_reschedule(wo_id):
@@ -399,6 +410,7 @@ def work_orders_reschedule(wo_id):
     return jsonify(result.to_dict()), 200
 
 
+# POST /work-orders/<int:wo_id>/assignments (roles: autenticado): work orders assign; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/work-orders/<int:wo_id>/assignments")
 @require_auth
 def work_orders_assign(wo_id):
@@ -435,6 +447,7 @@ def work_orders_assign(wo_id):
     return jsonify(result.to_dict()), 200
 
 
+# POST /work-orders/<int:wo_id>/materials (roles: autenticado): work orders materials; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/work-orders/<int:wo_id>/materials")
 @require_auth
 def work_orders_materials(wo_id):
@@ -462,6 +475,7 @@ def work_orders_materials(wo_id):
     return jsonify(result.to_dict()), 200
 
 
+# GET /work-orders/<int:wo_id>/history (roles: autenticado): work orders history; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/work-orders/<int:wo_id>/history")
 @require_auth
 def work_orders_history(wo_id):
@@ -475,6 +489,7 @@ def work_orders_history(wo_id):
     return jsonify([h.to_dict() for h in history]), 200
 
 
+# GET /work-orders/<int:wo_id>/timeline (roles: autenticado): work orders timeline; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/work-orders/<int:wo_id>/timeline")
 @require_auth
 def work_orders_timeline(wo_id):
@@ -533,6 +548,7 @@ def work_orders_timeline(wo_id):
     return jsonify(history), 200
 
 
+# POST /work-orders/bulk (roles: dispatcher): work orders bulk; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/work-orders/bulk")
 @require_role("dispatcher")
 def work_orders_bulk():
@@ -547,10 +563,10 @@ def work_orders_bulk():
     return jsonify({"results": results}), 200
 
 
+# GET /work-orders/export.csv (roles: autenticado): work orders export; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/work-orders/export.csv")
 @require_auth
 def work_orders_export():
-    # reuse list filters
     page = 1
     page_size = 10000
     result = list_work_orders(
@@ -572,3 +588,35 @@ def work_orders_export():
     )
     csv_data = export_csv(result["items"])
     return Response(csv_data, mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=ordenes.csv"})
+
+
+
+# GET /work-orders/<id>/cancellation (roles: admin, dispatcher): si la orden puede cancelarse y qué se conserva.
+@blueprint.get("/work-orders/<int:wo_id>/cancellation")
+@require_role("admin", "dispatcher")
+def work_orders_cancellation_check(wo_id):
+    from app.workorders.service import cancellation_check
+    wo = get_work_order(wo_id)
+    if not wo:
+        return jsonify({"error": "work order not found"}), 404
+    return jsonify(cancellation_check(wo)), 200
+
+
+# POST /work-orders/<id>/cancel (roles: admin, dispatcher): cancelación lógica con motivo opcional.
+# Nunca borra la orden ni sus evidencias, historial, técnico o materiales.
+@blueprint.post("/work-orders/<int:wo_id>/cancel")
+@require_role("admin", "dispatcher")
+def work_orders_cancel(wo_id):
+    from app.workorders.service import cancel_work_order
+    data = request.get_json(silent=True) or {}
+    reason = data.get("reason")
+    if reason is not None and not isinstance(reason, str):
+        return jsonify({"error": "motivo inválido", "code": "invalid_reason"}), 422
+    user = db.session.get(__import__("app.identity.models", fromlist=["User"]).User, request.user_id)
+    wo, error, check = cancel_work_order(wo_id, user, reason)
+    if error == "not_found":
+        return jsonify({"error": "work order not found"}), 404
+    if error:
+        db.session.rollback()
+        return jsonify({"error": (check or {}).get("blocked_reason") or "No se pudo cancelar la orden", "code": error}), 409
+    return jsonify(wo.to_dict()), 200

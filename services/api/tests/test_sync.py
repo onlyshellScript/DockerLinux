@@ -1,9 +1,11 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 import json
 import uuid
 
 from app.extensions import db
 from app.identity.models import User, Role
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; accede al sistema de archivos; devuelve el valor correspondiente.
 
 def _seed(app):
     with app.app_context():
@@ -37,10 +39,12 @@ def _seed(app):
         return admin.id, tech.id
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
+# test_push_change_status: valida el escenario push change status preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_push_change_status(client, app):
     admin_id, tech_id = _seed(app)
@@ -80,6 +84,7 @@ def test_push_change_status(client, app):
     results = resp.get_json()["results"]
     assert results[0]["status"] == "synced"
 
+# test_push_idempotent: valida el escenario push idempotent preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_push_idempotent(client, app):
     admin_id, tech_id = _seed(app)
@@ -104,6 +109,7 @@ def test_push_idempotent(client, app):
     resp2 = client.post("/api/v1/sync/push", headers={"Authorization": f"Bearer {admin_token}"}, json=body)
     assert resp2.get_json()["results"][0]["status"] == "duplicate"
 
+# test_push_unknown_type: valida el escenario push unknown type preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_push_unknown_type(client, app):
     admin_id, tech_id = _seed(app)
@@ -121,6 +127,7 @@ def test_push_unknown_type(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["results"][0]["status"] == "failed"
 
+# test_pull_changes: valida el escenario pull changes preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_pull_changes(client, app):
     admin_id, tech_id = _seed(app)
@@ -147,6 +154,7 @@ def test_pull_changes(client, app):
     assert len(data["work_orders"]) >= 1
     assert len(data["materials"]) >= 1
 
+# test_push_batch_limit: valida el escenario push batch limit preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_push_batch_limit(client, app):
     admin_id, tech_id = _seed(app)
@@ -155,6 +163,7 @@ def test_push_batch_limit(client, app):
     resp = client.post("/api/v1/sync/push", headers={"Authorization": f"Bearer {token}"}, json={"operations": ops})
     assert resp.status_code == 400
 
+# test_sync_pull_only_assigned_orders: valida el escenario sync pull only assigned orders preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_sync_pull_only_assigned_orders(client, app):
     admin_id, tech_id = _seed(app)
@@ -185,6 +194,7 @@ def test_sync_pull_only_assigned_orders(client, app):
     assert wo1_id in ids
     assert wo2_id not in ids
 
+# test_sync_change_status_rejects_unowned_order: valida el escenario sync change status rejects unowned order preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_sync_change_status_rejects_unowned_order(client, app):
     admin_id, tech_id = _seed(app)
@@ -211,6 +221,7 @@ def test_sync_change_status_rejects_unowned_order(client, app):
     data = resp.get_json()
     assert data["results"][0]["status"] == "failed"
 
+# test_sync_add_observation_rejects_unowned_order: valida el escenario sync add observation rejects unowned order preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_sync_add_observation_rejects_unowned_order(client, app):
     admin_id, tech_id = _seed(app)

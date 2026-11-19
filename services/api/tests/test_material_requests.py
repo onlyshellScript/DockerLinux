@@ -1,7 +1,9 @@
-﻿from app.extensions import db
+﻿# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
+from app.extensions import db
 from app.identity.models import User, Role
 from app.materials.models import Material, MaterialRequest, MaterialRequestItem, MaterialRequestEvent, MaterialRequestDelivery
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; accede al sistema de archivos; devuelve el valor correspondiente.
 
 def _seed(app):
     import os, sys
@@ -30,6 +32,7 @@ def _seed(app):
         db.session.commit()
         return admin.id, tech.id, m.id
 
+# test_request_model_compat: valida el escenario request model compat preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_request_model_compat(client, app):
     admin_id, tech_id, mat_id = _seed(app)
@@ -45,6 +48,7 @@ def test_request_model_compat(client, app):
         assert req.events == []
         assert req.deliveries == []
 
+# test_request_operation_unique: valida el escenario request operation unique preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_request_operation_unique(client, app):
     admin_id, tech_id, mat_id = _seed(app)
@@ -62,47 +66,45 @@ def test_request_operation_unique(client, app):
             db.session.rollback()
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
+# test_create_and_submit: valida el escenario create and submit preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_create_and_submit(client, app):
     admin_id, tech_id, mat_id = _seed(app)
     token = _login(client, "tech", "Tech123!")
-    # create draft
     r = client.post("/api/v1/material-requests", headers={"Authorization": f"Bearer {token}"}, json={"items": [{"material_id": mat_id, "quantity": 2}], "draft": True})
     assert r.status_code == 201
     rid = r.get_json()["id"]
     assert r.get_json()["status"] == "DRAFT"
-    # submit
     r2 = client.post(f"/api/v1/material-requests/{rid}/submit", headers={"Authorization": f"Bearer {token}"})
     assert r2.status_code == 200
     assert r2.get_json()["status"] == "SUBMITTED"
 
+# test_approve_and_deliver_partial: valida el escenario approve and deliver partial preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_approve_and_deliver_partial(client, app):
     admin_id, tech_id, mat_id = _seed(app)
     tech_token = _login(client, "tech", "Tech123!")
     admin_token = _login(client, "admin", "Admin123!")
-    # create+submit
     r = client.post("/api/v1/material-requests", headers={"Authorization": f"Bearer {tech_token}"}, json={"items": [{"material_id": mat_id, "quantity": 4}]})
     rid = r.get_json()["id"]
     iid = r.get_json()["items"][0]["id"]
-    # approve partial 2
     ra = client.post(f"/api/v1/material-requests/{rid}/approve", headers={"Authorization": f"Bearer {admin_token}"}, json={"items": [{"item_id": iid, "quantity_approved": 2}]})
     assert ra.status_code == 200
     assert ra.get_json()["status"] == "PARTIALLY_APPROVED"
-    # deliver 1
     rd = client.post(f"/api/v1/material-requests/{rid}/deliver", headers={"Authorization": f"Bearer {admin_token}"}, json={"items": [{"item_id": iid, "quantity_delivered": 1}], "operation_id": "op-1"})
     assert rd.status_code == 200
     assert rd.get_json()["status"] == "PARTIALLY_DELIVERED"
-    # idempotent replay
     rd2 = client.post(f"/api/v1/material-requests/{rid}/deliver", headers={"Authorization": f"Bearer {admin_token}"}, json={"items": [{"item_id": iid, "quantity_delivered": 1}], "operation_id": "op-1"})
     assert rd2.status_code == 200
     # delivered total should still be 1
     assert rd2.get_json()["items"][0]["quantity_delivered"] == 1
 
+# test_reject_and_cancel: valida el escenario reject and cancel preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_reject_and_cancel(client, app):
     admin_id, tech_id, mat_id = _seed(app)
@@ -114,6 +116,7 @@ def test_reject_and_cancel(client, app):
     assert rc.status_code == 200
     assert rc.get_json()["status"] == "CANCELLED"
 
+# test_forbidden_technician_approve: valida el escenario forbidden technician approve preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_forbidden_technician_approve(client, app):
     admin_id, tech_id, mat_id = _seed(app)

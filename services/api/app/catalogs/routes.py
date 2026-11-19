@@ -11,6 +11,7 @@ from app.common.normalize import normalize_text
 blueprint = Blueprint("catalogs", __name__)
 
 
+# GET /catalogs/countries (roles: autenticado): list countries; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/catalogs/countries")
 @require_auth
 def list_countries():
@@ -18,6 +19,7 @@ def list_countries():
     return jsonify([c.to_dict() for c in items]), 200
 
 
+# GET /catalogs/cities (roles: autenticado): list cities; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/catalogs/cities")
 @require_auth
 def list_cities():
@@ -41,6 +43,7 @@ def list_cities():
     return jsonify([c.to_dict() for c in items]), 200
 
 
+# GET /catalogs/zones (roles: autenticado): list zones; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/catalogs/zones")
 @require_auth
 def list_zones():
@@ -52,6 +55,7 @@ def list_zones():
     return jsonify([z.to_dict() for z in items]), 200
 
 
+# GET /catalogs/specialties (roles: autenticado): list specialties; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/catalogs/specialties")
 @require_auth
 def list_specialties():
@@ -59,6 +63,7 @@ def list_specialties():
     return jsonify([{"code": s.code, "label": s.label} for s in items]), 200
 
 
+# GET /catalogs/installation-types (roles: autenticado): list installation types; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/catalogs/installation-types")
 @require_auth
 def list_installation_types():
@@ -66,6 +71,7 @@ def list_installation_types():
     return jsonify([{"code": i.code, "label": i.label} for i in items]), 200
 
 
+# POST /catalogs/zones (roles: admin): create zone; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/catalogs/zones")
 @require_role("admin")
 def create_zone():
@@ -93,6 +99,7 @@ def create_zone():
     return jsonify(z.to_dict()), 201
 
 
+# PATCH /catalogs/zones/<int:zid> (roles: admin): patch zone; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/catalogs/zones/<int:zid>")
 @require_role("admin")
 def patch_zone(zid):
@@ -120,6 +127,7 @@ def patch_zone(zid):
     return jsonify(z.to_dict()), 200
 
 
+# POST /catalogs/specialties (roles: admin): create specialty; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/catalogs/specialties")
 @require_role("admin")
 def create_specialty():
@@ -139,6 +147,7 @@ def create_specialty():
     return jsonify({"code": s.code, "label": s.label}), 201
 
 
+# POST /catalogs/installation-types (roles: admin): create installation type; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/catalogs/installation-types")
 @require_role("admin")
 def create_installation_type():
@@ -158,7 +167,7 @@ def create_installation_type():
     return jsonify({"code": i.code, "label": i.label}), 201
 
 
-# legacy endpoints kept for compatibility (departments/municipalities/sectors)
+# GET /catalogs/departments (roles: autenticado): list departments; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/catalogs/departments")
 @require_auth
 def list_departments():
@@ -166,6 +175,7 @@ def list_departments():
     return jsonify([{"code": d.code, "name": d.name} for d in items]), 200
 
 
+# GET /catalogs/municipalities (roles: autenticado): list municipalities; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/catalogs/municipalities")
 @require_auth
 def list_municipalities():
@@ -177,6 +187,7 @@ def list_municipalities():
     return jsonify([{"code": m.code, "name": m.name, "department_code": m.department_code} for m in items]), 200
 
 
+# GET /catalogs/sectors (roles: autenticado): list sectors; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/catalogs/sectors")
 @require_auth
 def list_sectors():

@@ -6,6 +6,7 @@ from app.dashboard.service import build_summary, VALID_RANGES
 blueprint = Blueprint("dashboard", __name__)
 
 
+# _int_arg: Expone el endpoint HTTP correspondiente y delega la logica en el servicio; recibe los parametros de la peticion HTTP; responde por HTTP; devuelve la respuesta JSON.
 def _int_arg(name):
     """None si no viene; ValueError si viene pero no es un entero."""
     raw = request.args.get(name)
@@ -14,6 +15,7 @@ def _int_arg(name):
     return int(raw)
 
 
+# _current_user_id: Expone el endpoint HTTP correspondiente y delega la logica en el servicio; recibe los parametros de la peticion HTTP; responde por HTTP; devuelve la respuesta JSON.
 def _current_user_id():
     # AJUSTA esto a tu app: por ejemplo flask_jwt_extended.get_jwt_identity()
     # o g.current_user.id, según cómo lo exponga require_role.
@@ -22,6 +24,7 @@ def _current_user_id():
     return getattr(user, "id", None)
 
 
+# GET /dashboard/summary (roles: admin, dispatcher): dashboard summary; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/dashboard/summary")
 @require_role("admin", "dispatcher")
 def dashboard_summary():

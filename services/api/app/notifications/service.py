@@ -11,6 +11,7 @@ from app.notifications.senders import send_notification
 _worker_running = False
 
 
+# Gestiona enqueue notification; recibe user_id, channel, recipient, subject, message; interactua con la base de datos; devuelve el valor correspondiente.
 def enqueue_notification(user_id, channel, recipient, subject, message):
     if channel not in (CHANNEL_EMAIL, CHANNEL_WHATSAPP):
         return None
@@ -26,6 +27,7 @@ def enqueue_notification(user_id, channel, recipient, subject, message):
     return n
 
 
+# Procesa la operacion solicitada; recibe limit; interactua con la base de datos; devuelve el valor correspondiente.
 def process_pending(limit=50):
     global _worker_running
     if _worker_running:
@@ -54,6 +56,7 @@ def process_pending(limit=50):
     return processed
 
 
+# Gestiona start worker; recibe interval_seconds; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def start_worker(interval_seconds=30):
     def _loop():
         while True:
@@ -65,6 +68,7 @@ def start_worker(interval_seconds=30):
     return t
 
 
+# Lista los registros que cumplen los filtros indicados; recibe user_id, status; interactua con la base de datos; devuelve el valor correspondiente.
 def list_notifications(user_id=None, status=None):
     q = Notification.query
     if user_id:
@@ -74,5 +78,34 @@ def list_notifications(user_id=None, status=None):
     return q.order_by(Notification.created_at.desc()).all()
 
 
+# get_notification: obtiene una notificacion por su id; entrada notif_id; salida Notification o None; lee la base de datos.
 def get_notification(notif_id):
     return db.session.get(Notification, notif_id)
+
+
+# Crea una notificacion interna para el usuario indicado con el titulo y mensaje recibidos.
+def create_in_app_notification(user_id, title, message):
+    from app.identity.models import User
+    user = db.session.get(User, user_id)
+    recipient = user.email if user and user.email else ""
+    n = Notification(
+        user_id=user_id,
+        channel="in_app",
+        recipient=recipient,
+        subject=title,
+        message=message,
+        status=STATUS_PENDING,
+    )
+    db.session.add(n)
+    return n
+
+
+# Notifica al tecnico asignado sobre un cambio en la orden de trabajo.
+def notify_technician_change(wo, user, message):
+    # Notificacion auxiliar para el tecnico asignado; no bloquea el flujo si falla.
+    try:
+        if getattr(wo, "assigned_to_id", None):
+            create_in_app_notification(wo.assigned_to_id, "Cambio en orden", message)
+    except Exception:
+        pass
+    return None

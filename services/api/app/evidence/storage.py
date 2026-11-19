@@ -24,11 +24,12 @@ MAGIC_SIGNATURES = [
     (b"\xff\xd8\xff", "image/jpeg"),
     (b"GIF87a", "image/gif"),
     (b"GIF89a", "image/gif"),
-    (b"%PDF", "application/pdf"),
-    (b"RIFF", "image/webp"),  # refined below
-]
+     (b"%PDF", "application/pdf"),
+     (b"RIFF", "image/webp"),  # refined below
+ ]
 
 
+# Gestiona detect mime; recibe data; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _detect_mime(data):
     for sig, mime in MAGIC_SIGNATURES:
         if data.startswith(sig):
@@ -40,6 +41,7 @@ def _detect_mime(data):
     return None
 
 
+# Gestiona read input; recibe file_input, original_name; accede al sistema de archivos; devuelve el valor correspondiente.
 def _read_input(file_input, original_name=None):
     name = original_name
     if hasattr(file_input, "read"):
@@ -62,7 +64,9 @@ def _read_input(file_input, original_name=None):
     return data, name
 
 
+# LocalStorage: clase auxiliar para LocalStorage.
 class LocalStorage:
+# Gestiona init; recibe base_dir, max_file_size, allowed_mime_types; accede al sistema de archivos; devuelve el valor correspondiente.
     def __init__(self, base_dir=None, max_file_size=None, allowed_mime_types=None):
         raw = base_dir or os.getenv("EVIDENCE_UPLOAD_DIR") or os.getenv("UPLOAD_DIR", "uploads")
         self.base_dir = Path(raw).resolve()
@@ -81,6 +85,7 @@ class LocalStorage:
                 allowed_mime_types = ALLOWED_MIME_TYPES
         self.allowed_mime_types = set(allowed_mime_types)
 
+# Gestiona safe key; recibe key; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def _safe_key(self, key):
         if not key or not isinstance(key, str):
             return None
@@ -90,6 +95,7 @@ class LocalStorage:
             return None
         return key
 
+# Valida los datos y reglas de negocio; recibe file_input, original_name, declared_mime; accede al sistema de archivos; devuelve el valor correspondiente.
     def validate(self, file_input, original_name=None, declared_mime=None):
         data, name = _read_input(file_input, original_name)
         if not data:
@@ -114,6 +120,7 @@ class LocalStorage:
         sha256 = hashlib.sha256(data).hexdigest()
         return mime, size, sha256, None
 
+# Guarda los datos en persistencia; recibe file_input, original_name, declared_mime; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def save(self, file_input, original_name=None, declared_mime=None):
         data, name = _read_input(file_input, original_name)
         mime, size, sha256, error = self.validate(data, name, declared_mime)
@@ -133,15 +140,19 @@ class LocalStorage:
         }
         return key, metadata, None
 
+# save_bytes: alias de save que persiste bytes en almacenamiento local y devuelve clave y metadatos; entradas data, original_name, declared_mime; salida (key, metadata, error); efecto secundario escribe archivo.
     def save_bytes(self, data, original_name=None, declared_mime=None):
         return self.save(data, original_name, declared_mime)
 
+# store: alias de save para compatibilidad con callers que usan store; reenvia argumentos; efecto secundario escribe archivo en almacenamiento local.
     def store(self, *args, **kwargs):
         return self.save(*args, **kwargs)
 
+# upload: alias de save para compatibilidad con callers que usan upload; reenvia argumentos; efecto secundario escribe archivo en almacenamiento local.
     def upload(self, *args, **kwargs):
         return self.save(*args, **kwargs)
 
+# Carga los datos indicados; recibe storage_key, variant; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def load(self, storage_key, variant="original"):
         key = self._safe_key(storage_key)
         if not key:
@@ -151,13 +162,13 @@ class LocalStorage:
         else:
             path = self.originals_dir / key
         if not path.exists() or not path.is_file():
-            # legacy flat path
             legacy = self.base_dir / key
             if legacy.exists() and legacy.is_file():
                 return legacy
             return None
         return path
 
+# Elimina el registro indicado; recibe storage_key; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def delete(self, storage_key):
         key = self._safe_key(storage_key)
         if not key:
@@ -173,9 +184,11 @@ class LocalStorage:
                     pass
         return removed
 
+# exists: indica si existe un archivo para la clave de almacenamiento dada; entrada storage_key; salida bool; lee el sistema de archivos.
     def exists(self, storage_key):
         return self.load(storage_key) is not None
 
+# Gestiona metadata; recibe storage_key; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def metadata(self, storage_key):
         path = self.load(storage_key)
         if not path:
@@ -190,6 +203,7 @@ class LocalStorage:
 _storage = None
 
 
+# get_storage: devuelve la instancia singleton de LocalStorage, creandola si es necesario; sin parametros; salida LocalStorage; efecto secundario inicializa almacenamiento.
 def get_storage():
     global _storage
     if _storage is None:
@@ -197,6 +211,7 @@ def get_storage():
     return _storage
 
 
+# reset_storage: limpia la instancia singleton de almacenamiento para forzar recreacion; sin parametros; sin valor de retorno; efecto secundario reinicia el singleton.
 def reset_storage():
     global _storage
     _storage = None

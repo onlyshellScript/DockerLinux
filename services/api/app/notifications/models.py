@@ -14,23 +14,25 @@ ALL_STATUSES = [STATUS_PENDING, STATUS_SENT, STATUS_FAILED]
 MAX_RETRIES = 3
 
 
+# Notification: modelo de base de datos que representa la entidad Notification.
 class Notification(db.Model):
-    __tablename__ = "notifications"
+    __tablename__ = "Notificaciones"
 
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    channel = db.Column(db.String(15), nullable=False)
-    recipient = db.Column(db.String(250), nullable=False)
-    subject = db.Column(db.String(200))
-    message = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(15), nullable=False, default=STATUS_PENDING, index=True)
-    retry_count = db.Column(db.Integer, nullable=False, default=0)
-    error_message = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    sent_at = db.Column(db.DateTime(timezone=True))
+    id = db.Column("IdNotificacion", db.Integer, primary_key=True)
+    user_id = db.Column("IdUsuario", db.Integer, db.ForeignKey("Usuarios.IdUsuario"), nullable=False, index=True)
+    channel = db.Column("Canal", db.String(15), nullable=False)
+    recipient = db.Column("Destinatario", db.String(250), nullable=False)
+    subject = db.Column("Asunto", db.String(200))
+    message = db.Column("Mensaje", db.Text, nullable=False)
+    status = db.Column("Estado", db.String(15), nullable=False, default=STATUS_PENDING, index=True)
+    retry_count = db.Column("Intentos", db.Integer, nullable=False, default=0)
+    error_message = db.Column("MensajeError", db.String(500))
+    created_at = db.Column("CreadoEn", db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    sent_at = db.Column("EnviadoEn", db.DateTime(timezone=True))
 
     user = db.relationship("User")
 
+# Convierte el valor al formato interno; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def to_dict(self):
         return {
             "id": self.id,

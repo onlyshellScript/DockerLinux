@@ -1,7 +1,7 @@
 from sqlalchemy import text
 # -*- coding: utf-8 -*-
 from app.extensions import db
-from app.common.normalize import normalize_text
+from app.common.normalize import normalize_text, normalize_upper
 from app.materials.models import (
     Material, StockMovement, TechnicianProfile, TechnicianStock,
     MOVEMENT_IN, MOVEMENT_OUT, MOVEMENT_CONSUMPTION, MOVEMENT_ADJUSTMENT, MOVEMENT_RETURN,
@@ -14,6 +14,7 @@ from app.settings import service as settings_service
 
 
 
+# Gestiona lock row; recibe table, key_col, key_val, extra, params; interactua con la base de datos; devuelve el valor correspondiente.
 def _lock_row(table, key_col=None, key_val=None, extra=None, params=None):
     bind = db.session.get_bind()
     dialect = getattr(bind, "dialect", None)
@@ -21,12 +22,13 @@ def _lock_row(table, key_col=None, key_val=None, extra=None, params=None):
     if name != "mssql":
         return
     if key_col and key_val is not None:
-        sql = f"SELECT id FROM {table} WITH (UPDLOCK, HOLDLOCK) WHERE {key_col} = :v"
+        sql = f"SELECT 1 FROM {table} WITH (UPDLOCK, HOLDLOCK) WHERE {key_col} = :v"
         db.session.execute(text(sql), {"v": key_val})
     elif extra:
-        sql = f"SELECT id FROM {table} WITH (UPDLOCK, HOLDLOCK) WHERE {extra}"
+        sql = f"SELECT 1 FROM {table} WITH (UPDLOCK, HOLDLOCK) WHERE {extra}"
         db.session.execute(text(sql), params or {})
 
+# Gestiona critical threshold; recibe sin parametros; interactua con la base de datos; devuelve el valor correspondiente.
 def _critical_threshold():
     op = OperationalSettings.query.first()
     if not op:
@@ -36,6 +38,7 @@ def _critical_threshold():
     return float(op.stock_critical_threshold or 0.5)
 
 
+# Gestiona material status; recibe stock, minimum; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def material_status(stock, minimum):
     stock = float(stock or 0)
     minimum = float(minimum or 0)
@@ -51,6 +54,7 @@ def material_status(stock, minimum):
     return "ok"
 
 
+# _material_code_exists: indica si ya existe un material con el codigo dado (case-insensitive), excluyendo un id opcional; entradas code, exclude_id; salida bool; lee la base de datos.
 def _material_code_exists(code, exclude_id=None):
     q = Material.query.filter(db.func.lower(Material.code) == code.lower())
     if exclude_id:
@@ -58,6 +62,19 @@ def _material_code_exists(code, exclude_id=None):
     return q.first() is not None
 
 
+# _material_name_exists(name, exclude_id): ya hay un material con el mismo nombre al normalizar mayúsculas, acentos y
+# espacios ("Tornillo", "TORNILLO", " tornillo " son el mismo). Compara en la aplicación para no depender de la collation.
+def _material_name_exists(name, exclude_id=None):
+    target = normalize_text(name)
+    if not target:
+        return False
+    q = db.session.query(Material.id, Material.name)
+    if exclude_id:
+        q = q.filter(Material.id != exclude_id)
+    return any(normalize_text(n) == target for _, n in q.all())
+
+
+# unit_allows_decimal: determina si el material admite cantidades decimales segun su unidad de catalogo o nombre de unidad; entrada material; salida bool; sin efectos secundarios.
 def unit_allows_decimal(material):
     if getattr(material, "catalog_item", None) and getattr(material.catalog_item, "unit", None):
         return bool(material.catalog_item.unit.allows_decimal)
@@ -65,6 +82,7 @@ def unit_allows_decimal(material):
     return unit in ("m", "kg", "lt", "rollo", "metro", "kilogramo", "litro")
 
 
+# Valida los datos y reglas de negocio; recibe value, allows; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _validate_decimal(value, allows):
     try:
         f = float(value)
@@ -76,6 +94,7 @@ def _validate_decimal(value, allows):
     return True
 
 
+# Crea el registro solicitado con los datos recibidos; recibe data; interactua con la base de datos; devuelve el valor correspondiente.
 def create_material(data):
     catalog_item_id = data.get("catalog_item_id")
     if not catalog_item_id:
@@ -89,7 +108,6 @@ def create_material(data):
     if not ci or not ci.is_active:
         raise ValueError("catalog_item not found")
 
-    # duplicate inventory item
     existing = Material.query.filter_by(catalog_item_id=catalog_item_id).first()
     if existing:
         raise ValueError("already_inventoried")
@@ -150,6 +168,7 @@ def create_material(data):
     return m
 
 
+# Aplica la configuracion solicitada; recibe mat, quantity, movement_type; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _apply_movement(mat, quantity, movement_type):
     qty = float(quantity)
     if movement_type in (MOVEMENT_IN, MOVEMENT_RETURN, MOVEMENT_ADJUSTMENT):
@@ -161,28 +180,25 @@ def _apply_movement(mat, quantity, movement_type):
         raise ValueError("invalid movement_type")
 
 
+# Lista los registros que cumplen los filtros indicados; recibe q, status, unit, is_active, page, page_size, sort, order; interactua con la base de datos; devuelve el valor correspondiente.
 def list_materials(q=None, status=None, unit=None, is_active=None, page=1, page_size=20, sort="name", order="asc"):
     query = Material.query
     if is_active is not None:
         query = query.filter_by(is_active=is_active)
     if unit:
-        query = query.filter(Material.unit == unit)
-    if q:
-        nq = normalize_text(q)
-        query = query.filter(db.or_(
-            db.func.lower(Material.name).contains(nq),
-            db.func.lower(Material.code).contains(nq),
-        ))
+        query = query.filter(Material.unit == normalize_upper(unit))
     # status filter applied after computing; we filter in python for derived status
     all_items = query.all()
-    # compute derived status
+    if q:
+        # Búsqueda sin distinguir mayúsculas ni acentos ("tuberia" encuentra "TUBERÍA"), igual en SQL Server y SQLite.
+        nq = normalize_text(q)
+        all_items = [m for m in all_items if nq in (normalize_text(m.name) or "") or nq in (normalize_text(m.code) or "")]
     enriched = []
     for m in all_items:
         st = material_status(m.current_stock, m.min_stock)
         if status and st != status:
             continue
         enriched.append((m, st))
-    # sort
     reverse = (order or "asc").lower() == "desc"
     keymap = {
         "name": lambda x: (x[0].name or "").lower(),
@@ -213,10 +229,12 @@ def list_materials(q=None, status=None, unit=None, is_active=None, page=1, page_
     }
 
 
+# get_material: obtiene un material por su id; entrada mat_id; salida Material o None; lee la base de datos.
 def get_material(mat_id):
     return db.session.get(Material, mat_id)
 
 
+# Actualiza los campos indicados del registro; recibe mat_id, data; interactua con la base de datos; devuelve el valor correspondiente.
 def update_material(mat_id, data):
     m = db.session.get(Material, mat_id)
     if not m:
@@ -240,7 +258,6 @@ def update_material(mat_id, data):
             ci = db.session.get(MaterialCatalog, new_cid)
             if not ci:
                 raise ValueError("catalog_item not found")
-            # duplicate inventory item
             dup = Material.query.filter(Material.catalog_item_id == new_cid, Material.id != m.id).first()
             if dup:
                 raise ValueError("already_inventoried")
@@ -249,6 +266,9 @@ def update_material(mat_id, data):
             m.name = ci.name
             m.code = ci.code
             m.unit = ci.unit.code if ci.unit else m.unit
+    if "name" in data and data["name"] is not None:
+        if _material_name_exists(data["name"], exclude_id=m.id):
+            raise ValueError("duplicate_name")
     for field in ("name", "description", "unit", "min_stock", "unit_price", "is_active"):
         if field in data:
             setattr(m, field, data[field])
@@ -256,6 +276,7 @@ def update_material(mat_id, data):
     return m
 
 
+# Gestiona enqueue stock alert; recibe material, old_status, new_status, user_id; interactua con la base de datos; devuelve el valor correspondiente.
 def _enqueue_stock_alert(material, old_status, new_status, user_id):
     if new_status not in ("low", "critical"):
         return
@@ -281,6 +302,7 @@ def _enqueue_stock_alert(material, old_status, new_status, user_id):
                 pass
 
 
+# Gestiona register movement; recibe mat_id, quantity, movement_type, user_id, work_order_id, notes; interactua con la base de datos; devuelve el valor correspondiente.
 def register_movement(mat_id, quantity, movement_type, user_id, work_order_id=None, notes=None):
     quantity = float(quantity)
     if movement_type == MOVEMENT_ADJUSTMENT:
@@ -291,7 +313,7 @@ def register_movement(mat_id, quantity, movement_type, user_id, work_order_id=No
             return None, "invalid_quantity"
     if movement_type not in ALL_MOVEMENTS:
         return None, "invalid_type"
-    _lock_row("materials", "id", mat_id)
+    _lock_row("Materiales", "IdMaterial", mat_id)
     m = db.session.get(Material, mat_id)
     if not m:
         return None, "not_found"
@@ -332,6 +354,7 @@ def register_movement(mat_id, quantity, movement_type, user_id, work_order_id=No
     return mv, None
 
 
+# Obtiene un registro por su identificador; recibe mat_id, work_order_id; interactua con la base de datos; devuelve el valor correspondiente.
 def get_movements(mat_id=None, work_order_id=None):
     q = StockMovement.query
     if mat_id:
@@ -341,6 +364,7 @@ def get_movements(mat_id=None, work_order_id=None):
     return q.order_by(StockMovement.created_at.desc()).all()
 
 
+# Crea el registro solicitado con los datos recibidos; recibe data; interactua con la base de datos; devuelve el valor correspondiente.
 def create_profile(data):
     p = TechnicianProfile(
         user_id=data["user_id"],
@@ -353,6 +377,7 @@ def create_profile(data):
     return p
 
 
+# list_profiles: lista perfiles de tecnico, filtrando por disponibilidad si se indica; entrada is_available opcional; salida list; lee la base de datos.
 def list_profiles(is_available=None):
     q = TechnicianProfile.query
     if is_available is not None:
@@ -360,10 +385,12 @@ def list_profiles(is_available=None):
     return q.all()
 
 
+# get_profile: obtiene un perfil de tecnico por su id; entrada profile_id; salida TechnicianProfile o None; lee la base de datos.
 def get_profile(profile_id):
     return db.session.get(TechnicianProfile, profile_id)
 
 
+# Actualiza los campos indicados del registro; recibe profile_id, data; interactua con la base de datos; devuelve el valor correspondiente.
 def update_profile(profile_id, data):
     p = db.session.get(TechnicianProfile, profile_id)
     if not p:
@@ -377,10 +404,12 @@ def update_profile(profile_id, data):
 
 
 
+# get_technician_stock: lista el stock asignado a un tecnico; entrada technician_id; salida list; lee la base de datos.
 def get_technician_stock(technician_id):
     return TechnicianStock.query.filter_by(technician_id=technician_id).all()
 
 
+# Gestiona transfer stock; recibe material_id, technician_id, quantity, user_id, notes; interactua con la base de datos; devuelve el valor correspondiente.
 def transfer_stock(material_id, technician_id, quantity, user_id, notes=None):
     if quantity <= 0:
         return None, "invalid_quantity"
@@ -391,10 +420,9 @@ def transfer_stock(material_id, technician_id, quantity, user_id, notes=None):
     prof = db.session.get(TechnicianProfile, technician_id)
     if not prof:
         return None, "technician_not_found"
-    # lock rows
-    _lock_row("materials", "id", material_id)
+    _lock_row("Materiales", "IdMaterial", material_id)
     m = db.session.get(Material, material_id)
-    _lock_row("technician_stock", None, None, extra="technician_id = :t AND material_id = :m", params={"t": technician_id, "m": material_id})
+    _lock_row("StockTecnico", None, None, extra="IdTecnico = :t AND IdMaterial = :m", params={"t": technician_id, "m": material_id})
     ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).first()
     if m.current_stock < quantity:
         return None, "insufficient_stock"
@@ -411,10 +439,11 @@ def transfer_stock(material_id, technician_id, quantity, user_id, notes=None):
     return {"material": m, "technician_stock": ts}, None
 
 
+# Gestiona consume for order; recibe material_id, technician_id, quantity, work_order_id, user_id, notes; interactua con la base de datos; devuelve el valor correspondiente.
 def consume_for_order(material_id, technician_id, quantity, work_order_id, user_id, notes=None):
     if quantity <= 0:
         return None, "invalid_quantity"
-    _lock_row("technician_stock", None, None, extra="technician_id = :t AND material_id = :m", params={"t": technician_id, "m": material_id})
+    _lock_row("StockTecnico", None, None, extra="IdTecnico = :t AND IdMaterial = :m", params={"t": technician_id, "m": material_id})
     ts = TechnicianStock.query.filter_by(technician_id=technician_id, material_id=material_id).first()
     if not ts or ts.quantity < quantity:
         return None, "insufficient_stock"
@@ -428,6 +457,7 @@ def consume_for_order(material_id, technician_id, quantity, work_order_id, user_
 from app.materials.models import MaterialRequest, MaterialRequestItem
 
 
+# Crea el registro solicitado con los datos recibidos; recibe data, user_id; interactua con la base de datos; devuelve el valor correspondiente.
 def create_material_request(data, user_id):
     req = MaterialRequest(
         requester_id=user_id,
@@ -445,6 +475,7 @@ def create_material_request(data, user_id):
     return req
 
 
+# Gestiona approve request; recibe req_id, user_id, reason; interactua con la base de datos; devuelve el valor correspondiente.
 def approve_request(req_id, user_id, reason=None):
     req = MaterialRequest.query.filter_by(id=req_id).with_for_update().first()
     if not req or req.status != "pendiente":
@@ -456,6 +487,7 @@ def approve_request(req_id, user_id, reason=None):
     return req, None
 
 
+# Gestiona reject request; recibe req_id, user_id, reason; interactua con la base de datos; devuelve el valor correspondiente.
 def reject_request(req_id, user_id, reason=None):
     req = MaterialRequest.query.filter_by(id=req_id).with_for_update().first()
     if not req or req.status != "pendiente":
@@ -467,19 +499,20 @@ def reject_request(req_id, user_id, reason=None):
     return req, None
 
 
+# Gestiona deliver request; recibe req_id, user_id; interactua con la base de datos; devuelve el valor correspondiente.
 def deliver_request(req_id, user_id):
     req = MaterialRequest.query.filter_by(id=req_id).with_for_update().first()
     if not req or req.status != "autorizada":
         return None, "invalid_state"
     # lock materials and transfer
     for it in req.items:
-        _lock_row("materials", "id", it.material_id)
+        _lock_row("Materiales", "IdMaterial", it.material_id)
         m = db.session.get(Material, it.material_id)
         if not m or m.current_stock < it.quantity:
             return None, "insufficient_stock"
         m.current_stock -= it.quantity
         if req.technician_id:
-            _lock_row("technician_stock", None, None, extra="technician_id = :t AND material_id = :m", params={"t": req.technician_id, "m": it.material_id})
+            _lock_row("StockTecnico", None, None, extra="IdTecnico = :t AND IdMaterial = :m", params={"t": req.technician_id, "m": it.material_id})
             ts = TechnicianStock.query.filter_by(technician_id=req.technician_id, material_id=it.material_id).first()
             if not ts:
                 ts = TechnicianStock(technician_id=req.technician_id, material_id=it.material_id, quantity=0)
@@ -494,6 +527,7 @@ def deliver_request(req_id, user_id):
     return req, None
 
 
+# list_requests: lista solicitudes de material, filtrando por estado si se indica, ordenadas por fecha descendente; entrada status opcional; salida list; lee la base de datos.
 def list_requests(status=None):
     q = MaterialRequest.query
     if status:
@@ -508,6 +542,7 @@ VALID_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "PARTIALLY_APPROVED", "REJEC
 TERMINAL = {"REJECTED", "CANCELLED", "DELIVERED"}
 
 
+# Aplica la transicion de estado solicitada; recibe req, new_status, actor_id, action, payload; interactua con la base de datos; devuelve el valor correspondiente.
 def _transition(req, new_status, actor_id, action, payload=None):
     old = req.status
     req.status = new_status
@@ -518,11 +553,13 @@ def _transition(req, new_status, actor_id, action, payload=None):
     db.session.add(ev)
 
 
+# _get_request: obtiene una solicitud de material por id con bloqueo pesimista (with_for_update); entrada req_id; salida MaterialRequest o None; lee la base de datos.
 def _get_request(req_id):
     # Bloqueo pesimista real; SQLite lo ignora, se valida en SQL Server (ver DECISIONES PENDIENTES).
     return MaterialRequest.query.filter_by(id=req_id).with_for_update().first()
 
 
+# Crea el registro solicitado con los datos recibidos; recibe data, user_id, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def create_request(data, user_id, operation_id=None):
     if operation_id:
         op = MaterialRequestOperation.query.filter_by(operation_id=operation_id).first()
@@ -538,7 +575,6 @@ def create_request(data, user_id, operation_id=None):
     items = data.get("items") or []
     if not items:
         return None, "no_items"
-    # validate materials
     from app.materials.models import Material
     for it in items:
         m = db.session.get(Material, it.get("material_id"))
@@ -567,7 +603,6 @@ def create_request(data, user_id, operation_id=None):
         ))
     if not draft:
         _transition(req, "SUBMITTED", user_id, "submit", {"items": items})
-    # idempotency record
     if operation_id:
         import json
         oprec = MaterialRequestOperation(operation_id=operation_id, operation_type="create",
@@ -578,6 +613,7 @@ def create_request(data, user_id, operation_id=None):
     return req, None
 
 
+# Actualiza los campos indicados del registro; recibe req_id, data, user_id, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def update_request(req_id, data, user_id, roles):
     req = db.session.get(MaterialRequest, req_id)
     if not req:
@@ -593,7 +629,6 @@ def update_request(req_id, data, user_id, roles):
     if "work_order_id" in data:
         req.work_order_id = data.get("work_order_id")
     if "items" in data:
-        # replace items
         MaterialRequestItem.query.filter_by(request_id=req.id).delete()
         for it in (data.get("items") or []):
             from app.materials.models import Material
@@ -609,10 +644,10 @@ def update_request(req_id, data, user_id, roles):
     return req, None
 
 
+# Gestiona submit request; recibe req_id, user_id, roles, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def submit_request(req_id, user_id, roles, operation_id=None):
     req = MaterialRequest.query.filter_by(id=req_id).with_for_update() if False else db.session.get(MaterialRequest, req_id)
-    # lock
-    _lock_row("material_requests", "id", req_id)
+    _lock_row("SolicitudesMaterial", "IdSolicitud", req_id)
     req = db.session.get(MaterialRequest, req_id)
     if not req:
         return None, "not_found"
@@ -627,10 +662,11 @@ def submit_request(req_id, user_id, roles, operation_id=None):
     return req, None
 
 
+# Gestiona approve request; recibe req_id, user_id, roles, approvals, reason, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def approve_request(req_id, user_id, roles, approvals=None, reason=None, operation_id=None):
     if "admin" not in roles and "dispatcher" not in roles:
         return None, "forbidden"
-    _lock_row("material_requests", "id", req_id)
+    _lock_row("SolicitudesMaterial", "IdSolicitud", req_id)
     req = db.session.get(MaterialRequest, req_id)
     if not req:
         return None, "not_found"
@@ -648,7 +684,6 @@ def approve_request(req_id, user_id, roles, approvals=None, reason=None, operati
         if qa < 0 or qa > it.quantity_requested:
             return None, "invalid_approved_quantity"
         it.quantity_approved = qa
-    # determine status
     total_req = sum(i.quantity_requested for i in req.items)
     total_app = sum(i.quantity_approved for i in req.items)
     if total_app == 0:
@@ -665,10 +700,11 @@ def approve_request(req_id, user_id, roles, approvals=None, reason=None, operati
     return req, None
 
 
+# Gestiona reject request; recibe req_id, user_id, roles, reason; interactua con la base de datos; devuelve el valor correspondiente.
 def reject_request(req_id, user_id, roles, reason=None):
     if "admin" not in roles and "dispatcher" not in roles:
         return None, "forbidden"
-    _lock_row("material_requests", "id", req_id)
+    _lock_row("SolicitudesMaterial", "IdSolicitud", req_id)
     req = db.session.get(MaterialRequest, req_id)
     if not req:
         return None, "not_found"
@@ -681,6 +717,7 @@ def reject_request(req_id, user_id, roles, reason=None):
     return req, None
 
 
+# Gestiona idempotency check; recibe operation_id, operation_type, actor_id, payload; interactua con la base de datos; devuelve el valor correspondiente.
 def _idempotency_check(operation_id, operation_type, actor_id, payload):
     if not operation_id:
         return None
@@ -694,10 +731,10 @@ def _idempotency_check(operation_id, operation_type, actor_id, payload):
     return None
 
 
+# Gestiona deliver request; recibe req_id, user_id, roles, deliveries, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def deliver_request(req_id, user_id, roles, deliveries=None, operation_id=None):
     if "admin" not in roles and "dispatcher" not in roles:
         return None, "forbidden"
-    # idempotency
     idem = _idempotency_check(operation_id, "deliver", user_id, deliveries)
     if idem == "conflict":
         return None, "idempotency_conflict"
@@ -706,7 +743,7 @@ def deliver_request(req_id, user_id, roles, deliveries=None, operation_id=None):
         req = db.session.get(MaterialRequest, req_id)
         return req, None
 
-    _lock_row("material_requests", "id", req_id)
+    _lock_row("SolicitudesMaterial", "IdSolicitud", req_id)
     req = db.session.get(MaterialRequest, req_id)
     if not req:
         return None, "not_found"
@@ -729,11 +766,10 @@ def deliver_request(req_id, user_id, roles, deliveries=None, operation_id=None):
         pending = (it.quantity_approved or 0) - (it.quantity_delivered or 0)
         if qty > pending + 1e-9:
             return None, "exceeds_approved"
-        _lock_row("materials", "id", it.material_id)
+        _lock_row("Materiales", "IdMaterial", it.material_id)
         m = db.session.get(Material, it.material_id)
         if not m or float(m.current_stock or 0) < qty:
             return None, "insufficient_stock"
-    # apply
     delivery = MaterialRequestDelivery(request_id=req.id, actor_id=user_id, operation_id=operation_id)
     db.session.add(delivery)
     db.session.flush()
@@ -743,12 +779,11 @@ def deliver_request(req_id, user_id, roles, deliveries=None, operation_id=None):
         qty = dmap[it.id]
         if qty <= 0:
             continue
-        _lock_row("materials", "id", it.material_id)
+        _lock_row("Materiales", "IdMaterial", it.material_id)
         m = db.session.get(Material, it.material_id)
         m.current_stock = float(m.current_stock or 0) - qty
-        # technician stock
         if req.technician_id:
-            _lock_row("technician_stock", None, None, extra="technician_id = :t AND material_id = :m", params={"t": req.technician_id, "m": it.material_id})
+            _lock_row("StockTecnico", None, None, extra="IdTecnico = :t AND IdMaterial = :m", params={"t": req.technician_id, "m": it.material_id})
             ts = TechnicianStock.query.filter_by(technician_id=req.technician_id, material_id=it.material_id).first()
             if not ts:
                 ts = TechnicianStock(technician_id=req.technician_id, material_id=it.material_id, quantity=0)
@@ -763,7 +798,6 @@ def deliver_request(req_id, user_id, roles, deliveries=None, operation_id=None):
         db.session.add(MaterialRequestDeliveryItem(delivery_id=delivery.id, request_item_id=it.id,
                                                   quantity_delivered=qty, movement_id=mv.id))
         it.quantity_delivered = float(it.quantity_delivered or 0) + qty
-    # update status
     total_app = sum(i.quantity_approved for i in req.items)
     total_del = sum(i.quantity_delivered for i in req.items)
     if total_del >= total_app - 1e-9 and total_app > 0:
@@ -785,8 +819,9 @@ def deliver_request(req_id, user_id, roles, deliveries=None, operation_id=None):
     return req, None
 
 
+# Gestiona cancel request; recibe req_id, user_id, roles, reason; interactua con la base de datos; devuelve el valor correspondiente.
 def cancel_request(req_id, user_id, roles, reason=None):
-    _lock_row("material_requests", "id", req_id)
+    _lock_row("SolicitudesMaterial", "IdSolicitud", req_id)
     req = db.session.get(MaterialRequest, req_id)
     if not req:
         return None, "not_found"
@@ -800,6 +835,7 @@ def cancel_request(req_id, user_id, roles, reason=None):
     return req, None
 
 
+# Obtiene un registro por su identificador; recibe req_id, user_id, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def get_request(req_id, user_id, roles):
     req = db.session.get(MaterialRequest, req_id)
     if not req:
@@ -809,6 +845,7 @@ def get_request(req_id, user_id, roles):
     return req
 
 
+# Lista los registros que cumplen los filtros indicados; recibe status, work_order_id, mine, user_id, roles, page, page_size; interactua con la base de datos; devuelve el valor correspondiente.
 def list_requests_filtered(status=None, work_order_id=None, mine=False, user_id=None, roles=None, page=1, page_size=20):
     q = MaterialRequest.query
     if status:
@@ -823,5 +860,6 @@ def list_requests_filtered(status=None, work_order_id=None, mine=False, user_id=
     return items, total
 
 
+# list_request_events: lista los eventos (historial) de una solicitud de material ordenados por fecha; entrada req_id; salida list; lee la base de datos.
 def list_request_events(req_id):
     return MaterialRequestEvent.query.filter_by(request_id=req_id).order_by(MaterialRequestEvent.created_at).all()

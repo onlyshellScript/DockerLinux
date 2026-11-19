@@ -1,4 +1,5 @@
-﻿import os
+﻿# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
+import os
 import sys
 import threading
 import time
@@ -13,6 +14,7 @@ from app.extensions import db
 from app.identity.models import User, Role
 from app.materials.models import Material, MaterialCatalog, StockMovement
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; accede al sistema de archivos; devuelve el valor correspondiente.
 
 def _seed(app):
     with app.app_context():
@@ -33,16 +35,19 @@ def _seed(app):
         return admin.id, m.id
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
 
+# test_concurrent_out: valida el escenario concurrent out preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 def test_concurrent_out(sqlserver_client, sqlserver_app):
     admin_id, mat_id = _seed(sqlserver_app)
     token = _login(sqlserver_client, "admin", "Admin123!")
     results = []
+# Gestiona worker; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 
     def worker():
         c = sqlserver_app.test_client()
@@ -64,11 +69,13 @@ def test_concurrent_out(sqlserver_client, sqlserver_app):
         assert moves == 1
 
 
+# test_concurrent_in: valida el escenario concurrent in preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 def test_concurrent_in(sqlserver_client, sqlserver_app):
     admin_id, mat_id = _seed(sqlserver_app)
     token = _login(sqlserver_client, "admin", "Admin123!")
     results = []
+# Gestiona worker; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 
     def worker():
         c = sqlserver_app.test_client()
@@ -88,6 +95,7 @@ def test_concurrent_in(sqlserver_client, sqlserver_app):
         assert float(m.current_stock) == 16.0
 
 
+# test_rollback_on_failure: valida el escenario rollback on failure preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 def test_rollback_on_failure(sqlserver_client, sqlserver_app):
     admin_id, mat_id = _seed(sqlserver_app)
@@ -104,6 +112,7 @@ def test_rollback_on_failure(sqlserver_client, sqlserver_app):
         assert moves == 0
 
 
+# test_history_integrity: valida el escenario history integrity preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 def test_history_integrity(sqlserver_client, sqlserver_app):
     admin_id, mat_id = _seed(sqlserver_app)

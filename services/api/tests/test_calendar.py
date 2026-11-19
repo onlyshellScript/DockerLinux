@@ -1,3 +1,4 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 import threading
 import pytest
 from datetime import datetime, timezone, timedelta
@@ -8,6 +9,7 @@ from app.materials.models import TechnicianProfile
 from app.catalogs.models import City, Zone
 from app.workorders.models import WorkOrder
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; devuelve el valor correspondiente.
 
 def _seed(app):
     with app.app_context():
@@ -62,11 +64,13 @@ def _seed(app):
         }
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200
     return resp.get_json()["access_token"]
 
+# test_validate_detects_overlap: valida el escenario validate detects overlap preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_validate_detects_overlap(client, app):
     ids = _seed(app)
@@ -85,7 +89,6 @@ def test_validate_detects_overlap(client, app):
         }, disp, ["dispatcher"])
         db.session.commit()
 
-    # validate overlapping 10:30-11:30
     resp = client.post("/api/v1/calendar/validate", headers={"Authorization": f"Bearer {token}"}, json={
         "order_id": ids["work_order_id"],
         "start": "2026-11-04T10:30:00",
@@ -97,7 +100,6 @@ def test_validate_detects_overlap(client, app):
     assert data["ok"] is False
     assert any(c["code"] == "schedule_conflict" for c in data["conflicts"])
 
-    # adjacent 11:00-12:00 OK
     resp = client.post("/api/v1/calendar/validate", headers={"Authorization": f"Bearer {token}"}, json={
         "order_id": ids["work_order_id"],
         "start": "2026-11-04T11:00:00",
@@ -107,6 +109,7 @@ def test_validate_detects_overlap(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
 
+# test_validate_out_of_hours: valida el escenario validate out of hours preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_validate_out_of_hours(client, app):
     ids = _seed(app)
@@ -122,6 +125,7 @@ def test_validate_out_of_hours(client, app):
     assert data["ok"] is False
     assert any(c["code"] in ("invalid_time", "out_of_hours") for c in data["conflicts"])
 
+# test_validate_out_of_service: valida el escenario validate out of service preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_validate_out_of_service(client, app):
     ids = _seed(app)
@@ -141,6 +145,7 @@ def test_validate_out_of_service(client, app):
     assert data["ok"] is False
     assert any(c["code"] == "technician_unavailable" for c in data["conflicts"])
 
+# test_validate_zone_not_covered: valida el escenario validate zone not covered preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_validate_zone_not_covered(client, app):
     ids = _seed(app)
@@ -161,6 +166,7 @@ def test_validate_zone_not_covered(client, app):
     data = resp.get_json()
     assert any(w["code"] == "zone_not_covered" for w in data["warnings"])
 
+# test_validate_state_not_programmable: valida el escenario validate state not programmable preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_validate_state_not_programmable(client, app):
     ids = _seed(app)
@@ -180,11 +186,11 @@ def test_validate_state_not_programmable(client, app):
     assert data["ok"] is False
     assert any(c["code"] == "invalid_transition" for c in data["conflicts"])
 
+# test_reschedule_requires_reason: valida el escenario reschedule requires reason preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_reschedule_requires_reason(client, app):
     ids = _seed(app)
     token = _login(client, "disp", "Disp123!")
-    # schedule first
     with app.app_context():
         from app.identity.models import User
         disp = User.query.filter_by(username="disp").first()
@@ -195,7 +201,6 @@ def test_reschedule_requires_reason(client, app):
             "technician_ids": [], "version": wo.version,
         }, disp, ["dispatcher"])
         db.session.commit()
-    # reschedule without reason
     with app.app_context():
         wo = WorkOrder.query.get(ids["work_order_id"])
         version = wo.version
@@ -205,6 +210,7 @@ def test_reschedule_requires_reason(client, app):
     })
     assert resp.status_code == 422
 
+# test_stale_version: valida el escenario stale version preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_stale_version(client, app):
     ids = _seed(app)
@@ -227,6 +233,7 @@ def test_stale_version(client, app):
     # could be 409 stale or invalid transition; expect 409
     assert resp.status_code in (409,)
 
+# test_permissions_forbidden: valida el escenario permissions forbidden preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_permissions_forbidden(client, app):
     ids = _seed(app)
@@ -238,6 +245,7 @@ def test_permissions_forbidden(client, app):
     })
     assert resp.status_code == 403
 
+# test_2330_local_day: valida el escenario 2330 local day preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_2330_local_day(client, app):
     ids = _seed(app)
@@ -253,6 +261,7 @@ def test_2330_local_day(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is False
 
+# test_cancelled_excluded: valida el escenario cancelled excluded preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_cancelled_excluded(client, app):
     ids = _seed(app)
@@ -272,6 +281,7 @@ def test_cancelled_excluded(client, app):
 
 import pytest
 
+# test_concurrent_schedule: valida el escenario concurrent schedule preparando datos, ejecutando la accion y comprobando el resultado esperado.
 @pytest.mark.sqlserver
 @pytest.mark.sqlserver
 def test_concurrent_schedule(sqlserver_client, sqlserver_app):
@@ -289,6 +299,7 @@ def test_concurrent_schedule(sqlserver_client, sqlserver_app):
         id1, id2 = wo1.id, wo2.id
     token = _login(sqlserver_client, "admin", "Admin123!")
     results = []
+# Gestiona worker; recibe order_id, version; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 
     def worker(order_id, version):
         c = sqlserver_app.test_client()
@@ -305,6 +316,7 @@ def test_concurrent_schedule(sqlserver_client, sqlserver_app):
     assert results.count(200) == 1
     assert 409 in results
 
+# test_unassigned_tray: valida el escenario unassigned tray preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_unassigned_tray(client, app):
     ids = _seed(app)
@@ -315,6 +327,7 @@ def test_unassigned_tray(client, app):
     assert "items" in data
     assert any(i["id"] == ids["work_order_id"] for i in data["items"])
 
+# test_atomicity_schedule: valida el escenario atomicity schedule preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_atomicity_schedule(client, app):
     ids = _seed(app)
@@ -336,6 +349,7 @@ def test_atomicity_schedule(client, app):
         wo2 = WorkOrder.query.get(wo.id)
         assert wo2.scheduled_at is None
 
+# test_calendar_sunday_requires_authorization: valida el escenario calendar sunday requires authorization preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_calendar_sunday_requires_authorization(client, app):
     ids = _seed(app)
@@ -346,6 +360,7 @@ def test_calendar_sunday_requires_authorization(client, app):
     # version may be 0; if stale, still expect 403
     assert resp.status_code in (403, 409)
 
+# test_calendar_holiday_requires_authorization: valida el escenario calendar holiday requires authorization preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_calendar_holiday_requires_authorization(client, app):
     ids = _seed(app)
@@ -355,6 +370,7 @@ def test_calendar_holiday_requires_authorization(client, app):
     })
     assert resp.status_code in (403, 409)
 
+# test_calendar_saturday_allowed: valida el escenario calendar saturday allowed preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_calendar_saturday_allowed(client, app):
     ids = _seed(app)
@@ -367,6 +383,7 @@ def test_calendar_saturday_allowed(client, app):
     })
     assert resp.status_code in (200, 409)
 
+# test_calendar_admin_authorizes_sunday_with_reason: valida el escenario calendar admin authorizes sunday with reason preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_calendar_admin_authorizes_sunday_with_reason(client, app):
     ids = _seed(app)
@@ -380,6 +397,7 @@ def test_calendar_admin_authorizes_sunday_with_reason(client, app):
     })
     assert resp.status_code == 200
 
+# test_calendar_admin_sunday_without_reason_returns_422: valida el escenario calendar admin sunday without reason returns 422 preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_calendar_admin_sunday_without_reason_returns_422(client, app):
     ids = _seed(app)
@@ -393,6 +411,7 @@ def test_calendar_admin_sunday_without_reason_returns_422(client, app):
     })
     assert resp.status_code == 422
 
+# test_calendar_dispatcher_sunday_returns_required_code: valida el escenario calendar dispatcher sunday returns required code preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_calendar_dispatcher_sunday_returns_required_code(client, app):
     ids = _seed(app)
@@ -406,6 +425,7 @@ def test_calendar_dispatcher_sunday_returns_required_code(client, app):
     assert resp.status_code == 403
     assert resp.get_json().get("code") == "sunday_authorization_required"
 
+# test_calendar_2330_local_stays_same_day: valida el escenario calendar 2330 local stays same day preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_calendar_2330_local_stays_same_day(client, app):
     ids = _seed(app)

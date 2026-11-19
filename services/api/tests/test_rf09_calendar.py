@@ -1,3 +1,4 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 
 import pytest
 
@@ -7,6 +8,7 @@ from app.materials.models import TechnicianProfile
 from app.catalogs.models import City, Zone
 from app.workorders.models import WorkOrder
 
+# Inserta datos iniciales en la base; recibe app, active; interactua con la base de datos; devuelve el valor correspondiente.
 
 def _seed(app, active=True):
     with app.app_context():
@@ -50,10 +52,12 @@ def _seed(app, active=True):
         return {"admin_id": admin.id, "tech_user_id": tech_user.id, "tech_profile_id": prof.id, "work_order_id": wo.id}
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
+# test_rf09_rechaza_tecnico_inactivo: valida el escenario rf09 rechaza tecnico inactivo preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_rf09_rechaza_tecnico_inactivo(client, app):
     ids = _seed(app, active=False)
@@ -63,10 +67,10 @@ def test_rf09_rechaza_tecnico_inactivo(client, app):
                        json={"technician_id": ids["tech_user_id"], "scheduled_at": "2026-11-04T09:00:00"})
     assert resp.status_code == 422
 
+# test_rf09_rechaza_sin_rol_tecnico: valida el escenario rf09 rechaza sin rol tecnico preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_rf09_rechaza_sin_rol_tecnico(client, app):
     ids = _seed(app)
-    # create non-tech user
     with app.app_context():
         from app.identity.models import User
         u = User(username="no", email="no@test.local")
@@ -80,11 +84,11 @@ def test_rf09_rechaza_sin_rol_tecnico(client, app):
                        json={"technician_id": uid, "scheduled_at": "2026-11-04T09:00:00"})
     assert resp.status_code in (400, 422, 409)
 
+# test_rf09_rechaza_solape_horario: valida el escenario rf09 rechaza solape horario preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_rf09_rechaza_solape_horario(client, app):
     ids = _seed(app, active=True)
     token = _login(client, "disp", "Disp123!")
-    # schedule first order
     with app.app_context():
         from app.identity.models import User
         from app.calendar import service as cs
@@ -95,7 +99,6 @@ def test_rf09_rechaza_solape_horario(client, app):
             "technician_ids": [ids["tech_user_id"]], "version": wo.version,
         }, disp, ["dispatcher"])
         db.session.commit()
-    # create second order
     with app.app_context():
         admin_id = User.query.filter_by(username="admin").first().id
         wo2 = WorkOrder(title="O2", created_by_id=admin_id, status="pending", priority="medium")
@@ -103,7 +106,6 @@ def test_rf09_rechaza_solape_horario(client, app):
         db.session.commit()
         wo2_id = wo2.id
         version = wo2.version
-    # schedule overlapping
     resp = client.post(f"/api/v1/work-orders/{wo2_id}/schedule",
                        headers={"Authorization": f"Bearer {token}"},
                        json={"start": "2026-11-04T09:30:00", "end": "2026-11-04T10:30:00",

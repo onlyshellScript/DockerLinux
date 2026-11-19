@@ -10,6 +10,7 @@ except ImportError:
     pass
 
 
+# Configuración base de la aplicación: URI de base de datos, clave JWT y parámetros de seguridad. Lee valores desde variables de entorno.
 class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("DB_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -20,9 +21,12 @@ class Config:
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
 
     LOGIN_RATE_LIMIT_MAX = 5
-    LOGIN_RATE_LIMIT_WINDOW = 300  # 5 minutes
+    LOGIN_RATE_LIMIT_WINDOW = 300
 
+    # Los tecnicos deben tener firma de perfil registrada para adjuntar evidencias (se copia en cada evidencia).
+    EVIDENCE_REQUIRE_TECH_SIGNATURE = os.getenv("EVIDENCE_REQUIRE_TECH_SIGNATURE", "true").strip().lower() not in ("0", "false", "no")
 
+# Configuración para pruebas automatizadas: BD SQLite en memoria, clave JWT fija y tokens de corta duración.
 class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     TESTING = True

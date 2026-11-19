@@ -34,10 +34,12 @@ from app.identity.models import User
 from app.materials.service import _lock_row
 
 
+# _now: devuelve la fecha y hora actual en UTC; sin parametros; salida datetime; sin efectos secundarios.
 def _now():
     return datetime.now(timezone.utc)
 
 
+# Gestiona read file; recibe file_obj; accede al sistema de archivos; devuelve el valor correspondiente.
 def _read_file(file_obj):
     if file_obj is None:
         return None, None
@@ -55,6 +57,7 @@ def _read_file(file_obj):
     return None, None
 
 
+# Gestiona record event; recibe work_order_id, evidence_id, actor_id, action, from_status, to_status, details; interactua con la base de datos; devuelve el valor correspondiente.
 def _record_event(work_order_id, evidence_id, actor_id, action, from_status=None, to_status=None, details=None):
     ev = EvidenceEvent(
         work_order_id=work_order_id,
@@ -69,6 +72,7 @@ def _record_event(work_order_id, evidence_id, actor_id, action, from_status=None
     db.session.add(ev)
 
 
+# Agrega un nuevo elemento al sistema; recibe work_order_id, uploaded_by_id, category, file, **kwargs; interactua con la base de datos; accede al sistema de archivos; devuelve el valor correspondiente.
 def add_evidence(
     work_order_id,
     uploaded_by_id,
@@ -98,6 +102,19 @@ def add_evidence(
         existing = VisitEvidence.query.filter_by(client_operation_id=operation_id).first()
         if existing:
             return existing, None
+
+    # Firma del tecnico: siempre la version vigente del perfil del usuario autenticado (uploaded_by_id).
+    # Ningun dato del cliente interviene: no se acepta una imagen ni un id de firma en la peticion.
+    from app.evidence.signatures import get_active_signature, signature_required_for
+    signer_roles = roles
+    if signer_roles is None:
+        uploader = db.session.get(User, uploaded_by_id)
+        signer_roles = [r.name for r in uploader.roles] if uploader else []
+    profile_signature = None
+    if "technician" in set(signer_roles or []):
+        profile_signature = get_active_signature(uploaded_by_id)
+        if profile_signature is None and signature_required_for(signer_roles):
+            return None, "technician_signature_required"
 
     storage = get_storage()
     storage_key = None
@@ -153,20 +170,28 @@ def add_evidence(
         version_number=1,
         duplicate_of_id=duplicate_of_id,
         client_operation_id=operation_id,
-        # compatibility columns
         file_name=name,
         stored_name=storage_key,
         file_type=mime_type,
         file_size=size_bytes,
         created_at=_now(),
     )
+    if profile_signature is not None:
+        ev.technician_signature_id = profile_signature.id
+        ev.technician_signature_sha256 = profile_signature.sha256
+        ev.technician_signature_user_id = uploaded_by_id
+        ev.technician_signed_at = ev.received_at
     db.session.add(ev)
     db.session.flush()
-    _record_event(work_order_id, ev.id, uploaded_by_id, "EVIDENCE_ADDED", EVIDENCE_DRAFT, EVIDENCE_DRAFT, f"category={category}")
+    details = f"category={category}"
+    if profile_signature is not None:
+        details += f";signature_id={profile_signature.id};signature_sha256={profile_signature.sha256}"
+    _record_event(work_order_id, ev.id, uploaded_by_id, "EVIDENCE_ADDED", EVIDENCE_DRAFT, EVIDENCE_DRAFT, details)
     db.session.commit()
     return ev, None
 
 
+# Crea el registro solicitado con los datos recibidos; recibe work_order_id, uploaded_by_id, evidence_type, file, description, **kwargs; accede al sistema de archivos; devuelve el valor correspondiente.
 def create_evidence(work_order_id, uploaded_by_id, evidence_type="observation", file=None, description=None, **kwargs):
     category = kwargs.pop("category", CATEGORY_ADDITIONAL)
     roles = kwargs.pop("roles", None)
@@ -188,20 +213,26 @@ def create_evidence(work_order_id, uploaded_by_id, evidence_type="observation", 
     )
 
 
+# list_evidences: lista las evidencias de una orden ordenadas por fecha de recepcion descendente; entrada work_order_id; salida list; lee la base de datos.
 def list_evidences(work_order_id):
     return VisitEvidence.query.filter_by(work_order_id=work_order_id).order_by(VisitEvidence.received_at.desc(), VisitEvidence.id.desc()).all()
 
 
+# get_evidence: obtiene una evidencia por su id; entrada ev_id; salida VisitEvidence o None; lee la base de datos.
 def get_evidence(ev_id):
     return db.session.get(VisitEvidence, ev_id)
 
 
+# Elimina el registro indicado; recibe ev_id, roles, actor_id; interactua con la base de datos; devuelve el valor correspondiente.
 def delete_evidence(ev_id, roles=None, actor_id=None):
     ev = db.session.get(VisitEvidence, ev_id)
     if not ev:
         return False, "not_found"
     if roles is not None and not can_review_evidence(roles):
         return False, "forbidden"
+    # Una evidencia firmada por el tecnico es un registro inmutable: no se borra por la interfaz habitual.
+    if ev.technician_signature_id is not None:
+        return False, "signed_evidence_immutable"
     if ev.storage_key or ev.stored_name:
         storage = get_storage()
         storage.delete(ev.storage_key or ev.stored_name)
@@ -210,6 +241,7 @@ def delete_evidence(ev_id, roles=None, actor_id=None):
     return True, None
 
 
+# Aplica la transicion de estado solicitada; recibe ev, to_status, actor_id, action, notes; interactua con la base de datos; devuelve el valor correspondiente.
 def _transition(ev, to_status, actor_id, action, notes=None):
     if ev is None:
         return None, "not_found"
@@ -222,6 +254,7 @@ def _transition(ev, to_status, actor_id, action, notes=None):
     return ev, None
 
 
+# Gestiona submit evidence; recibe evidence_id, actor_id, roles, notes; interactua con la base de datos; devuelve el valor correspondiente.
 def submit_evidence(evidence_id, actor_id, roles=None, notes=None):
     ev = db.session.get(VisitEvidence, evidence_id)
     if ev is None:
@@ -232,6 +265,7 @@ def submit_evidence(evidence_id, actor_id, roles=None, notes=None):
     return _transition(ev, EVIDENCE_SUBMITTED, actor_id, "SUBMIT", notes)
 
 
+# Gestiona start review; recibe evidence_id, actor_id, roles, notes; interactua con la base de datos; devuelve el valor correspondiente.
 def start_review(evidence_id, actor_id, roles=None, notes=None):
     ev = db.session.get(VisitEvidence, evidence_id)
     if ev is None:
@@ -241,6 +275,7 @@ def start_review(evidence_id, actor_id, roles=None, notes=None):
     return _transition(ev, EVIDENCE_UNDER_REVIEW, actor_id, "REVIEW_STARTED", notes)
 
 
+# Gestiona request correction; recibe evidence_id, actor_id, notes, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def request_correction(evidence_id, actor_id, notes=None, roles=None):
     ev = db.session.get(VisitEvidence, evidence_id)
     if ev is None:
@@ -252,6 +287,7 @@ def request_correction(evidence_id, actor_id, notes=None, roles=None):
     return _transition(ev, EVIDENCE_CORRECTION_REQUIRED, actor_id, "CORRECTION_REQUESTED", notes)
 
 
+# Gestiona resubmit evidence; recibe evidence_id, actor_id, roles, notes, new_evidence_id; interactua con la base de datos; devuelve el valor correspondiente.
 def resubmit_evidence(evidence_id, actor_id, roles=None, notes=None, new_evidence_id=None):
     ev = db.session.get(VisitEvidence, evidence_id)
     if ev is None:
@@ -276,6 +312,7 @@ def resubmit_evidence(evidence_id, actor_id, roles=None, notes=None, new_evidenc
     return _transition(ev, EVIDENCE_RESUBMITTED, actor_id, "RESUBMIT", notes)
 
 
+# Gestiona approve evidence; recibe evidence_id, actor_id, roles, notes; interactua con la base de datos; devuelve el valor correspondiente.
 def approve_evidence(evidence_id, actor_id, roles=None, notes=None):
     ev = db.session.get(VisitEvidence, evidence_id)
     if ev is None:
@@ -290,6 +327,7 @@ def approve_evidence(evidence_id, actor_id, roles=None, notes=None):
     return result
 
 
+# Gestiona reject evidence; recibe evidence_id, actor_id, notes, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def reject_evidence(evidence_id, actor_id, notes=None, roles=None):
     ev = db.session.get(VisitEvidence, evidence_id)
     if ev is None:
@@ -306,6 +344,7 @@ def reject_evidence(evidence_id, actor_id, notes=None, roles=None):
     return result
 
 
+# Gestiona review evidence; recibe evidence_id, reviewer_id, decision, notes, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def review_evidence(evidence_id, reviewer_id, decision, notes=None, roles=None):
     if decision not in EVIDENCE_STATES:
         return None, "invalid_decision"
@@ -324,6 +363,7 @@ def review_evidence(evidence_id, reviewer_id, decision, notes=None, roles=None):
     return review, None
 
 
+# Gestiona submit expediente; recibe work_order_id, actor_id, roles, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def submit_expediente(work_order_id, actor_id, roles=None, operation_id=None):
     # idempotent: if already submitted, return current submitted items
     existing_submitted = VisitEvidence.query.filter_by(work_order_id=work_order_id, status=EVIDENCE_SUBMITTED).all()
@@ -341,20 +381,30 @@ def submit_expediente(work_order_id, actor_id, roles=None, operation_id=None):
     return out, None
 
 
+# Gestiona resubmit expediente; recibe work_order_id, actor_id, roles, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def resubmit_expediente(work_order_id, actor_id, roles=None, operation_id=None):
-    # requires correction state
     corrected = VisitEvidence.query.filter_by(work_order_id=work_order_id, status=EVIDENCE_CORRECTION_REQUIRED).all()
+    if not corrected:
+        return None, "invalid_state"
     out = []
     for ev in corrected:
         r, err = resubmit_evidence(ev.id, actor_id, roles=roles)
         if r:
             out.append(r)
-    if out:
-        _record_event(work_order_id, None, actor_id, "EXPEDIENTE_RESUBMITTED", None, EVIDENCE_RESUBMITTED, f"count={len(out)};operation={operation_id}")
-        db.session.commit()
-    return out, None if out else (None, "invalid_state")
+    # Las evidencias agregadas durante la corrección (en borrador) viajan con el reenvío: si quedaran en borrador,
+    # el expediente no podría aprobarse nunca.
+    for ev in VisitEvidence.query.filter_by(work_order_id=work_order_id, status=EVIDENCE_DRAFT).all():
+        r, err = submit_evidence(ev.id, actor_id, roles=roles)
+        if r:
+            out.append(r)
+    if not out:
+        return None, "invalid_state"
+    _record_event(work_order_id, None, actor_id, "EXPEDIENTE_RESUBMITTED", None, EVIDENCE_RESUBMITTED, f"count={len(out)};operation={operation_id}")
+    db.session.commit()
+    return out, None
 
 
+# Gestiona start review expediente; recibe work_order_id, actor_id, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def start_review_expediente(work_order_id, actor_id, roles=None):
     items = VisitEvidence.query.filter_by(work_order_id=work_order_id, status=EVIDENCE_SUBMITTED).all()
     out = []
@@ -367,7 +417,7 @@ def start_review_expediente(work_order_id, actor_id, roles=None):
     return out, None
 
 
-# Signatures
+# Gestiona register signature; recibe work_order_id, technician_id, file, signer_name, signer_role, acceptance_text, consent_version, roles, original_name, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def register_signature(
     work_order_id,
     technician_id,
@@ -423,6 +473,7 @@ def register_signature(
     return sig, None
 
 
+# Gestiona register signature refusal; recibe work_order_id, technician_id, signer_name, reason, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def register_signature_refusal(work_order_id, technician_id, *, signer_name=None, reason=None, roles=None):
     if not reason:
         return None, "refusal_reason_required"
@@ -447,15 +498,17 @@ def register_signature_refusal(work_order_id, technician_id, *, signer_name=None
     return sig, None
 
 
+# list_signatures: lista las firmas de una orden ordenadas por fecha de recepcion descendente; entrada work_order_id; salida list; lee la base de datos.
 def list_signatures(work_order_id):
     return VisitSignature.query.filter_by(work_order_id=work_order_id).order_by(VisitSignature.received_at.desc()).all()
 
 
+# get_signature: obtiene una firma por su id; entrada sig_id; salida VisitSignature o None; lee la base de datos.
 def get_signature(sig_id):
     return db.session.get(VisitSignature, sig_id)
 
 
-# Checklist
+# Agrega un nuevo elemento al sistema; recibe work_order_id, label, result, notes, actor_id, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def add_checklist_item(work_order_id, label, *, result=None, notes=None, actor_id=None, roles=None):
     wo = get_work_order(work_order_id)
     if not wo:
@@ -477,6 +530,7 @@ def add_checklist_item(work_order_id, label, *, result=None, notes=None, actor_i
     return item, None
 
 
+# Actualiza los campos indicados del registro; recibe item_id, result, notes, actor_id, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def update_checklist_item(item_id, *, result=None, notes=None, actor_id=None, roles=None):
     item = db.session.get(VisitChecklistItem, item_id)
     if not item:
@@ -494,11 +548,12 @@ def update_checklist_item(item_id, *, result=None, notes=None, actor_id=None, ro
     return item, None
 
 
+# list_checklist_items: lista los items de checklist de una orden ordenados por id; entrada work_order_id; salida list; lee la base de datos.
 def list_checklist_items(work_order_id):
     return VisitChecklistItem.query.filter_by(work_order_id=work_order_id).order_by(VisitChecklistItem.id).all()
 
 
-# Reviews
+# Crea el registro solicitado con los datos recibidos; recibe evidence_id, reviewer_id, decision, notes, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def create_review(evidence_id, reviewer_id, decision, notes=None, roles=None):
     ev = db.session.get(VisitEvidence, evidence_id)
     if not ev:
@@ -513,10 +568,12 @@ def create_review(evidence_id, reviewer_id, decision, notes=None, roles=None):
     return review, None
 
 
+# list_reviews: lista las revisiones de una evidencia ordenadas por fecha de creacion; entrada evidence_id; salida list; lee la base de datos.
 def list_reviews(evidence_id):
     return EvidenceReview.query.filter_by(evidence_id=evidence_id).order_by(EvidenceReview.created_at).all()
 
 
+# Lista los registros que cumplen los filtros indicados; recibe work_order_id, evidence_id; interactua con la base de datos; devuelve el valor correspondiente.
 def list_events(work_order_id=None, evidence_id=None):
     q = EvidenceEvent.query
     if work_order_id is not None:
@@ -531,6 +588,7 @@ def can_view(user_id, roles, work_order):
     return can_view_evidence(user_id, roles, work_order)
 
 
+# Lista los registros que cumplen los filtros indicados; recibe user_id, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def list_user_evidences(user_id, roles):
     roles = set(roles or [])
     if "admin" in roles or "dispatcher" in roles:
@@ -542,6 +600,7 @@ def list_user_evidences(user_id, roles):
     return VisitEvidence.query.filter(VisitEvidence.work_order_id.in_(wo_ids)).order_by(VisitEvidence.received_at.desc()).all()
 
 
+# Obtiene un registro por su identificador; recibe work_order; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def get_default_policy(work_order=None):
     return {
         "required_categories": [],
@@ -552,6 +611,7 @@ def get_default_policy(work_order=None):
     }
 
 
+# Valida los datos y reglas de negocio; recibe work_order_id, policy; interactua con la base de datos; devuelve el valor correspondiente.
 def validate_submission(work_order_id, policy=None):
     if policy is None:
         wo = get_work_order(work_order_id)
@@ -580,11 +640,14 @@ def validate_submission(work_order_id, policy=None):
         if not any(i.label == req and i.result in ("COMPLETED", "NOT_COMPLETED") for i in items):
             errors.append(f"missing_checklist:{req}")
     ev_statuses = {e.status for e in evidences}
-    if ev_statuses and not ev_statuses.issubset({EVIDENCE_DRAFT, EVIDENCE_CORRECTION_REQUIRED, EVIDENCE_RESUBMITTED}):
+    # Se pueden enviar borradores nuevos aunque el expediente ya esté en revisión o aprobado (vuelve a revisión);
+    # un expediente rechazado queda cerrado.
+    if EVIDENCE_REJECTED in ev_statuses:
         errors.append("invalid_state")
     return errors
 
 
+# Obtiene un registro por su identificador; recibe work_order_id; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def get_expediente_status(work_order_id):
     evidences = [e.to_dict() for e in list_evidences(work_order_id)]
     signatures = [s.to_dict() for s in list_signatures(work_order_id)]
@@ -611,6 +674,7 @@ def get_expediente_status(work_order_id):
     }
 
 
+# Lista los registros que cumplen los filtros indicados; recibe status, technician_id, client, work_order_id, date_from, date_to, visit_date_from, visit_date_to, evidence_type, q, page, page_size, sort, order, roles; interactua con la base de datos; devuelve el valor correspondiente.
 def list_admin_inbox(
     *,
     status=None,
@@ -706,16 +770,7 @@ def list_admin_inbox(
     for wo in items:
         evs = VisitEvidence.query.filter_by(work_order_id=wo.id).all()
         statuses = {e.status for e in evs}
-        overall = "DRAFT"
-        if statuses:
-            if "CORRECTION_REQUIRED" in statuses:
-                overall = "CORRECTION_REQUIRED"
-            elif "REJECTED" in statuses:
-                overall = "REJECTED"
-            elif "SUBMITTED" in statuses or "UNDER_REVIEW" in statuses or "RESUBMITTED" in statuses:
-                overall = "SUBMITTED"
-            elif statuses == {"APPROVED"}:
-                overall = "APPROVED"
+        overall = _overall_validation_status(statuses) or "DRAFT"
         result_items.append({
             "work_order": wo.to_dict(),
             "validation_status": overall,
@@ -732,13 +787,13 @@ def list_admin_inbox(
     }
 
 
+# Obtiene un registro por su identificador; recibe work_order_id; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def get_admin_detail(work_order_id):
     from app.workorders.models import WorkOrder
     wo = get_work_order(work_order_id)
     if not wo:
         return None
     status = get_expediente_status(work_order_id)
-    # strip sensitive keys
     def _clean(ev):
         ev = dict(ev)
         ev.pop("storage_key", None)
@@ -753,10 +808,11 @@ def get_admin_detail(work_order_id):
     return status
 
 
+# Gestiona start review admin; recibe work_order_id, actor_id, roles, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def start_review_admin(work_order_id, actor_id, roles=None, operation_id=None):
     if roles is not None and not can_review_evidence(roles):
         return None, "forbidden"
-    _lock_row("visit_evidences", extra="work_order_id = :wo", params={"wo": work_order_id})
+    _lock_row("Evidencias", extra="IdOrden = :wo", params={"wo": work_order_id})
     evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
     if not evs:
         return None, "not_found"
@@ -773,15 +829,18 @@ def start_review_admin(work_order_id, actor_id, roles=None, operation_id=None):
     return evs, None
 
 
+# Gestiona request correction admin; recibe work_order_id, actor_id, notes, items, roles, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def request_correction_admin(work_order_id, actor_id, *, notes=None, items=None, roles=None, operation_id=None):
     if roles is not None and "admin" not in set(roles or []):
         return None, "forbidden"
     if not notes:
         return None, "notes_required"
-    _lock_row("visit_evidences", extra="work_order_id = :wo", params={"wo": work_order_id})
+    _lock_row("Evidencias", extra="IdOrden = :wo", params={"wo": work_order_id})
     evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
     if not evs:
         return None, "not_found"
+    if any(e.uploaded_by_id == actor_id for e in evs):
+        return None, "own_evidence"
     changed = False
     for ev in evs:
         if ev.status in (EVIDENCE_SUBMITTED, EVIDENCE_UNDER_REVIEW, EVIDENCE_RESUBMITTED):
@@ -794,18 +853,39 @@ def request_correction_admin(work_order_id, actor_id, *, notes=None, items=None,
     return evs, None
 
 
+# _review_blocker(evs, actor_id): motivo por el que un expediente no puede aprobarse, o None.
+#   own_evidence: el revisor registró alguna de las evidencias (nadie aprueba lo propio, aunque tenga varios roles).
+#   pending_drafts: hay evidencias que el técnico todavía no envió a revisión.
+#   correction_pending / already_rejected: el expediente está en otro punto del flujo.
+def _review_blocker(evs, actor_id):
+    statuses = {e.status for e in evs}
+    if any(e.uploaded_by_id == actor_id for e in evs):
+        return "own_evidence"
+    if EVIDENCE_REJECTED in statuses:
+        return "already_rejected"
+    if EVIDENCE_CORRECTION_REQUIRED in statuses:
+        return "correction_pending"
+    if EVIDENCE_DRAFT in statuses:
+        return "pending_drafts"
+    return None
+
+
+# Gestiona approve expediente; recibe work_order_id, actor_id, roles, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def approve_expediente(work_order_id, actor_id, roles=None, operation_id=None):
     if roles is not None and "admin" not in set(roles or []):
         return None, "forbidden"
-    _lock_row("visit_evidences", extra="work_order_id = :wo", params={"wo": work_order_id})
+    _lock_row("Evidencias", extra="IdOrden = :wo", params={"wo": work_order_id})
     evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
     if not evs:
         return None, "not_found"
     if all(e.status == EVIDENCE_APPROVED for e in evs):
-        return evs, None
-    if not all(e.status in (EVIDENCE_UNDER_REVIEW, EVIDENCE_SUBMITTED, EVIDENCE_RESUBMITTED) for e in evs):
-        return None, "invalid_state"
+        return evs, None  # ya aprobado: idempotente, sin registros de aprobación duplicados
+    blocker = _review_blocker(evs, actor_id)
+    if blocker:
+        return None, blocker
     for ev in evs:
+        if ev.status == EVIDENCE_APPROVED:
+            continue
         ev.status = EVIDENCE_APPROVED
         db.session.add(EvidenceReview(evidence_id=ev.id, reviewer_id=actor_id, decision=EVIDENCE_APPROVED, notes=None, created_at=datetime.now(timezone.utc)))
     _record_event(work_order_id, None, actor_id, "APPROVED", None, EVIDENCE_APPROVED, f"operation={operation_id}")
@@ -813,15 +893,18 @@ def approve_expediente(work_order_id, actor_id, roles=None, operation_id=None):
     return evs, None
 
 
+# Gestiona reject expediente; recibe work_order_id, actor_id, reason, roles, operation_id; interactua con la base de datos; devuelve el valor correspondiente.
 def reject_expediente(work_order_id, actor_id, *, reason=None, roles=None, operation_id=None):
     if roles is not None and "admin" not in set(roles or []):
         return None, "forbidden"
     if not reason:
         return None, "reason_required"
-    _lock_row("visit_evidences", extra="work_order_id = :wo", params={"wo": work_order_id})
+    _lock_row("Evidencias", extra="IdOrden = :wo", params={"wo": work_order_id})
     evs = VisitEvidence.query.filter_by(work_order_id=work_order_id).all()
     if not evs:
         return None, "not_found"
+    if any(e.uploaded_by_id == actor_id for e in evs):
+        return None, "own_evidence"
     if all(e.status == EVIDENCE_REJECTED for e in evs):
         return evs, None
     changed = False
@@ -837,6 +920,123 @@ def reject_expediente(work_order_id, actor_id, *, reason=None, roles=None, opera
     return evs, None
 
 
-# Backwards-compatible aliases
 Evidence = VisitEvidence
 create_evidence = create_evidence
+
+
+# _overall_validation_status: estado de validacion de un expediente a partir de los estados de sus evidencias.
+def _overall_validation_status(statuses):
+    statuses = set(statuses or [])
+    if not statuses:
+        return None
+    if "CORRECTION_REQUIRED" in statuses:
+        return "CORRECTION_REQUIRED"
+    if "REJECTED" in statuses:
+        return "REJECTED"
+    if statuses & {"SUBMITTED", "UNDER_REVIEW", "RESUBMITTED"}:
+        return "SUBMITTED"
+    if statuses == {"APPROVED"}:
+        return "APPROVED"
+    return "DRAFT"
+
+
+def _parse_date_param(value, end_of_day=False):
+    if not value:
+        return None
+    raw = str(value).strip()
+    try:
+        if len(raw) == 10:
+            d = datetime.fromisoformat(raw)
+            if end_of_day:
+                d = d.replace(hour=23, minute=59, second=59, microsecond=999999)
+            return d.replace(tzinfo=timezone.utc)
+        d = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise ValueError("invalid_date")
+
+
+# list_evidence_orders: listado de ordenes con el resumen de sus evidencias (cantidad, ultima fecha de registro,
+# tecnico, estado), paginado y sin cargar archivos. Alcance por rol en el servidor: admin y coordinador ven todas las
+# ordenes; un tecnico solo las asignadas a el (misma regla que can_access_work_order).
+#   q: numero de orden ("12", "OS-0012") o texto del titulo/cliente; technician_id; date_from/date_to sobre la fecha
+#   de registro de las evidencias; with_evidence: solo ordenes que tengan evidencias; order: asc|desc por fecha.
+def list_evidence_orders(user_id, roles, *, q=None, technician_id=None, date_from=None, date_to=None,
+                         with_evidence=False, order="desc", page=1, page_size=20):
+    import re
+    import sqlalchemy as sa
+    from app.workorders.models import WorkOrder
+
+    roles = set(roles or [])
+    df = _parse_date_param(date_from)
+    dt = _parse_date_param(date_to, end_of_day=True)
+
+    agg = db.session.query(
+        VisitEvidence.work_order_id.label("wo_id"),
+        db.func.count(VisitEvidence.id).label("evidence_count"),
+        db.func.max(VisitEvidence.received_at).label("last_at"),
+    )
+    if df:
+        agg = agg.filter(VisitEvidence.received_at >= df)
+    if dt:
+        agg = agg.filter(VisitEvidence.received_at <= dt)
+    agg = agg.group_by(VisitEvidence.work_order_id).subquery()
+
+    query = db.session.query(WorkOrder, agg.c.evidence_count, agg.c.last_at)
+    if with_evidence or df or dt:
+        query = query.join(agg, agg.c.wo_id == WorkOrder.id)
+    else:
+        query = query.outerjoin(agg, agg.c.wo_id == WorkOrder.id)
+
+    if not ({"admin", "dispatcher"} & roles):
+        query = query.filter(WorkOrder.assigned_to_id == user_id)
+    elif technician_id:
+        query = query.filter(WorkOrder.assigned_to_id == int(technician_id))
+
+    if q:
+        text = str(q).strip()
+        m = re.fullmatch(r"(?:os-?)?0*(\d{1,9})", text, flags=re.IGNORECASE)
+        if m:
+            query = query.filter(WorkOrder.id == int(m.group(1)))
+        else:
+            like = f"%{text}%"
+            query = query.filter(db.or_(WorkOrder.title.ilike(like), WorkOrder.customer_name.ilike(like)))
+
+    total = query.order_by(None).count()
+    page = max(1, int(page or 1))
+    page_size = max(1, min(100, int(page_size or 20)))
+    # Ordenes sin evidencias siempre al final, en ambos sentidos (SQL Server ordena NULL primero en ASC).
+    no_evidence_last = sa.case((agg.c.last_at.is_(None), 1), else_=0)
+    date_order = agg.c.last_at.asc() if str(order).lower() == "asc" else agg.c.last_at.desc()
+    rows = (
+        query.order_by(no_evidence_last, date_order, WorkOrder.id.desc())
+        .offset((page - 1) * page_size).limit(page_size).all()
+    )
+
+    wo_ids = [wo.id for wo, _, _ in rows]
+    statuses = {}
+    if wo_ids:
+        for wo_id, st in (
+            db.session.query(VisitEvidence.work_order_id, VisitEvidence.status)
+            .filter(VisitEvidence.work_order_id.in_(wo_ids)).distinct().all()
+        ):
+            statuses.setdefault(wo_id, set()).add(st)
+
+    items = []
+    for wo, count, last_at in rows:
+        tech = wo.assigned_to
+        items.append({
+            "work_order": {
+                "id": wo.id,
+                "code": "OS-" + str(wo.id).zfill(4),
+                "title": wo.title,
+                "description": wo.description,
+                "customer_name": wo.customer_name,
+                "status": wo.status,
+            },
+            "technician": {"id": tech.id, "username": tech.username} if tech else None,
+            "evidence_count": int(count or 0),
+            "last_evidence_at": last_at.isoformat() if last_at else None,
+            "validation_status": _overall_validation_status(statuses.get(wo.id)),
+        })
+    return {"items": items, "total": total, "page": page, "page_size": page_size}

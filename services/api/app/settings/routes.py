@@ -9,10 +9,12 @@ from app.settings.models import AuditLog
 blueprint = Blueprint("settings", __name__)
 
 
+# _is_admin: indica si la lista de roles incluye admin; entrada roles; salida bool; sin efectos secundarios.
 def _is_admin(roles):
     return "admin" in roles
 
 
+# GET /settings/organization (roles: autenticado): get org; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/settings/organization")
 @require_auth
 def get_org():
@@ -33,6 +35,7 @@ def get_org():
     }), 200
 
 
+# PATCH /settings/organization (roles: admin): patch org; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/settings/organization")
 @require_role("admin")
 def patch_org():
@@ -50,12 +53,12 @@ def patch_org():
         return jsonify({"error": "unknown field"}), 422
     if not row:
         return jsonify({"error": "could not update"}), 400
-    # audit
     service.audit(request.user_id, user.username if user else None, "organization", None, None, None, "applied", request.headers.get("X-Request-Id"))
     db.session.commit()
     return jsonify({"version": row.version, "message": "Cambios guardados correctamente."}), 200
 
 
+# GET /settings/operations (roles: autenticado): get ops; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/settings/operations")
 @require_auth
 def get_ops():
@@ -65,6 +68,7 @@ def get_ops():
     return jsonify(service.operational_dict()), 200
 
 
+# PATCH /settings/operations (roles: admin): patch ops; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/settings/operations")
 @require_role("admin")
 def patch_ops():
@@ -84,6 +88,7 @@ def patch_ops():
     return jsonify({"version": row.version, "message": "Cambios guardados correctamente."}), 200
 
 
+# POST /settings/operations/impact (roles: admin): ops impact; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/settings/operations/impact")
 @require_role("admin")
 def ops_impact():
@@ -92,6 +97,7 @@ def ops_impact():
     return jsonify(result), 200
 
 
+# GET /settings/security (roles: admin): get sec; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/settings/security")
 @require_role("admin")
 def get_sec():
@@ -108,6 +114,7 @@ def get_sec():
     }), 200
 
 
+# PATCH /settings/security (roles: admin): patch sec; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/settings/security")
 @require_role("admin")
 def patch_sec():
@@ -125,6 +132,7 @@ def patch_sec():
     return jsonify({"version": row.version, "message": "Cambios guardados correctamente."}), 200
 
 
+# GET /settings/notifications (roles: autenticado): get notif; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/settings/notifications")
 @require_auth
 def get_notif():
@@ -135,6 +143,7 @@ def get_notif():
     return jsonify({"preferences": row.preferences, "version": row.version}), 200
 
 
+# PATCH /settings/notifications (roles: admin): patch notif; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/settings/notifications")
 @require_role("admin")
 def patch_notif():
@@ -152,6 +161,7 @@ def patch_notif():
     return jsonify({"version": row.version, "message": "Cambios guardados correctamente."}), 200
 
 
+# GET /settings/notifications/me (roles: autenticado): get notif me; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/settings/notifications/me")
 @require_auth
 def get_notif_me():
@@ -159,6 +169,7 @@ def get_notif_me():
     return jsonify({"preferences": row.preferences, "version": row.version}), 200
 
 
+# PATCH /settings/notifications/me (roles: autenticado): patch notif me; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.patch("/settings/notifications/me")
 @require_auth
 def patch_notif_me():
@@ -173,12 +184,14 @@ def patch_notif_me():
     return jsonify({"version": row.version, "message": "Cambios guardados correctamente."}), 200
 
 
+# GET /settings/public (roles: autenticado): public; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/settings/public")
 @require_auth
 def public():
     return jsonify(service.public_settings()), 200
 
 
+# GET /audit-log (roles: admin): audit list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/audit-log")
 @require_role("admin")
 def audit_list():
@@ -230,11 +243,11 @@ def audit_list():
     }), 200
 
 
+# GET /audit-log/export.csv (roles: admin): audit export; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/audit-log/export.csv")
 @require_role("admin")
 def audit_export():
     import csv, io
-    # reuse filters
     section = request.args.get("section")
     user_id = request.args.get("user_id", type=int)
     result = request.args.get("result")

@@ -9,6 +9,7 @@ from app.notifications.service import enqueue_notification, process_pending, lis
 blueprint = Blueprint("notifications", __name__)
 
 
+# POST /notifications (roles: admin, dispatcher): notifications create; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/notifications")
 @require_role("admin", "dispatcher")
 def notifications_create():
@@ -30,6 +31,7 @@ def notifications_create():
     return jsonify(n.to_dict()), 201
 
 
+# GET /notifications (roles: autenticado): notifications list; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.get("/notifications")
 @require_auth
 def notifications_list():
@@ -43,6 +45,7 @@ def notifications_list():
     return jsonify([n.to_dict() for n in notifications]), 200
 
 
+# POST /notifications/process (roles: admin): notifications process; entrada path/query/body segun endpoint; salida JSON; delega la logica en el servicio.
 @blueprint.post("/notifications/process")
 @require_role("admin")
 def notifications_process():

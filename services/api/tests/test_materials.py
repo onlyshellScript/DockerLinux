@@ -1,3 +1,4 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 from app.extensions import db
 from app.identity.models import User, Role
 from app.materials.models import Material
@@ -7,6 +8,7 @@ import os
 sys_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if sys_path not in __import__("sys").path:
     __import__("sys").path.insert(0, sys_path)
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; accede al sistema de archivos; devuelve el valor correspondiente.
 
 def _seed(app):
     from seeds.load_catalog import load_into_app
@@ -32,10 +34,12 @@ def _seed(app):
         return admin.id, tech.id
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
+# test_create_material: valida el escenario create material preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_create_material(client, app):
     _seed(app)
@@ -54,6 +58,7 @@ def test_create_material(client, app):
     assert data["current_stock"] == 10
     assert data["catalog_item_id"] == cid
 
+# test_technician_cannot_create_material: valida el escenario technician cannot create material preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_technician_cannot_create_material(client, app):
     _seed(app)
@@ -65,12 +70,12 @@ def test_technician_cannot_create_material(client, app):
     )
     assert resp.status_code == 403
 
+# test_stock_in_and_out: valida el escenario stock in and out preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_stock_in_and_out(client, app):
     admin_id, tech_id = _seed(app)
     token = _login(client, "admin", "Admin123!")
 
-    # Create material
     from app.materials.models import MaterialCatalog
     with app.app_context():
         cid = MaterialCatalog.query.first().id
@@ -81,7 +86,6 @@ def test_stock_in_and_out(client, app):
     )
     mat_id = resp.get_json()["id"]
 
-    # Stock IN
     resp = client.post(
         f"/api/v1/materials/{mat_id}/movements",
         headers={"Authorization": f"Bearer {token}"},
@@ -89,11 +93,9 @@ def test_stock_in_and_out(client, app):
     )
     assert resp.status_code == 201
 
-    # Verify stock
     resp = client.get(f"/api/v1/materials/{mat_id}", headers={"Authorization": f"Bearer {token}"})
     assert resp.get_json()["current_stock"] == 20
 
-    # Stock OUT
     resp = client.post(
         f"/api/v1/materials/{mat_id}/movements",
         headers={"Authorization": f"Bearer {token}"},
@@ -104,6 +106,7 @@ def test_stock_in_and_out(client, app):
     resp = client.get(f"/api/v1/materials/{mat_id}", headers={"Authorization": f"Bearer {token}"})
     assert resp.get_json()["current_stock"] == 15
 
+# test_insufficient_stock: valida el escenario insufficient stock preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_insufficient_stock(client, app):
     admin_id, tech_id = _seed(app)
@@ -127,6 +130,7 @@ def test_insufficient_stock(client, app):
     assert resp.status_code == 409
     assert "insufficient" in resp.get_json()["error"]
 
+# test_movements_history: valida el escenario movements history preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_movements_history(client, app):
     admin_id, tech_id = _seed(app)
@@ -158,6 +162,7 @@ def test_movements_history(client, app):
     movements = resp.get_json()
     assert len(movements) == 2
 
+# test_technician_profile: valida el escenario technician profile preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_technician_profile(client, app):
     admin_id, tech_id = _seed(app)
@@ -173,12 +178,10 @@ def test_technician_profile(client, app):
     assert data["phone"] == "3001234567"
     assert data["specialty"] == "HVAC"
 
-    # List
     resp = client.get("/api/v1/technician-profiles", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     assert len(resp.get_json()) == 1
 
-    # Update availability
     profile_id = data["id"]
     resp = client.put(
         f"/api/v1/technician-profiles/{profile_id}",
@@ -188,6 +191,7 @@ def test_technician_profile(client, app):
     assert resp.status_code == 200
     assert resp.get_json()["is_available"] is False
 
+# test_free_text_rejected: valida el escenario free text rejected preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_free_text_rejected(client, app):
     _seed(app)
@@ -195,6 +199,7 @@ def test_free_text_rejected(client, app):
     resp = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"name": "X", "unit": "pza"})
     assert resp.status_code == 422
 
+# test_catalog_item_not_found: valida el escenario catalog item not found preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_catalog_item_not_found(client, app):
     _seed(app)
@@ -202,6 +207,7 @@ def test_catalog_item_not_found(client, app):
     resp = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": 999999, "current_stock": 1, "min_stock": 0, "unit_price": 1})
     assert resp.status_code == 422
 
+# test_duplicate_catalog_item: valida el escenario duplicate catalog item preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_duplicate_catalog_item(client, app):
     _seed(app)
@@ -214,6 +220,7 @@ def test_duplicate_catalog_item(client, app):
     r2 = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid, "current_stock": 1, "min_stock": 0, "unit_price": 1})
     assert r2.status_code == 409
 
+# test_decimal_precision_unit: valida el escenario decimal precision unit preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_decimal_precision_unit(client, app):
     _seed(app)
@@ -228,6 +235,7 @@ def test_decimal_precision_unit(client, app):
     r = client.post("/api/v1/materials", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid, "current_stock": 1.5, "min_stock": 0, "unit_price": 1})
     assert r.status_code == 422
 
+# Crea el registro solicitado con los datos recibidos; recibe app, admin_id; interactua con la base de datos; devuelve el valor correspondiente.
 
 def _create_inherited(app, admin_id):
     from app.materials.models import Material, StockMovement
@@ -239,6 +247,7 @@ def _create_inherited(app, admin_id):
         db.session.commit()
         return m.id
 
+# test_link_catalog_success: valida el escenario link catalog success preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_link_catalog_success(client, app):
     admin_id, tech_id = _seed(app)
@@ -252,7 +261,6 @@ def test_link_catalog_success(client, app):
         cid = ci.id
         old_stock = 7
         old_price = 100
-    # count movements before
     from app.materials.models import StockMovement
     with app.app_context():
         mv_before = StockMovement.query.filter_by(material_id=mid).count()
@@ -267,6 +275,7 @@ def test_link_catalog_success(client, app):
         mv_after = StockMovement.query.filter_by(material_id=mid).count()
         assert mv_after == mv_before
 
+# test_link_catalog_already_inventoried: valida el escenario link catalog already inventoried preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_link_catalog_already_inventoried(client, app):
     admin_id, tech_id = _seed(app)
@@ -283,6 +292,7 @@ def test_link_catalog_already_inventoried(client, app):
     r = client.put(f"/api/v1/materials/{mid}", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": cid})
     assert r.status_code == 409
 
+# test_link_catalog_not_found: valida el escenario link catalog not found preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_link_catalog_not_found(client, app):
     admin_id, tech_id = _seed(app)
@@ -291,6 +301,7 @@ def test_link_catalog_not_found(client, app):
     r = client.put(f"/api/v1/materials/{mid}", headers={"Authorization": f"Bearer {token}"}, json={"catalog_item_id": 999999})
     assert r.status_code == 422
 
+# test_link_catalog_forbidden: valida el escenario link catalog forbidden preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_link_catalog_forbidden(client, app):
     admin_id, tech_id = _seed(app)

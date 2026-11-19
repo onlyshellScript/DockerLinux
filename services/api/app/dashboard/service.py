@@ -21,7 +21,7 @@ SPARK_POINTS = 10
 DB_NAIVE_UTC = True
 
 
-# ---------------------------------------------------------------- helpers
+# Convierte el valor al formato interno; recibe value; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _parse_range(value):
     try:
         days = int(value)
@@ -30,6 +30,7 @@ def _parse_range(value):
     return days if days in VALID_RANGES else 7
 
 
+# Gestiona utc; recibe dt; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _utc(dt):
     """Normaliza cualquier datetime (naive o aware) a aware UTC."""
     if dt is None:
@@ -39,26 +40,31 @@ def _utc(dt):
     return dt.astimezone(timezone.utc)
 
 
+# convierte un datetime aware UTC al formato naive/aware que espera la base de datos segun DB_NAIVE_UTC; entrada dt; salida datetime; sin efectos secundarios adicionales.
 def _db(dt):
     """Convierte un datetime aware UTC al formato que espera la BD."""
     return dt.replace(tzinfo=None) if DB_NAIVE_UTC else dt
 
 
+# _plural: devuelve la forma singular si n es 1 y la plural en caso contrario, para mensajes de conteo; entradas n, singular, plural; salida str; sin efectos secundarios.
 def _plural(n, singular, plural):
     return singular if n == 1 else plural
 
 
+# devuelve el porcentaje de variacion entre cur y prev redondeado a un decimal; devuelve None si prev es cero o falsy; entradas cur, prev; salida float o None; sin efectos secundarios.
 def _delta_pct(cur, prev):
     if not prev:
         return None
     return round((cur - prev) / prev * 100, 1)
 
 
+# _bucket: ubica un datetime en uno de los SPARK_POINTS intervalos entre start y el rango derivado de span_seconds; entradas dt, start, span_seconds; salida int indice; sin efectos secundarios.
 def _bucket(dt, start, span_seconds):
     frac = (dt - start).total_seconds() / span_seconds
     return min(max(int(frac * SPARK_POINTS), 0), SPARK_POINTS - 1)
 
 
+# Gestiona zone key; recibe wo; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _zone_key(wo):
     if wo.zone_id and wo.service_zone:
         return wo.service_zone.name
@@ -67,7 +73,7 @@ def _zone_key(wo):
     return wo.zone or wo.legacy_zone or "Sin zona"
 
 
-# ---------------------------------------------------------------- servicio
+# Gestiona build tecnico summary; recibe user_id; interactua con la base de datos; devuelve el valor correspondiente.
 def build_tecnico_summary(user_id):
     from app.workorders.models import WorkOrder, ALL_STATUSES
     from app.materials.models import TechnicianProfile
@@ -118,6 +124,7 @@ def build_tecnico_summary(user_id):
     }
 
 
+# Gestiona build summary; recibe range_days, zone, city_id, zone_id, technician_id, user_id; interactua con la base de datos; devuelve el valor correspondiente.
 def build_summary(range_days=7, zone=None, city_id=None, zone_id=None,
                   technician_id=None, user_id=None):
     days = _parse_range(range_days)
@@ -128,7 +135,6 @@ def build_summary(range_days=7, zone=None, city_id=None, zone_id=None,
 
     q_now, q_start, q_prev = _db(now), _db(start), _db(prev_start)
 
-    # ---- filtros comunes
     base = WorkOrder.query
     if zone:
         base = base.filter(WorkOrder.zone == zone)
@@ -254,7 +260,6 @@ def build_summary(range_days=7, zone=None, city_id=None, zone_id=None,
         elif stock <= minimum:
             low.append(m.to_dict())
 
-    # ---- insights
     insights = []
     if zone_breakdown and set(zone_breakdown) != {"Sin zona"}:
         top_zone = max(zone_breakdown, key=zone_breakdown.get)

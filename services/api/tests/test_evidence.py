@@ -1,3 +1,4 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 import io
 
 from PIL import Image
@@ -6,12 +7,24 @@ from app.extensions import db
 from app.identity.models import User, Role
 
 
+# genera un PNG minimo de 1x1 en bytes para pruebas de carga de evidencia; sin parametros; salida bytes; sin efectos secundarios adicionales.
 def _png_bytes():
     img = Image.new("RGB", (1, 1), "white")
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
 
+# _signature_png_b64: firma de prueba (lienzo transparente con un trazo) codificada como data URL.
+def _signature_data_url():
+    import base64
+    from PIL import ImageDraw
+    img = Image.new("RGBA", (300, 100), (0, 0, 0, 0))
+    ImageDraw.Draw(img).line([(20, 70), (120, 20), (280, 60)], fill=(20, 20, 20, 255), width=3)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; devuelve el valor correspondiente.
 
 def _seed(app):
     with app.app_context():
@@ -28,15 +41,31 @@ def _seed(app):
         tech.set_password("Tech123!")
         tech.roles.append(tech_role)
 
-        db.session.add_all([admin, tech])
+        disp_role = Role(name="dispatcher", description="Despachador")
+        db.session.add(disp_role)
+        db.session.flush()
+        disp = User(username="disp", email="disp@test.local")
+        disp.set_password("Disp123!")
+        disp.roles.append(disp_role)
+
+        db.session.add_all([admin, tech, disp])
         db.session.commit()
         return admin.id, tech.id
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
+# _tech_login: login del tecnico de prueba con su firma de perfil ya registrada (requisito para adjuntar evidencias).
+def _tech_login(client, username="tech", password="Tech123!"):
+    token = _login(client, username, password)
+    r = client.post("/api/v1/me/signature", headers={"Authorization": f"Bearer {token}"}, json={"image": _signature_data_url()})
+    assert r.status_code == 201
+    return token
+
+# Crea el registro solicitado con los datos recibidos; recibe client, token, assigned_to_id; realiza llamadas de red; devuelve el valor correspondiente.
 
 def _create_wo(client, token, assigned_to_id=None):
     payload = {"title": "WO for evidence"}
@@ -45,11 +74,13 @@ def _create_wo(client, token, assigned_to_id=None):
     resp = client.post("/api/v1/work-orders", headers={"Authorization": f"Bearer {token}"}, json=payload)
     return resp.get_json()["id"]
 
+# test_upload_observation: valida el escenario upload observation preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_upload_observation(client, app):
     admin_id, tech_id = _seed(app)
     token = _login(client, "admin", "Admin123!")
-    wo_id = _create_wo(client, token)
+    disp_token = _login(client, "disp", "Disp123!")
+    wo_id = _create_wo(client, disp_token)
 
     resp = client.post(
         f"/api/v1/work-orders/{wo_id}/evidences",
@@ -60,11 +91,13 @@ def test_upload_observation(client, app):
     data = resp.get_json()
     assert data["description"] == "Cliente no estaba en casa"
 
+# test_upload_photo: valida el escenario upload photo preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_upload_photo(client, app):
     admin_id, tech_id = _seed(app)
     token = _login(client, "admin", "Admin123!")
-    wo_id = _create_wo(client, token)
+    disp_token = _login(client, "disp", "Disp123!")
+    wo_id = _create_wo(client, disp_token)
 
     file_data = io.BytesIO(_png_bytes())
     resp = client.post(
@@ -78,11 +111,13 @@ def test_upload_photo(client, app):
     assert data["original_name"] == "test.png"
     assert data["category"] == "BEFORE"
 
+# test_invalid_extension: valida el escenario invalid extension preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_invalid_extension(client, app):
     admin_id, tech_id = _seed(app)
     token = _login(client, "admin", "Admin123!")
-    wo_id = _create_wo(client, token)
+    disp_token = _login(client, "disp", "Disp123!")
+    wo_id = _create_wo(client, disp_token)
 
     file_data = io.BytesIO(b"fake exe")
     resp = client.post(
@@ -93,11 +128,13 @@ def test_invalid_extension(client, app):
     )
     assert resp.status_code == 400
 
+# test_list_evidences: valida el escenario list evidences preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_list_evidences(client, app):
     admin_id, tech_id = _seed(app)
     token = _login(client, "admin", "Admin123!")
-    wo_id = _create_wo(client, token)
+    disp_token = _login(client, "disp", "Disp123!")
+    wo_id = _create_wo(client, disp_token)
 
     client.post(
         f"/api/v1/work-orders/{wo_id}/evidences",
@@ -114,11 +151,13 @@ def test_list_evidences(client, app):
     assert resp.status_code == 200
     assert len(resp.get_json()) == 2
 
+# test_download_photo: valida el escenario download photo preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_download_photo(client, app):
     admin_id, tech_id = _seed(app)
     token = _login(client, "admin", "Admin123!")
-    wo_id = _create_wo(client, token)
+    disp_token = _login(client, "disp", "Disp123!")
+    wo_id = _create_wo(client, disp_token)
 
     file_data = io.BytesIO(_png_bytes())
     resp = client.post(
@@ -133,12 +172,14 @@ def test_download_photo(client, app):
     assert resp.status_code == 200
     assert resp.data.startswith(b"\x89PNG")
 
+# test_only_admin_can_delete: valida el escenario only admin can delete preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_only_admin_can_delete(client, app):
     admin_id, tech_id = _seed(app)
     admin_token = _login(client, "admin", "Admin123!")
-    tech_token = _login(client, "tech", "Tech123!")
-    wo_id = _create_wo(client, admin_token)
+    disp_token = _login(client, "disp", "Disp123!")
+    tech_token = _tech_login(client)
+    wo_id = _create_wo(client, disp_token)
 
     resp = client.post(
         f"/api/v1/work-orders/{wo_id}/evidences",
@@ -153,20 +194,20 @@ def test_only_admin_can_delete(client, app):
     resp = client.delete(f"/api/v1/evidences/{ev_id}", headers={"Authorization": f"Bearer {admin_token}"})
     assert resp.status_code == 200
 
+# test_technician_isolation: valida el escenario technician isolation preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_technician_isolation(client, app):
     admin_id, tech_id = _seed(app)
     admin_token = _login(client, "admin", "Admin123!")
-    tech_token = _login(client, "tech", "Tech123!")
-    wo_id = _create_wo(client, admin_token, assigned_to_id=tech_id)
+    disp_token = _login(client, "disp", "Disp123!")
+    tech_token = _tech_login(client)
+    wo_id = _create_wo(client, disp_token, assigned_to_id=tech_id)
 
     # tech can access assigned
     resp = client.get(f"/api/v1/work-orders/{wo_id}/evidences", headers={"Authorization": f"Bearer {tech_token}"})
     assert resp.status_code == 200
 
-    # another technician cannot
     other = User(username="tech2", email="tech2@test.local")
-    # create manually
     with app.app_context():
         tech_role = Role.query.filter_by(name="technician").first()
         other.set_password("Tech123!")
@@ -178,12 +219,25 @@ def test_technician_isolation(client, app):
     resp = client.get(f"/api/v1/work-orders/{wo_id}/evidences", headers={"Authorization": f"Bearer {other_token}"})
     assert resp.status_code == 403
 
+# test_signature_refusal_and_submit: valida el escenario signature refusal and submit preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_signature_refusal_and_submit(client, app):
     admin_id, tech_id = _seed(app)
     admin_token = _login(client, "admin", "Admin123!")
+    disp_token = _login(client, "disp", "Disp123!")
     tech_token = _login(client, "tech", "Tech123!")
-    wo_id = _create_wo(client, admin_token, assigned_to_id=tech_id)
+    wo_id = _create_wo(client, disp_token, assigned_to_id=tech_id)
+
+    # Sin firma de perfil el tecnico no puede adjuntar evidencias.
+    resp = client.post(
+        f"/api/v1/work-orders/{wo_id}/evidences",
+        headers={"Authorization": f"Bearer {tech_token}"},
+        data={"category": "BEFORE", "file": (io.BytesIO(_png_bytes()), "p.png")},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 409 and resp.get_json()["code"] == "technician_signature_required"
+    assert client.post("/api/v1/me/signature", headers={"Authorization": f"Bearer {tech_token}"},
+                       json={"image": _signature_data_url()}).status_code == 201
 
     file_data = io.BytesIO(_png_bytes())
     resp = client.post(
@@ -193,6 +247,7 @@ def test_signature_refusal_and_submit(client, app):
         content_type="multipart/form-data",
     )
     assert resp.status_code == 201
+    assert resp.get_json()["technician_signature"]["technician_id"] == tech_id
 
     resp = client.post(
         f"/api/v1/work-orders/{wo_id}/signatures",
@@ -209,12 +264,14 @@ def test_signature_refusal_and_submit(client, app):
     )
     assert resp.status_code == 200
 
+# test_submit_incomplete: valida el escenario submit incomplete preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_submit_incomplete(client, app):
     admin_id, tech_id = _seed(app)
     admin_token = _login(client, "admin", "Admin123!")
-    tech_token = _login(client, "tech", "Tech123!")
-    wo_id = _create_wo(client, admin_token, assigned_to_id=tech_id)
+    disp_token = _login(client, "disp", "Disp123!")
+    tech_token = _tech_login(client)
+    wo_id = _create_wo(client, disp_token, assigned_to_id=tech_id)
 
     resp = client.post(
         f"/api/v1/work-orders/{wo_id}/evidences/submit",
@@ -223,12 +280,14 @@ def test_submit_incomplete(client, app):
     )
     assert resp.status_code == 400
 
+# test_admin_approve_flow: valida el escenario admin approve flow preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_admin_approve_flow(client, app):
     admin_id, tech_id = _seed(app)
     admin_token = _login(client, "admin", "Admin123!")
-    tech_token = _login(client, "tech", "Tech123!")
-    wo_id = _create_wo(client, admin_token, assigned_to_id=tech_id)
+    disp_token = _login(client, "disp", "Disp123!")
+    tech_token = _tech_login(client)
+    wo_id = _create_wo(client, disp_token, assigned_to_id=tech_id)
 
     file_data = io.BytesIO(_png_bytes())
     client.post(
@@ -250,6 +309,5 @@ def test_admin_approve_flow(client, app):
     r = client.post(f"/api/v1/work-orders/{wo_id}/evidences/approve", headers={"Authorization": f"Bearer {admin_token}"}, json={})
     assert r.status_code == 200
 
-    # technician cannot approve
     r = client.post(f"/api/v1/work-orders/{wo_id}/evidences/approve", headers={"Authorization": f"Bearer {tech_token}"}, json={})
     assert r.status_code == 403

@@ -4,6 +4,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 
+# Envia la informacion al destino; recibe recipient, subject, message; accede al sistema de archivos; devuelve el valor correspondiente.
 def send_email(recipient, subject, message):
     smtp_host = os.getenv("SMTP_HOST")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
@@ -31,6 +32,7 @@ def send_email(recipient, subject, message):
         return False, str(e)
 
 
+# Envia la informacion al destino; recibe recipient, message; realiza llamadas de red; accede al sistema de archivos; devuelve el valor correspondiente.
 def send_whatsapp(recipient, message):
     api_url = os.getenv("WHATSAPP_API_URL")
     api_token = os.getenv("WHATSAPP_API_TOKEN")
@@ -64,6 +66,7 @@ def send_whatsapp(recipient, message):
         return False, str(e)
 
 
+# Envia la informacion al destino; recibe channel, recipient, subject, message; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def send_notification(channel, recipient, subject, message):
     if channel == "email":
         return send_email(recipient, subject or "SIGOS", message)

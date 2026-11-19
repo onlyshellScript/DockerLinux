@@ -1,7 +1,9 @@
-﻿from app.extensions import db
+﻿# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
+from app.extensions import db
 from app.identity.models import User, Role
 from app.materials.models import MaterialCatalog
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; accede al sistema de archivos; devuelve el valor correspondiente.
 
 def _seed(app):
     import os, sys
@@ -27,10 +29,12 @@ def _seed(app):
         return admin.id
 
 
+# _login: realiza login y devuelve el access_token; entradas client, username, password; salida str; efecto secundario autentica.
 def _login(client, username, password):
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.get_json()["access_token"]
 
+# test_csv_bom_and_formula: valida el escenario csv bom and formula preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_csv_bom_and_formula(client, app):
     _seed(app)
@@ -46,6 +50,7 @@ def test_csv_bom_and_formula(client, app):
             if cell and cell[0] in ("=", "+", "-", "@"):
                 assert cell.startswith("'")
 
+# test_pdf_bytes: valida el escenario pdf bytes preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_pdf_bytes(client, app):
     _seed(app)
@@ -54,6 +59,7 @@ def test_pdf_bytes(client, app):
     assert resp.status_code == 200
     assert resp.data[:4] == b"%PDF"
 
+# test_empty_dataset: valida el escenario empty dataset preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_empty_dataset(client, app):
     # no materials: use fresh app with catalog but delete materials
@@ -68,9 +74,9 @@ def test_empty_dataset(client, app):
     resp = client.get("/api/v1/materials/export/preview?format=csv", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     data = resp.get_json()
-    # only header
     assert data["content"].strip().count("\n") == 0 or "Código" in data["content"]
 
+# test_excel_reopen: valida el escenario excel reopen preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_excel_reopen(client, app):
     _seed(app)

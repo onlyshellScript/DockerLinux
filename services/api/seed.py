@@ -7,6 +7,7 @@ from app.extensions import db
 from app.identity.models import User, Role
 
 
+# Inserta datos iniciales en la base; recibe sin parametros; interactua con la base de datos; accede al sistema de archivos; escribe en consola; devuelve el valor correspondiente.
 def seed():
     app = create_app()
     with app.app_context():

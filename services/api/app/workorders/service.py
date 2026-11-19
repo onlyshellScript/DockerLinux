@@ -18,6 +18,12 @@ from app.workorders.models import (
 
     STATUS_PENDING,
 
+    STATUS_CANCELLED,
+
+    STATUS_COMPLETED,
+
+    STATUS_CLOSED,
+
     ALL_STATUSES,
 
 )
@@ -26,6 +32,7 @@ from app.workorders.models import (
 
 
 
+# Convierte el valor al formato interno; recibe value; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _parse_dt(value):
 
     if not value:
@@ -44,6 +51,7 @@ def _parse_dt(value):
 
 
 
+# Crea el registro solicitado con los datos recibidos; recibe data, created_by_id; interactua con la base de datos; devuelve el valor correspondiente.
 def create_work_order(data, created_by_id):
 
     wo = WorkOrder(
@@ -116,6 +124,7 @@ def create_work_order(data, created_by_id):
 
 
 
+# Lista los registros que cumplen los filtros indicados; recibe status, assigned_to_id, q, zone, city_id, zone_id, priority, installation_type, date_from, date_to, unassigned, sort, order, page, page_size, for_user_id, for_user_roles; interactua con la base de datos; devuelve el valor correspondiente.
 def list_work_orders(
 
     status=None,
@@ -158,7 +167,6 @@ def list_work_orders(
 
 
 
-    # technician scoping
 
     roles = for_user_roles or []
 
@@ -302,7 +310,6 @@ def list_work_orders(
 
 
 
-    # sorting
 
     sort_col = {
 
@@ -358,6 +365,7 @@ def list_work_orders(
 
 
 
+# get_work_order: obtiene una orden de trabajo por su id; entrada wo_id; salida WorkOrder o None; lee la base de datos.
 def get_work_order(wo_id):
 
     return db.session.get(WorkOrder, wo_id)
@@ -366,6 +374,7 @@ def get_work_order(wo_id):
 
 
 
+# Actualiza los campos indicados del registro; recibe wo_id, data, changed_by_id; interactua con la base de datos; devuelve el valor correspondiente.
 def update_work_order(wo_id, data, changed_by_id):
 
     wo = db.session.get(WorkOrder, wo_id)
@@ -408,7 +417,8 @@ def update_work_order(wo_id, data, changed_by_id):
 
 
 
-def change_status(wo_id, to_status, user, notes=None, reason=None, technician_id=None, scheduled_at=None):
+# Cambia el estado del registro; recibe wo_id, to_status, user, notes, reason, technician_id, scheduled_at; interactua con la base de datos; devuelve el valor correspondiente.
+def change_status(wo_id, to_status, user, notes=None, reason=None, technician_id=None, scheduled_at=None, require_reason=True):
 
     wo = db.session.get(WorkOrder, wo_id)
 
@@ -422,7 +432,7 @@ def change_status(wo_id, to_status, user, notes=None, reason=None, technician_id
 
         return None, "invalid_transition"
 
-    if to_status == "cancelled" and not reason:
+    if to_status == "cancelled" and not reason and require_reason:
 
         return None, "reason_required"
 
@@ -502,6 +512,7 @@ def change_status(wo_id, to_status, user, notes=None, reason=None, technician_id
 
 
 
+# Aplica la transicion de estado solicitada; recibe wo_id, action, user, technician_id, scheduled_at, reason, notes; interactua con la base de datos; devuelve el valor correspondiente.
 def transition_work_order(wo_id, action, user, technician_id=None, scheduled_at=None, reason=None, notes=None):
 
     wo = db.session.get(WorkOrder, wo_id)
@@ -604,6 +615,7 @@ def transition_work_order(wo_id, action, user, technician_id=None, scheduled_at=
 
 
 
+# Gestiona record used materials; recibe wo_id, user, items; interactua con la base de datos; devuelve el valor correspondiente.
 def record_used_materials(wo_id, user, items):
     from app.materials.models import Material, StockMovement
     from app.notifications.service import notify_technician_change
@@ -660,6 +672,7 @@ def record_used_materials(wo_id, user, items):
     return wo, None
 
 
+# get_history: lista el historial de estados de una orden de trabajo ordenado por fecha; entrada wo_id; salida list; lee la base de datos.
 def get_history(wo_id):
 
     return WorkOrderStatusHistory.query.filter_by(work_order_id=wo_id).order_by(WorkOrderStatusHistory.created_at).all()
@@ -668,6 +681,7 @@ def get_history(wo_id):
 
 
 
+# Gestiona bulk update; recibe ids, action, payload, user_id, user_roles; interactua con la base de datos; devuelve el valor correspondiente.
 def bulk_update(ids, action, payload, user_id, user_roles):
 
     results = []
@@ -718,6 +732,7 @@ def bulk_update(ids, action, payload, user_id, user_roles):
 
 
 
+# Genera un archivo de exportacion; recibe query_result; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def export_csv(query_result):
 
     import csv, io
@@ -754,3 +769,63 @@ def export_csv(query_result):
 
     return buf.getvalue()
 
+
+
+# ---------- Cancelación administrativa (lógica, nunca borra) ----------
+CANCEL_BLOCKS = {
+    "already_cancelled": "La orden ya está cancelada.",
+    "terminal_order": "La orden ya fue completada o cerrada; no puede cancelarse.",
+    "invalid_transition": "La orden no puede cancelarse desde su estado actual.",
+}
+
+
+# cancellation_check(wo): si la orden puede cancelarse y qué registros asociados se conservan.
+# Las reglas de estado son las de TRANSITIONS (pending, assigned e in_progress pueden pasar a cancelled).
+# Evidencias (aprobadas o no), consumos de material y solicitudes abiertas NO bloquean: se conservan intactos y se
+# informan para que quien cancela decida con conocimiento. Las solicitudes abiertas no se cancelan solas porque
+# tienen su propio flujo, permisos y stock.
+def cancellation_check(wo):
+    from app.evidence.models import VisitEvidence
+    from app.materials.models import MaterialRequest, StockMovement, MOVEMENT_CONSUMPTION
+    code = None
+    if wo.status == STATUS_CANCELLED:
+        code = "already_cancelled"
+    elif wo.status in (STATUS_COMPLETED, STATUS_CLOSED):
+        code = "terminal_order"
+    elif STATUS_CANCELLED not in TRANSITIONS.get(wo.status, set()):
+        code = "invalid_transition"
+    evidences = VisitEvidence.query.filter_by(work_order_id=wo.id)
+    return {
+        "work_order_id": wo.id,
+        "code_order": "OS-" + str(wo.id).zfill(4),
+        "status": wo.status,
+        "can_cancel": code is None,
+        "blocked_code": code,
+        "blocked_reason": CANCEL_BLOCKS.get(code),
+        "impacts": {
+            "evidences": evidences.count(),
+            "approved_evidences": evidences.filter(VisitEvidence.status == "APPROVED").count(),
+            "material_consumptions": StockMovement.query.filter_by(work_order_id=wo.id, movement_type=MOVEMENT_CONSUMPTION).count(),
+            "open_material_requests": MaterialRequest.query.filter(
+                MaterialRequest.work_order_id == wo.id,
+                MaterialRequest.status.notin_(["REJECTED", "CANCELLED", "DELIVERED"]),
+            ).count(),
+        },
+    }
+
+
+# cancel_work_order(wo_id, user, reason): cancelación lógica. Solo cambia el estado (y el motivo); la orden, sus
+# evidencias, historial, técnico y materiales se conservan. Queda registrado en el historial de estados (usuario,
+# fecha y hora, estado anterior, nuevo y motivo) y en la auditoría. Motivo opcional.
+def cancel_work_order(wo_id, user, reason=None):
+    from app.materials.service import _lock_row
+    _lock_row("OrdenesTrabajo", key_col="IdOrden", key_val=wo_id)
+    wo = db.session.get(WorkOrder, wo_id)
+    if not wo:
+        return None, "not_found", None
+    check = cancellation_check(wo)
+    if not check["can_cancel"]:
+        return wo, check["blocked_code"], check
+    reason = (str(reason).strip()[:1000] or None) if reason is not None else None
+    result, error = change_status(wo_id, STATUS_CANCELLED, user, notes=reason, reason=reason, require_reason=False)
+    return result, error, check

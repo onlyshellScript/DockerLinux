@@ -1,3 +1,4 @@
+# Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 import os
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 from app.identity.models import User, Role
 from app.extensions import db
 
+# Inserta datos iniciales en la base; recibe app; interactua con la base de datos; devuelve el valor correspondiente.
 
 def _seed_roles(app):
     with app.app_context():
@@ -20,17 +22,20 @@ def _seed_roles(app):
             db.session.commit()
 
 
+# _token: realiza login y devuelve el access_token para el usuario indicado; entradas client, username, password; salida str; efecto secundario autentica.
 def _token(client, username, password):
     r = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     assert r.status_code == 200
     return r.get_json()["access_token"]
 
 
+# admin_token: fixture de pytest que crea roles y devuelve un token de admin.
 @pytest.fixture
 def admin_token(client, app):
     _seed_roles(app)
     return _token(client, "admin", "Admin123!")
 
+# test_b1_create_requires_fields: valida el escenario b1 create requires fields preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_create_requires_fields(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -38,6 +43,7 @@ def test_b1_create_requires_fields(client, app, admin_token):
     r = client.post("/api/v1/technicians", json={"first_name": "Juan"}, headers=headers)
     assert r.status_code == 422
 
+# test_b1_create_requires_document: valida el escenario b1 create requires document preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_create_requires_document(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -45,6 +51,7 @@ def test_b1_create_requires_document(client, app, admin_token):
     r = client.post("/api/v1/technicians", json={"first_name": "Juan", "last_name": "Perez"}, headers=headers)
     assert r.status_code == 422
 
+# test_b1_create_invalid_doc_type: valida el escenario b1 create invalid doc type preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_create_invalid_doc_type(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -52,6 +59,7 @@ def test_b1_create_invalid_doc_type(client, app, admin_token):
     r = client.post("/api/v1/technicians", json={"first_name": "Juan", "last_name": "Perez", "document_type": "XX", "document_number": "123"}, headers=headers)
     assert r.status_code == 422
 
+# test_b1_create_missing_initial_password: valida el escenario b1 create missing initial password preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_create_missing_initial_password(client, app, admin_token):
     os.environ.pop("TECH_INITIAL_PASSWORD", None)
@@ -59,6 +67,7 @@ def test_b1_create_missing_initial_password(client, app, admin_token):
     r = client.post("/api/v1/technicians", json={"first_name": "Juan", "last_name": "Perez", "document_type": "CC", "document_number": "999"}, headers=headers)
     assert r.status_code == 500
 
+# test_b1_create_success: valida el escenario b1 create success preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_create_success(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -75,6 +84,7 @@ def test_b1_create_success(client, app, admin_token):
         assert prof is not None
         assert prof.user.must_change_password is True
 
+# test_b1_document_unique: valida el escenario b1 document unique preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_document_unique(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -83,14 +93,13 @@ def test_b1_document_unique(client, app, admin_token):
     r = client.post("/api/v1/technicians", json={"first_name": "C", "last_name": "D", "document_type": "CC", "document_number": "2002"}, headers=headers)
     assert r.status_code == 409
 
+# test_b1_department_municipality_validation: valida el escenario b1 department municipality validation preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_department_municipality_validation(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
     headers = {"Authorization": "Bearer " + admin_token}
-    # invalid department
     r = client.post("/api/v1/technicians", json={"first_name": "X", "last_name": "Y", "document_type": "CC", "document_number": "3003", "department_code": "XX", "municipality_code": "00000"}, headers=headers)
     assert r.status_code == 422
-    # mismatched
     from app.catalogs.models import Department, Municipality
     with app.app_context():
         dep = Department.query.first()
@@ -101,6 +110,7 @@ def test_b1_department_municipality_validation(client, app, admin_token):
             r2 = client.post("/api/v1/technicians", json={"first_name": "X2", "last_name": "Y2", "document_type": "CC", "document_number": "3004", "department_code": dep.code, "municipality_code": mun.code}, headers=headers)
             assert r2.status_code == 422
 
+# test_b1_patch_username_unique: valida el escenario b1 patch username unique preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_patch_username_unique(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -111,6 +121,7 @@ def test_b1_patch_username_unique(client, app, admin_token):
     r2 = client.patch("/api/v1/technicians/{}".format(tid), json={"username": "admin"}, headers=headers)
     assert r2.status_code == 409
 
+# test_b1_patch_password_rejected: valida el escenario b1 patch password rejected preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_patch_password_rejected(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -120,6 +131,7 @@ def test_b1_patch_password_rejected(client, app, admin_token):
     r2 = client.patch("/api/v1/technicians/{}".format(tid), json={"password": "NewPass123!"}, headers=headers)
     assert r2.status_code == 422
 
+# test_b1_dispatcher_cannot_create: valida el escenario b1 dispatcher cannot create preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_dispatcher_cannot_create(client, app):
     _seed_roles(app)
@@ -137,6 +149,7 @@ def test_b1_dispatcher_cannot_create(client, app):
     r = client.post("/api/v1/technicians", json={"first_name": "D", "last_name": "P", "document_type": "CC", "document_number": "7007"}, headers=headers)
     assert r.status_code in (401, 403)
 
+# test_b1_initial_password_stored_hashed: valida el escenario b1 initial password stored hashed preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_initial_password_stored_hashed(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -152,6 +165,7 @@ def test_b1_initial_password_stored_hashed(client, app, admin_token):
         assert u.check_password("InitPass123!") is True
         assert u.must_change_password is True
 
+# test_b1_password_not_in_create_list_edit_responses: valida el escenario b1 password not in create list edit responses preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_password_not_in_create_list_edit_responses(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -167,6 +181,7 @@ def test_b1_password_not_in_create_list_edit_responses(client, app, admin_token)
     assert rp.status_code == 200
     assert "InitPass123!" not in rp.get_data(as_text=True)
 
+# test_b1_second_names_concatenated: valida el escenario b1 second names concatenated preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_second_names_concatenated(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"
@@ -181,6 +196,7 @@ def test_b1_second_names_concatenated(client, app, admin_token):
     assert rp.status_code == 200
     assert rp.get_json()["first_name"] == "Ana Maria"
 
+# test_b1_technician_own_profile_only: valida el escenario b1 technician own profile only preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
 def test_b1_technician_own_profile_only(client, app, admin_token):
     os.environ["TECH_INITIAL_PASSWORD"] = "InitPass123!"

@@ -14,6 +14,7 @@ _cache_lock = threading.Lock()
 _CACHE_TTL = 5
 
 
+# Obtiene un registro por su identificador; recibe model; interactua con la base de datos; devuelve el valor correspondiente.
 def _get_or_create(model):
     row = model.query.first()
     if not row:
@@ -23,11 +24,13 @@ def _get_or_create(model):
     return row
 
 
+# invalidate: limpia la cache interna de settings para forzar recarga desde la base de datos; sin parametros; sin valor de retorno; efecto secundario vacia el cache.
 def invalidate():
     with _cache_lock:
         _cache.clear()
 
 
+# Gestiona cached; recibe key, loader; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _cached(key, loader):
     now = time.time()
     with _cache_lock:
@@ -40,22 +43,27 @@ def _cached(key, loader):
     return val
 
 
+# get_organization: obtiene (o crea) la fila de configuracion de organizacion; sin parametros; salida OrganizationSettings; lee/escribe la base de datos.
 def get_organization():
     return _get_or_create(OrganizationSettings)
 
 
+# get_operations: obtiene (o crea) la fila de configuracion operativa; sin parametros; salida OperationalSettings; lee/escribe la base de datos.
 def get_operations():
     return _get_or_create(OperationalSettings)
 
 
+# get_security: obtiene (o crea) la fila de configuracion de seguridad; sin parametros; salida SecuritySettings; lee/escribe la base de datos.
 def get_security():
     return _get_or_create(SecuritySettings)
 
 
+# Obtiene la configuracion global de notificaciones, creandola con valores por defecto si no existe.
 def get_notifications():
     return _get_or_create(NotificationSettings)
 
 
+# Obtiene un registro por su identificador; recibe user_id; interactua con la base de datos; devuelve el valor correspondiente.
 def get_user_notifications(user_id):
     row = UserNotificationPreference.query.filter_by(user_id=user_id).first()
     if not row:
@@ -65,7 +73,9 @@ def get_user_notifications(user_id):
     return row
 
 
+# Gestiona public settings; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def public_settings():
+# Gestiona loader; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
     def loader():
         org = get_organization()
         op = get_operations()
@@ -80,15 +90,18 @@ def public_settings():
     return _cached("public", loader)
 
 
+# get_timezone: devuelve la zona horaria configurada o America/Bogota por defecto; sin parametros; salida str; lee configuracion.
 def get_timezone():
     return get_organization().timezone or "America/Bogota"
 
 
+# get_work_hours: devuelve la tupla (hora inicio, hora fin) operativa; sin parametros; salida tuple[str,str]; lee configuracion.
 def get_work_hours():
     op = get_operations()
     return op.work_start, op.work_end
 
 
+# Gestiona operational dict; recibe sin parametros; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def operational_dict():
     op = get_operations()
     return {
@@ -105,11 +118,11 @@ def operational_dict():
     }
 
 
+# Aplica la configuracion solicitada; recibe row, data, allowed_fields; sin efectos secundarios adicionales; devuelve el valor correspondiente.
 def _apply_patch(row, data, allowed_fields):
     for k, v in data.items():
         if k not in allowed_fields:
             return "unknown_field"
-    # version check
     if "version" in data:
         if int(data["version"]) != int(row.version or 0):
             return "stale_version"
@@ -129,13 +142,13 @@ SEC_FIELDS = ["session_inactivity_minutes", "session_max_hours", "password_min_l
 NOTIF_FIELDS = ["preferences"]
 
 
+# Gestiona patch organization; recibe data, user_id; interactua con la base de datos; devuelve el valor correspondiente.
 def patch_organization(data, user_id):
     row = get_organization()
     # handle work_days list -> string
     if "work_days" in data and isinstance(data["work_days"], list):
         data = dict(data)
         data["work_days"] = ",".join(str(x) for x in data["work_days"])
-    # timezone validation
     if "timezone" in data:
         try:
             from zoneinfo import ZoneInfo
@@ -160,12 +173,12 @@ def patch_organization(data, user_id):
     return row, None
 
 
+# Gestiona patch operations; recibe data, user_id; interactua con la base de datos; devuelve el valor correspondiente.
 def patch_operations(data, user_id):
     row = get_operations()
     if "work_days" in data and isinstance(data["work_days"], list):
         data = dict(data)
         data["work_days"] = ",".join(str(x) for x in data["work_days"])
-    # validation
     if "work_start" in data or "work_end" in data:
         ws = data.get("work_start", row.work_start)
         we = data.get("work_end", row.work_end)
@@ -203,6 +216,7 @@ def patch_operations(data, user_id):
     return row, None
 
 
+# Gestiona patch security; recibe data, user_id; interactua con la base de datos; devuelve el valor correspondiente.
 def patch_security(data, user_id):
     row = get_security()
     err = _apply_patch(row, data, SEC_FIELDS + ["version"])
@@ -214,13 +228,13 @@ def patch_security(data, user_id):
     return row, None
 
 
+# Gestiona patch notifications; recibe data, user_id, user_scope; interactua con la base de datos; devuelve el valor correspondiente.
 def patch_notifications(data, user_id, user_scope=False):
     if user_scope:
         row = get_user_notifications(user_id)
     else:
         row = get_notifications()
     if "preferences" in data:
-        # validate JSON
         try:
             json.loads(data["preferences"]) if isinstance(data["preferences"], str) else data["preferences"]
         except Exception:
@@ -238,6 +252,7 @@ def patch_notifications(data, user_id, user_scope=False):
     return row, None
 
 
+# Gestiona audit; recibe user_id, username, section, field, old_value, new_value, result, request_id; interactua con la base de datos; devuelve el valor correspondiente.
 def audit(user_id, username, section, field, old_value, new_value, result="applied", request_id=None):
     entry = AuditLog(
         user_id=user_id,
@@ -253,6 +268,7 @@ def audit(user_id, username, section, field, old_value, new_value, result="appli
     return entry
 
 
+# Gestiona operations impact; recibe proposed; interactua con la base de datos; devuelve el valor correspondiente.
 def operations_impact(proposed):
     # dry-run: count scheduled orders violating new rules
     from app.workorders.models import WorkOrder
@@ -276,9 +292,8 @@ def operations_impact(proposed):
     items = []
     for wo in WorkOrder.query.filter(WorkOrder.scheduled_at.isnot(None), WorkOrder.status.notin_(["cancelled"])).all():
         start = wo.scheduled_at
-        # convert to tz
         local = start.astimezone(tz)
-        wd = local.isoweekday()  # 1..7
+        wd = local.isoweekday()  # 1=lunes .. 7=domingo, mismo criterio que work_days
         violations = []
         if wd not in work_days:
             violations.append("día no laboral")
