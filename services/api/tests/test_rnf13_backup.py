@@ -1,7 +1,7 @@
 # Pruebas de integracion y unitarias del modulo, cubriendo permisos, validaciones y casos limite.
 
 import os, sqlite3, sys, tempfile
-sys.path.insert(0, r"C:\Users\braya\Documents\SIGOSV\scripts")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "scripts"))
 from backup_sqlite import backup, restore
 # test_rnf13_backup_restore_counts: valida el escenario rnf13 backup restore counts preparando datos, ejecutando la accion y comprobando el resultado esperado.
 
