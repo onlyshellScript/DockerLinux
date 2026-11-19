@@ -15,6 +15,7 @@ branch_labels = None
 depends_on = None
 
 
+# Aplica esta revision de esquema de base de datos.
 def upgrade():
     op.create_table(
         "visit_evidences",
@@ -34,7 +35,6 @@ def upgrade():
         sa.Column("previous_evidence_id", sa.Integer(), nullable=True),
         sa.Column("version_number", sa.Integer(), nullable=False, server_default=sa.text("1")),
         sa.Column("duplicate_of_id", sa.Integer(), nullable=True),
-        # compatibility columns
         sa.Column("file_name", sa.String(length=250), nullable=True),
         sa.Column("stored_name", sa.String(length=250), nullable=True),
         sa.Column("file_type", sa.String(length=50), nullable=True),
@@ -120,6 +120,7 @@ def upgrade():
     op.create_index("ix_visit_checklist_items_work_order_id", "visit_checklist_items", ["work_order_id"])
 
 
+# Aplica esta revision de esquema de base de datos.
 def downgrade():
     op.drop_index("ix_visit_checklist_items_work_order_id", table_name="visit_checklist_items")
     op.drop_table("visit_checklist_items")

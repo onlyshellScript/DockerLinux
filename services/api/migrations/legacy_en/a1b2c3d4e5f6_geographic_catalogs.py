@@ -21,6 +21,7 @@ branch_labels = None
 depends_on = None
 
 
+# Aplica esta revision de esquema de base de datos.
 def _norm(value):
     if value is None:
         return None
@@ -31,6 +32,7 @@ def _norm(value):
     return text
 
 
+# Aplica esta revision de esquema de base de datos.
 def upgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
@@ -85,7 +87,6 @@ def upgrade():
     # --- seed country ---
     op.execute("INSERT INTO countries (iso2, name, name_norm, active) VALUES ('CO', 'Colombia', 'colombia', 1)")
 
-    # get country id
     country_id = bind.execute(sa.text("SELECT id FROM countries WHERE iso2='CO'")).scalar()
 
     # --- seed cities from JSON or from old municipalities ---
@@ -106,7 +107,6 @@ def upgrade():
             dept_name = dept_map.get(dept_code, dept_code)
             old_munis.append((code, name, dept_name))
     else:
-        # load json
         json_path = os.path.join(os.path.dirname(__file__), '..', '..', 'seeds', 'colombia_divipola.json')
         # relative to migrations/versions -> services/api
         json_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'seeds', 'colombia_divipola.json'))
@@ -115,11 +115,9 @@ def upgrade():
             for item in data:
                 old_munis.append((item['dane_code'].zfill(5), item['name'], item['department_name']))
 
-    # insert cities idempotently
     city_id_map = {}  # dane_code -> new city id
     for code, name, dept_name in old_munis:
         nn = _norm(name)
-        # check exists
         existing = bind.execute(sa.text("SELECT id FROM cities WHERE dane_code=:c"), {"c": code}).fetchone()
         if existing:
             city_id_map[code] = existing[0]
@@ -161,14 +159,12 @@ def upgrade():
             mcode = (mcode or '').strip().zfill(5)
             cid = city_id_map.get(mcode)
             if cid is None:
-                # try find city
                 r = bind.execute(sa.text("SELECT id FROM cities WHERE dane_code=:c"), {"c": mcode}).fetchone()
                 cid = r[0] if r else None
             if cid is None:
                 continue
             k = kind if kind in ('localidad','comuna','barrio','vereda','corregimiento','sector') else 'sector'
             nn = _norm(name)
-            # check existing
             existing = bind.execute(sa.text("SELECT id FROM zones WHERE city_id=:c AND name_norm=:n"), {"c": cid, "n": nn}).fetchone()
             if existing:
                 sector_to_zone[sid] = existing[0]
@@ -207,7 +203,6 @@ def upgrade():
         for r in bind.execute(sa.text("SELECT code, label FROM specialties")).fetchall():
             code, label = r
             bind.execute(sa.text("UPDATE specialties SET name_norm=:nn WHERE code=:c"), {"nn": _norm(label), "c": code})
-        # unique index
         try:
             op.create_index('uq_specialties_name_norm', 'specialties', ['name_norm'], unique=True)
         except Exception:
@@ -228,14 +223,12 @@ def upgrade():
                 batch_op.alter_column('zones', new_column_name='legacy_zone')
         else:
             op.add_column('technician_profiles', sa.Column('legacy_zone', sa.String(length=250), nullable=True))
-    # specialty_code already exists
 
     # --- technician_zones: transform to new schema ---
     # create new table with new columns, migrate, drop old
     # We'll add columns city_id, zone_id and remove old municipality_code/sector_id via new table
     tz_cols = [c['name'] for c in inspector.get_columns('technician_zones')]
     if 'city_id' not in tz_cols:
-        # create new table
         op.create_table(
             'technician_zones_new',
             sa.Column('id', sa.Integer(), primary_key=True),
@@ -244,7 +237,6 @@ def upgrade():
             sa.Column('zone_id', sa.Integer(), sa.ForeignKey('zones.id', ondelete='NO ACTION'), nullable=True),
             sa.Column('is_primary', sa.Boolean(), nullable=False, server_default=sa.text("0")),
         )
-        # migrate
         if 'technician_zones' in tables:
             for r in bind.execute(sa.text("SELECT id, technician_id, municipality_code, sector_id, is_primary FROM technician_zones")).fetchall():
                 rid, tid, mcode, sector_id, is_primary = r
@@ -260,7 +252,6 @@ def upgrade():
                     sa.text("INSERT INTO technician_zones_new (technician_id, city_id, zone_id, is_primary) VALUES (:t,:c,:z,:p)"),
                     {"t": tid, "c": cid, "z": zid, "p": 1 if is_primary else 0},
                 )
-        # drop old, rename
         op.drop_table('technician_zones')
         op.rename_table('technician_zones_new', 'technician_zones')
         op.create_index('ix_technician_zones_technician_id', 'technician_zones', ['technician_id'])

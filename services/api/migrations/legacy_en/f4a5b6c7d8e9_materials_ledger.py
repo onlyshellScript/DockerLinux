@@ -15,6 +15,7 @@ branch_labels = None
 depends_on = None
 
 
+# Aplica esta revision de esquema de base de datos.
 def upgrade():
     op.add_column('materials', sa.Column('code', sa.String(40), nullable=True))
     op.create_index('ix_materials_code', 'materials', ['code'], unique=True)
@@ -24,10 +25,8 @@ def upgrade():
     op.add_column('operational_settings',
                   sa.Column('stock_critical_threshold', sa.Float(), nullable=False, server_default=sa.text('0.5')))
 
-    # backfill code
     op.execute("UPDATE materials SET code = 'MAT-' + CAST(id AS VARCHAR(20)) WHERE code IS NULL")
 
-    # initial balance movement
     op.execute("""
         INSERT INTO stock_movements (material_id, quantity, movement_type, user_id, notes, created_at)
         SELECT m.id, m.current_stock, 'ADJUSTMENT', 1, 'Saldo inicial', GETUTCDATE()
@@ -37,6 +36,7 @@ def upgrade():
     """)
 
 
+# Aplica esta revision de esquema de base de datos.
 def downgrade():
     op.execute("DELETE FROM stock_movements WHERE movement_type = 'ADJUSTMENT' AND notes = 'Saldo inicial'")
     op.drop_column('operational_settings', 'stock_critical_threshold')

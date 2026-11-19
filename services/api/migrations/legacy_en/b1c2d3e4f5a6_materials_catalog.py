@@ -15,6 +15,7 @@ branch_labels = None
 depends_on = None
 
 
+# Aplica esta revision de esquema de base de datos.
 def upgrade():
     op.create_table(
         'material_categories',
@@ -49,6 +50,7 @@ def upgrade():
     op.add_column('materials', sa.Column('catalog_item_id', sa.Integer(), sa.ForeignKey('material_catalog.id', ondelete='NO ACTION'), nullable=True, unique=True, index=True))
 
 
+# Aplica esta revision de esquema de base de datos.
 def downgrade():
     op.drop_column('materials', 'catalog_item_id')
     op.drop_table('material_catalog')

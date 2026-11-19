@@ -16,6 +16,7 @@ branch_labels = None
 depends_on = None
 
 
+# Aplica esta revision de esquema de base de datos.
 def upgrade():
     op.create_table(
         'organization_settings',
@@ -96,6 +97,7 @@ def upgrade():
     op.execute("INSERT INTO notification_settings (preferences) VALUES ('{}')")
 
 
+# Aplica esta revision de esquema de base de datos.
 def downgrade():
     op.drop_table('audit_log')
     op.drop_table('user_notification_preferences')

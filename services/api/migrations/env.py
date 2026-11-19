@@ -15,6 +15,7 @@ fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
 
 
+# Obtiene el motor de base de datos configurado por la extension de migraciones de Flask.
 def get_engine():
     try:
         # this works with Flask-SQLAlchemy<3 and Alchemical
@@ -24,6 +25,7 @@ def get_engine():
         return current_app.extensions['migrate'].db.engine
 
 
+# Obtiene la URL de conexion del motor de base de datos para ejecutar migraciones.
 def get_engine_url():
     try:
         return get_engine().url.render_as_string(hide_password=False).replace(
@@ -33,16 +35,12 @@ def get_engine_url():
 
 
 # add your model's MetaData object here
-# for 'autogenerate' support
 # from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
 config.set_main_option('sqlalchemy.url', get_engine_url())
 target_db = current_app.extensions['migrate'].db
 
 # other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+# Obtiene los metadatos de la base de datos usados por Alembic.
 
 
 def get_metadata():
@@ -51,6 +49,7 @@ def get_metadata():
     return target_db.metadata
 
 
+# Ejecuta las migraciones en modo offline usando solo la URL de conexion.
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
 
@@ -72,6 +71,7 @@ def run_migrations_offline():
         context.run_migrations()
 
 
+# Ejecuta las migraciones en modo online conectando a la base de datos.
 def run_migrations_online():
     """Run migrations in 'online' mode.
 
@@ -82,7 +82,7 @@ def run_migrations_online():
 
     # this callback is used to prevent an auto-migration from being generated
     # when there are no changes to the schema
-    # reference: http://alembic.zzzcomputing.com/en/latest/cookbook.html
+# Evita generar migraciones automaticas cuando no hay cambios en el esquema.
     def process_revision_directives(context, revision, directives):
         if getattr(config.cmd_opts, 'autogenerate', False):
             script = directives[0]

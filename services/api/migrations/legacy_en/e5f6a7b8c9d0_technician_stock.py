@@ -15,6 +15,7 @@ branch_labels = None
 depends_on = None
 
 
+# Aplica esta revision de esquema de base de datos.
 def upgrade():
     op.create_table(
         'technician_stock',
@@ -27,5 +28,6 @@ def upgrade():
     )
 
 
+# Aplica esta revision de esquema de base de datos.
 def downgrade():
     op.drop_table('technician_stock')

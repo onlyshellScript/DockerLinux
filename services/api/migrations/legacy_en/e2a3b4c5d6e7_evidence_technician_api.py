@@ -15,6 +15,7 @@ branch_labels = None
 depends_on = None
 
 
+# Aplica esta revision de esquema de base de datos.
 def upgrade():
     with op.batch_alter_table("visit_evidences", schema=None) as batch_op:
         batch_op.add_column(sa.Column("client_operation_id", sa.String(length=36), nullable=True))
@@ -24,6 +25,7 @@ def upgrade():
         batch_op.create_index("ix_visit_signatures_client_operation_id", ["client_operation_id"], unique=False)
 
 
+# Aplica esta revision de esquema de base de datos.
 def downgrade():
     with op.batch_alter_table("visit_signatures", schema=None) as batch_op:
         batch_op.drop_index("ix_visit_signatures_client_operation_id")

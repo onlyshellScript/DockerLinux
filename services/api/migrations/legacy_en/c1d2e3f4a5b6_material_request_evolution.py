@@ -15,27 +15,25 @@ branch_labels = None
 depends_on = None
 
 
+# Aplica esta revision de esquema de base de datos.
 def upgrade():
-    # material_requests
+# Aplica esta revision de esquema de base de datos.
     op.alter_column('material_requests', 'status', type_=sa.String(30), existing_type=sa.String(20), existing_nullable=False)
     op.add_column('material_requests', sa.Column('client_operation_id', sa.String(36), nullable=True))
     op.create_index('ix_material_requests_client_operation_id', 'material_requests', ['client_operation_id'], unique=True)
     op.add_column('material_requests', sa.Column('delivered_by_id', sa.Integer(), sa.ForeignKey('users.id', ondelete='NO ACTION'), nullable=True))
 
-    # map old statuses
     op.execute("UPDATE material_requests SET status='SUBMITTED' WHERE status='pendiente'")
     op.execute("UPDATE material_requests SET status='APPROVED' WHERE status='autorizada'")
     op.execute("UPDATE material_requests SET status='REJECTED' WHERE status='rechazada'")
     op.execute("UPDATE material_requests SET status='DELIVERED' WHERE status='entregada'")
 
-    # material_request_items
     op.add_column('material_request_items', sa.Column('quantity_requested', sa.Float(), nullable=True))
     op.add_column('material_request_items', sa.Column('quantity_approved', sa.Float(), nullable=False, server_default=sa.text('0')))
     op.add_column('material_request_items', sa.Column('quantity_delivered', sa.Float(), nullable=False, server_default=sa.text('0')))
     op.execute("UPDATE material_request_items SET quantity_requested = quantity WHERE quantity_requested IS NULL")
     op.alter_column('material_request_items', 'quantity_requested', type_=sa.Float(), existing_type=sa.Float(), nullable=False)
 
-    # new tables
     op.create_table(
         'material_request_events',
         sa.Column('id', sa.Integer(), primary_key=True),
@@ -75,6 +73,7 @@ def upgrade():
     )
 
 
+# Aplica esta revision de esquema de base de datos.
 def downgrade():
     op.drop_table('material_request_operations')
     op.drop_table('material_request_delivery_items')
