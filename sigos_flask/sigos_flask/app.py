@@ -39,8 +39,10 @@ NAV_BOTTOM = [
 ]
 
 
+# Decorador que exige sesión activa; redirige a login si no hay usuario autenticado. Recibe la vista a proteger y devuelve la vista envuelta.
 def login_required(f):
     @wraps(f)
+    # Envuelve la vista protegida: recibe la vista f y sus argumentos; si no hay usuario en sesión devuelve redirección a login, en caso contrario devuelve el resultado de f. Efecto secundario: lee session.
     def wrapper(*a, **kw):
         if "user" not in session:
             return redirect(url_for("login"))
@@ -48,6 +50,7 @@ def login_required(f):
     return wrapper
 
 
+# Inyecta variables globales en las plantillas (usuario actual, badges, navegación filtrada por rol). Sin parámetros; devuelve dict con contexto. Efecto secundario: lee el estado en memoria.
 @app.context_processor
 def inject_globals():
     o, m, n = STATE["orders"], STATE["materials"], STATE["notifications"]
@@ -65,6 +68,7 @@ def inject_globals():
                 unread=badges["notifications"], total_orders=len(o))
 
 
+# Gestiona inicio de sesión: valida credenciales contra cuentas demo y crea sesión; GET muestra formulario, POST procesa login. Recibe request con email/password; devuelve plantilla o redirección. Efecto secundario: establece session["user"].
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
@@ -79,6 +83,7 @@ def login():
     return render_template("login.html", error=error, accounts=data.DEMO_ACCOUNTS)
 
 
+# Acceso demo por rol: crea sesión para el rol indicado y redirige a órdenes; 404 si el rol no existe. Recibe role por URL; devuelve redirección. Efecto secundario: establece session["user"].
 @app.route("/login/demo/<role>")
 def login_demo(role):
     acc = next((a for a in data.DEMO_ACCOUNTS if a["role"] == role), None) or abort(404)
@@ -86,18 +91,21 @@ def login_demo(role):
     return redirect(url_for("orders"))
 
 
+# Cierra la sesión del usuario y redirige a login. Sin parámetros; devuelve redirección. Efecto secundario: limpia session.
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
 
 
+# Página de inicio: redirige a la lista de órdenes. Requiere sesión activa.
 @app.route("/")
 @login_required
 def index():
     return redirect(url_for("orders"))
 
 
+# Lista órdenes de servicio con filtros (búsqueda, estado, técnico, zona) y pestañas de conteo; técnicos solo ven sus órdenes. Recibe query params; devuelve plantilla orders. Lee STATE en memoria.
 @app.route("/ordenes")
 @login_required
 def orders():
@@ -124,6 +132,7 @@ def orders():
                            page_subtitle=f"{len(STATE['orders'])} órdenes registradas", active="orders")
 
 
+# Crea una nueva orden de servicio a partir del formulario POST, genera id OS-XXXX y la inserta al inicio de la lista. Recibe request.form; devuelve redirección al detalle. Efecto secundario: modifica STATE["orders"].
 @app.route("/ordenes/nueva", methods=["POST"])
 @login_required
 def create_order():
@@ -140,6 +149,7 @@ def create_order():
     return redirect(url_for("order_detail", order_id=oid))
 
 
+# Muestra el detalle de una orden por id; 404 si no existe. Recibe order_id por URL; devuelve plantilla pending con detalle.
 @app.route("/ordenes/<order_id>")
 @login_required
 def order_detail(order_id):
@@ -148,40 +158,52 @@ def order_detail(order_id):
                            active="orders", detail=order)
 
 
+# Renderiza la plantilla genérica de sección pendiente de implementación. Recibe título y clave de navegación activa; devuelve plantilla pending.
 def _pending(title, active):
     return render_template("pending.html", page_title=title, page_subtitle="", active=active, detail=None)
 
 @app.route("/dashboard")
 @login_required
+# Muestra el dashboard como seccion pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def dashboard(): return _pending("Dashboard", "dashboard")
 @app.route("/tecnicos")
 @login_required
+# Muestra la seccion de tecnicos como pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def technicians(): return _pending("Técnicos", "technicians")
 @app.route("/calendario")
 @login_required
+# Muestra el calendario como seccion pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def calendar(): return _pending("Calendario", "calendar")
 @app.route("/materiales")
 @login_required
+# Muestra materiales como seccion pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def materials(): return _pending("Materiales", "materials")
 @app.route("/evidencias")
 @login_required
+# Muestra evidencias como seccion pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def evidence(): return _pending("Evidencias", "evidence")
 @app.route("/reportes")
 @login_required
+# Muestra reportes como seccion pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def reports(): return _pending("Reportes", "reports")
 @app.route("/usuarios")
 @login_required
+# Muestra usuarios como seccion pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def users(): return _pending("Usuarios", "users")
 @app.route("/notificaciones")
 @login_required
+# Muestra notificaciones como seccion pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def notifications(): return _pending("Notificaciones", "notifications")
 @app.route("/configuracion")
 @login_required
+# Muestra configuracion como seccion pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def settings(): return _pending("Configuración", "settings")
 @app.route("/campo")
 @login_required
+# Muestra la vista tecnico (campo) como seccion pendiente de implementacion; requiere sesion activa. Devuelve plantilla pending.
 def mobile(): return _pending("Vista Técnico", "mobile")
 
 
+# Arranca el servidor de desarrollo Flask en modo debug cuando se ejecuta directamente.
 if __name__ == "__main__":
     app.run(debug=True)
