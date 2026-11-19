@@ -1,0 +1,29 @@
+<!-- Plantilla WinSW para SIGOS-Worker (un único proceso: evita envíos duplicados).
+     Sin dependencia de SIGOS-API: el worker solo usa la base de datos.
+     La única dependencia real es el servicio de SQL Server local (-SqlServiceName), que inserta el instalador. -->
+<service>
+  <id>SIGOS-Worker</id>
+  <name>SIGOS Notification Worker</name>
+  <description>SIGOS: procesa la cola de notificaciones (correo/WhatsApp).</description>
+  <executable>{{VENV}}\Scripts\python.exe</executable>
+  <arguments>"{{APP_DIR}}\docker\worker.py"</arguments>
+  <workingdirectory>{{APP_DIR}}</workingdirectory>
+  <env name="SIGOS_ENV" value="production"/>
+  <env name="SIGOS_ENV_FILE" value="{{ENV_FILE}}"/>
+  <env name="WORKER_HEARTBEAT_FILE" value="{{RUN_DIR}}\worker.heartbeat"/>
+  <env name="PYTHONUNBUFFERED" value="1"/>
+  <env name="PYTHONDONTWRITEBYTECODE" value="1"/>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+{{DEPENDS}}
+  <stoptimeout>45 sec</stoptimeout>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <logpath>{{LOG_DIR}}\worker</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>

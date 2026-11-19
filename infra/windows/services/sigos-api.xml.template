@@ -1,0 +1,28 @@
+<!-- Plantilla WinSW para SIGOS-API. install-windows.ps1 reemplaza los marcadores (VENV, APP_DIR, ...).
+     Sin secretos: la configuración se lee de SIGOS_ENV_FILE (ACL restringida). -->
+<service>
+  <id>SIGOS-API</id>
+  <name>SIGOS API</name>
+  <description>SIGOS: API HTTP (Flask sobre waitress).</description>
+  <executable>{{VENV}}\Scripts\python.exe</executable>
+  <arguments>-m waitress --listen={{API_LISTEN}} --threads={{API_THREADS}} --ident=SIGOS wsgi_prod:app</arguments>
+  <workingdirectory>{{APP_DIR}}</workingdirectory>
+  <env name="SIGOS_ENV" value="production"/>
+  <env name="SIGOS_ENV_FILE" value="{{ENV_FILE}}"/>
+  <env name="ENABLE_NOTIFICATION_WORKER" value="false"/>
+  <env name="PYTHONUNBUFFERED" value="1"/>
+  <env name="PYTHONDONTWRITEBYTECODE" value="1"/>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+{{DEPENDS}}
+  <stoptimeout>20 sec</stoptimeout>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <logpath>{{LOG_DIR}}\api</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>
