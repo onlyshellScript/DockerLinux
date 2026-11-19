@@ -33,7 +33,7 @@ jobs:
             sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
           fi
       - name: Install deps
-        run: pip install -r services/api/requirements.txt
+        run: pip install -r services/api/requirements.txt -r services/api/requirements-dev.txt
       - name: Check CI_DB_PASSWORD
         run: |
           if [ -z "$CI_DB_PASSWORD" ]; then echo "::error::El secret CI_DB_PASSWORD esta vacio o no existe"; exit 1; fi
