@@ -1,4 +1,4 @@
-﻿FROM python:3.12-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -23,11 +23,14 @@ RUN useradd --create-home --shell /bin/bash sigos \
 USER sigos
 
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
 ENV UPLOAD_DIR=/app/uploads
 
 EXPOSE 5000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/health')"
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "wsgi_prod:app"]
+ENTRYPOINT ["/app/docker/entrypoint.sh"]
+CMD ["api"]

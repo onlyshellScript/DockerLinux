@@ -21,7 +21,7 @@ Suite de regresión de referencia (Fase 2): **257 passed, 10 skipped, 0 failed**
 | F5 | Filtrado / Paginación (RF-03, RF-10) | Filtros y paginación del listado de órdenes | Cerrado | `tests/test_workorders.py::test_work_orders_list_filters_and_pagination` en verde. |
 | Secretos / Config | Configuración por entorno | Fallback con credenciales hardcodeadas y JWT secret débil (H9) | Cerrado | `Config` y `ProductionConfig` exigen `DB_URL`/`JWT_SECRET_KEY` por entorno; no hay defaults inseguros en código. |
 | Migraciones | Esquema / Alembic | Cadena activa vs. linaje histórico en inglés (`versions_backup`) | Parcial | Cadena activa `ef3ab0606ef4 → 3a374aacae1f → 615483f3bc21` coherente con modelos; `versions_backup` queda como histórico no ejecutable. Entornos legacy requieren migración de datos one-shot (ver `docs/architecture/auditoria-migraciones.md`). |
-| Docker | Despliegue / CI | Contenedores de producción y pipeline | Parcial | Dockerfile y `docker-compose.prod.yaml` corregidos (ODBC 18, healthcheck, `depends_on` sqlserver). Pendiente: CI aún expone contraseña SQL en texto plano (H16) y no construye imagen Docker (H17). |
+| Docker | Despliegue / CI | Contenedores de producción y pipeline | Cerrado | Entrypoint (`services/api/docker/entrypoint.sh`) espera SQL Server, crea la BD y aplica migraciones; worker de notificaciones como servicio aparte; compose prod sin puerto 1433 publicado y con `infra/docker/.env.prod.example`. CI con secreto y build de imagen (H16/H17 cerrados). Verificado 2026-11-18: `up --build` desde cero aplica 4 migraciones, health `UP` (app y BD), worker activo, reinicio sin re-migrar. |
 
 ## Notas
 
