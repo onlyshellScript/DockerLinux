@@ -68,7 +68,7 @@ services:
     build:
       context: ../../services/api
       dockerfile: Dockerfile
-    image: sigos-api:${SIGOS_VERSION:-latest}
+    image: ${SIGOS_IMAGE:-sigos-api}:${SIGOS_VERSION:-latest}
     command: ["migrate"]
     environment:
       <<: *api-env
@@ -83,7 +83,7 @@ services:
         condition: service_healthy
 
   api:
-    image: sigos-api:${SIGOS_VERSION:-latest}
+    image: ${SIGOS_IMAGE:-sigos-api}:${SIGOS_VERSION:-latest}
     command: ["api"]
     # Sin puertos publicados: solo el proxy la alcanza (gunicorn confía en X-Forwarded-* por eso).
     expose:
@@ -109,7 +109,7 @@ services:
       start_period: 90s
 
   worker:
-    image: sigos-api:${SIGOS_VERSION:-latest}
+    image: ${SIGOS_IMAGE:-sigos-api}:${SIGOS_VERSION:-latest}
     command: ["worker"]
     environment:
       <<: *api-env
