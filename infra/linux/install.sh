@@ -26,7 +26,7 @@
 #   --skip-desktop           no instalar la aplicacion de escritorio
 #   --desktop-appimage RUTA  usar este AppImage en lugar de descargarlo de las releases
 #   --desktop-user USUARIO   usuario de escritorio para el inicio automatico (por defecto $SUDO_USER)
-#   --autostart / --no-autostart   abrir SIGOS al iniciar sesion (por defecto: preguntar; con --yes, no)
+#   --autostart / --no-autostart   abrir SIGOS al iniciar sesion (por defecto: si, para el usuario que ejecuta sudo)
 #
 # Acceso a un registro privado: exporte GHCR_USER y GHCR_TOKEN (token con read:packages) antes de ejecutar;
 # el token se pasa a "docker login" por la entrada estandar, nunca por argumentos.
@@ -322,37 +322,78 @@ else
   if [[ -z "$appimage" ]]; then
     url="$SIGOS_RELEASES_URL/download/desktop-latest/SIGOS-Desktop-x86_64.AppImage"
     info "Descargando $url"
-    if curl -fL --retry 3 -o "$tmpd/SIGOS.AppImage" "$url"; then appimage="$tmpd/SIGOS.AppImage"
-    else warn "No se pudo descargar SIGOS Desktop. Repita con --desktop-appimage RUTA o instale despues con: sudo sigos desktop-install RUTA"; fi
+    if curl -fsSL --retry 3 -o "$tmpd/SIGOS.AppImage" "$url"; then appimage="$tmpd/SIGOS.AppImage"
+    elif [[ -f "$REPO_ROOT/apps/desktop/package.json" ]]; then
+      info "No hay version publicada; se construye SIGOS Desktop desde el codigo con Docker (Node 22, 3-8 minutos)..."
+      # Sin montajes (los archivos entran y salen por stdin/stdout): funciona con SELinux en modo enforcing.
+      if tar cf - -C "$REPO_ROOT/apps/desktop" --exclude=node_modules --exclude=dist . \
+         | docker run --rm -i node:22 bash -c 'mkdir /w && cd /w && tar xf - && npm ci --no-audit --no-fund >&2 \
+             && npx electron-builder --linux AppImage --publish never >&2 && cat dist/SIGOS-Desktop-x86_64.AppImage' \
+             > "$tmpd/SIGOS.AppImage" && [[ -s "$tmpd/SIGOS.AppImage" ]]; then
+        appimage="$tmpd/SIGOS.AppImage"; ok "SIGOS Desktop construido"
+      else
+        warn "No se pudo construir SIGOS Desktop. Instale despues con: sudo sigos desktop-install RUTA.AppImage"
+      fi
+    else
+      warn "No se pudo descargar SIGOS Desktop. Instale despues con: sudo sigos desktop-install RUTA.AppImage"
+    fi
   fi
   if [[ -n "$appimage" ]]; then
-    [[ -f "$appimage" ]] || die "$EXIT_PREREQ" "No existe $appimage"
+    [[ -s "$appimage" ]] || die "$EXIT_PREREQ" "No existe o esta vacio: $appimage"
     [[ "$appimage" == "$tmpd/SIGOS.AppImage" ]] || cp "$appimage" "$tmpd/SIGOS.AppImage"
     chmod 755 "$tmpd/SIGOS.AppImage"
     # Se extrae (no requiere FUSE) y se instala de forma atomica.
     (cd "$tmpd" && ./SIGOS.AppImage --appimage-extract >/dev/null) || die "$EXIT_PREREQ" "No se pudo extraer el AppImage."
     rm -rf "$app_dir.new"; mv "$tmpd/squashfs-root" "$app_dir.new"
-    chmod -R go-w "$app_dir.new"; chmod 755 "$app_dir.new"
+    # Legible y ejecutable por todos los usuarios (la extraccion hereda el umask de root), escribible solo por root.
+    chown -R root:root "$app_dir.new"; chmod -R u=rwX,go=rX "$app_dir.new"
     # Sandbox de Chromium: chrome-sandbox debe ser root:root 4755 (se mantiene el sandbox activo).
     if [[ -f "$app_dir.new/chrome-sandbox" ]]; then chown root:root "$app_dir.new/chrome-sandbox"; chmod 4755 "$app_dir.new/chrome-sandbox"; fi
     rm -rf "$app_dir.old"; [[ -d "$app_dir" ]] && mv "$app_dir" "$app_dir.old"; mv "$app_dir.new" "$app_dir"; rm -rf "$app_dir.old"
+    # Librerias del sistema que necesita Electron (GTK, NSS, audio...). En escritorios completos ya estan;
+    # en instalaciones minimas se instalan las que falten.
+    missing_libs() { ldd "$app_dir/sigos-desktop" 2>/dev/null | awk '/not found/ {print $1}' | sort -u; }
+    libs="$(missing_libs)"
+    if [[ -n "$libs" ]]; then
+      info "Instalando librerias que faltan para SIGOS Desktop: $(echo "$libs" | tr '\n' ' ')"
+      # shellcheck disable=SC2046,SC2086  # separacion intencionada: una capacidad por libreria
+      case "$family" in
+        suse) zypper --non-interactive install --no-recommends $(printf '%s()(64bit) ' $libs) >/dev/null 2>&1 \
+                || for l in $libs; do zypper --non-interactive install --no-recommends "$l()(64bit)" >/dev/null 2>&1 || true; done ;;
+        rhel) dnf -y install $(printf '%s()(64bit) ' $libs) >/dev/null 2>&1 || true ;;
+        debian)
+          DEBIAN_FRONTEND=noninteractive apt-get update -qq >/dev/null 2>&1 || true
+          for p in libgtk-3-0 libgtk-3-0t64 libnss3 libgbm1 libxss1 libcups2 libcups2t64 libatspi2.0-0 libatspi2.0-0t64 \
+                   libasound2 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libdrm2 libatk-bridge2.0-0 libatk-bridge2.0-0t64; do
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$p" >/dev/null 2>&1 || true
+          done ;;
+      esac
+      libs="$(missing_libs)"
+      if [[ -n "$libs" ]]; then warn "Siguen faltando librerias para SIGOS Desktop: $(echo "$libs" | tr '\n' ' ')"
+      else ok "Librerias de SIGOS Desktop instaladas"; fi
+    fi
     install -d /usr/share/icons/hicolor/512x512/apps /usr/share/applications
     icon_src=""
     for c in "$app_dir/sigos-desktop.png" "$app_dir/usr/share/icons/hicolor/512x512/apps/sigos-desktop.png" "$SRC_DIR/desktop/sigos-desktop.png"; do
       [[ -f "$c" ]] && { icon_src="$c"; break; }
     done
     [[ -n "$icon_src" ]] && install -m 644 "$icon_src" /usr/share/icons/hicolor/512x512/apps/sigos-desktop.png
-    sed "s#{{EXEC}}#$app_dir/AppRun#" "$SRC_DIR/desktop/sigos-desktop.desktop" > /usr/share/applications/sigos-desktop.desktop
+    # Se ejecuta el binario: AppRun solo funciona dentro del AppImage montado (necesita APPDIR).
+    [[ -x "$app_dir/sigos-desktop" ]] || die "$EXIT_PREREQ" "El AppImage no contiene sigos-desktop: no es un build valido de SIGOS Desktop."
+    sed "s#{{EXEC}}#$app_dir/sigos-desktop#" "$SRC_DIR/desktop/sigos-desktop.desktop" > /usr/share/applications/sigos-desktop.desktop
     chmod 644 /usr/share/applications/sigos-desktop.desktop
+    # Con SELinux, lo extraido en /tmp conserva etiquetas tmp_t: se restauran las de su ubicacion definitiva.
+    if command -v restorecon >/dev/null; then restorecon -R "$app_dir" /usr/share/applications/sigos-desktop.desktop /usr/share/icons/hicolor/512x512/apps >/dev/null 2>&1 || true; fi
     command -v update-desktop-database >/dev/null && update-desktop-database -q /usr/share/applications || true
     command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || true
     ok "SIGOS Desktop instalado: menu de aplicaciones > SIGOS"
     if [[ -z "$AUTOSTART" ]]; then
-      ask_yes_no "¿Abrir SIGOS automaticamente al iniciar sesion${DESKTOP_USER:+ ($DESKTOP_USER)}?" n && AUTOSTART=1 || AUTOSTART=0
+      ask_yes_no "¿Abrir SIGOS automaticamente al iniciar sesion${DESKTOP_USER:+ ($DESKTOP_USER)}?" s && AUTOSTART=1 || AUTOSTART=0
     fi
     if [[ "$AUTOSTART" == "1" ]]; then
       if [[ -n "$DESKTOP_USER" ]] && id "$DESKTOP_USER" >/dev/null 2>&1; then
-        su - "$DESKTOP_USER" -s /bin/sh -c "/usr/local/bin/sigos autostart on" && ok "Inicio automatico activado para $DESKTOP_USER"
+        if su - "$DESKTOP_USER" -s /bin/sh -c "/usr/local/bin/sigos autostart on" >/dev/null; then ok "Inicio automatico activado para $DESKTOP_USER"
+        else warn "No se pudo activar el inicio automatico para $DESKTOP_USER. Hagalo con su usuario: sigos autostart on"; fi
       else
         warn "Sin usuario de escritorio (--desktop-user). Cada usuario puede activarlo con: sigos autostart on"
       fi

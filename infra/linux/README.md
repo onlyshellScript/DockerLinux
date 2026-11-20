@@ -61,7 +61,7 @@ Opciones frecuentes:
 | `--http-port 8080` | Otro puerto HTTP, si el 80 está ocupado |
 | `--domain sigos.empresa.com` | HTTPS automático con Let's Encrypt (requiere DNS y los puertos 80/443 abiertos) |
 | `--version TAG` | Instala una versión concreta de la imagen (`latest`, `1.0.0-rc.1`, `sha-abc1234`) |
-| `--autostart` / `--no-autostart` | Abre o no SIGOS Desktop al iniciar sesión |
+| `--autostart` / `--no-autostart` | Abre o no SIGOS Desktop al iniciar sesión (por defecto sí, para el usuario que ejecuta `sudo`) |
 | `--desktop-appimage RUTA` | Usa un AppImage local en lugar de descargarlo |
 | `--skip-desktop` | Solo el servidor, por ejemplo en un servidor sin escritorio |
 

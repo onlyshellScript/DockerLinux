@@ -59,7 +59,7 @@ case "$cmd" in
   desktop-install)
     require_root; require_installed
     [[ -n "${1:-}" ]] || die "$EXIT_USAGE" "Uso: sudo sigos desktop-install RUTA.AppImage"
-    exec "$SIGOS_HOME/src/infra/linux/install.sh" --yes --no-pull --no-docker-install --no-autostart --desktop-appimage "$(readlink -f "$1")" ;;
+    exec "$SIGOS_HOME/src/infra/linux/install.sh" --yes --no-pull --no-docker-install --desktop-appimage "$(readlink -f "$1")" ;;
   autostart) autostart "$@" ;;
   uninstall) exec "$BIN_DIR/uninstall.sh" "$@" ;;
   version)
